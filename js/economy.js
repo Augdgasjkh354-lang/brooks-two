@@ -267,7 +267,6 @@ export function updateEconomy(world, options = {}) {
 
   const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
   const commerceGDP = clamp(preStabilityCommerceGDP * efficiencyMultiplier);
-  const lostGrainOutput = clamp(potentialGrainOutput - grainOutput);
 
   const treasuryAfterCommerce = collectTax
     ? availableGrainForCommerce - grainConsumedByCommerce
@@ -277,31 +276,14 @@ export function updateEconomy(world, options = {}) {
   const supplyRatio = treasuryAfterCommerce / safePopulationDemand;
   const grainPrice = getGrainPrice(supplyRatio);
 
-  const agricultureGDP = clamp(grainOutput * grainPrice);
-
-  const constructionGDP = clamp(world.constructionGDP ?? 0);
-  const gdpEstimate = clamp(agricultureGDP + commerceGDP + constructionGDP);
-
-  const grainDemandTotal = clamp(world.totalPopulation * (world.grainDemandPerPerson ?? 0));
-  const grainBalance = grainOutput - grainDemandTotal;
-  const grainPerCapita =
-    world.totalPopulation > 0 ? clamp(grainOutput / world.totalPopulation) : 0;
-  const grainCoverageRatio =
-    grainDemandTotal > 0 ? clampRatio(grainOutput / grainDemandTotal) : 1;
-
-  const farmerIncomePerHead =
-    (world.farmingLaborAllocated ?? 0) > 0 ? (grainOutput * 0.3) / world.farmingLaborAllocated : 0;
-
-  const merchantIncomePerHead =
-    (world.merchantCount ?? 0) > 0 ? (commerceGDP * 0.5) / world.merchantCount : 0;
-
-  const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
+  let adjustedGrainOutput = grainOutput;
+  let adjustedCommerceGDP = commerceGDP;
+  let additionalStabilityPenalty = 0;
   const demandShortfall = demandSaturation < 0.5;
 
   world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency * efficiencyMultiplier);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
-  world.lostGrainOutput = lostGrainOutput;
 
   world.operatingShops = clamp(operatingShops);
   world.idleShops = clamp(idleShops);
@@ -314,21 +296,7 @@ export function updateEconomy(world, options = {}) {
   world.backingRatio = backingRatio;
   world.inflationRate = inflationRate;
 
-  world.agricultureGDP = agricultureGDP;
-  world.commerceGDP = clamp(commerceGDP);
-  world.gdpEstimate = gdpEstimate;
-
-  world.grainDemandTotal = grainDemandTotal;
-  world.grainBalance = grainBalance;
-  world.grainPerCapita = grainPerCapita;
-  world.grainCoverageRatio = grainCoverageRatio;
-  world.foodSecurityStatus = getFoodSecurityStatus(grainCoverageRatio);
-  world.foodSecurityIndex = Math.round(grainCoverageRatio * 100);
   world.lastAgriculturalTax = agriculturalTax;
-
-  world.farmerIncomePerHead = farmerIncomePerHead;
-  world.merchantIncomePerHead = merchantIncomePerHead;
-  world.incomeGap = incomeGap;
 
   world.stabilityPenalty = stabilityPenalty;
   world.stabilityPenaltyReason =
@@ -347,6 +315,86 @@ export function updateEconomy(world, options = {}) {
   world.merchantSatisfaction = satisfaction.merchantSatisfaction;
   world.officialSatisfaction = satisfaction.officialSatisfaction;
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
+
+  const activeBehaviorWarnings = [];
+  const behaviorMessages = [];
+
+  if (world.farmerSatisfaction < 40) {
+    adjustedGrainOutput = clamp(adjustedGrainOutput * 0.8);
+    activeBehaviorWarnings.push('⚠️ 农民消极怠工：农业产出降低 20%');
+    behaviorMessages.push('农民消极怠工，农业产出下降');
+  }
+
+  if (world.merchantSatisfaction < 20) {
+    adjustedCommerceGDP = clamp(adjustedCommerceGDP * 0.5);
+    activeBehaviorWarnings.push('⚠️ 商业市场大规模萎缩：商业产出降低 50%');
+    behaviorMessages.push('商业市场大规模萎缩');
+  } else if (world.merchantSatisfaction < 40) {
+    adjustedCommerceGDP = clamp(adjustedCommerceGDP * 0.7);
+    activeBehaviorWarnings.push('⚠️ 商人拒收粮劵：商业产出降低 30%');
+    behaviorMessages.push('商人拒收粮劵，改用实物交易');
+  }
+
+  if (world.officialSatisfaction < 40) {
+    additionalStabilityPenalty = 10;
+    activeBehaviorWarnings.push('⚠️ 官员消极：政策效果降低 20%，稳定度额外 -10');
+    behaviorMessages.push('官员消极，政策执行力下降');
+  }
+
+  if (world.landlordSatisfaction < 40) {
+    activeBehaviorWarnings.push('⚠️ 地主抵制开荒：土地扩张受阻');
+    behaviorMessages.push('地主抵制开荒，土地扩张受阻');
+  }
+
+  world.officialPolicyEffectMultiplier = world.officialSatisfaction < 40 ? 0.8 : 1.0;
+  world.activeBehaviorWarnings = activeBehaviorWarnings;
+  world.behaviorMessages = behaviorMessages;
+
+  if (additionalStabilityPenalty > 0) {
+    world.stabilityPenalty += additionalStabilityPenalty;
+    world.stabilityIndex = Math.max(0, (world.stabilityIndex ?? 0) - additionalStabilityPenalty);
+    world.stabilityPenaltyReason = `${world.stabilityPenaltyReason}; official compliance penalty -${additionalStabilityPenalty}`;
+  }
+
+  const lostGrainOutput = clamp(potentialGrainOutput - adjustedGrainOutput);
+  const agricultureGDP = clamp(adjustedGrainOutput * grainPrice);
+  const constructionGDP = clamp(world.constructionGDP ?? 0);
+  const gdpEstimate = clamp(agricultureGDP + adjustedCommerceGDP + constructionGDP);
+
+  const grainDemandTotal = clamp(world.totalPopulation * (world.grainDemandPerPerson ?? 0));
+  const grainBalance = adjustedGrainOutput - grainDemandTotal;
+  const grainPerCapita =
+    world.totalPopulation > 0 ? clamp(adjustedGrainOutput / world.totalPopulation) : 0;
+  const grainCoverageRatio =
+    grainDemandTotal > 0 ? clampRatio(adjustedGrainOutput / grainDemandTotal) : 1;
+
+  const farmerIncomePerHead =
+    (world.farmingLaborAllocated ?? 0) > 0
+      ? (adjustedGrainOutput * 0.3) / world.farmingLaborAllocated
+      : 0;
+
+  const merchantIncomePerHead =
+    (world.merchantCount ?? 0) > 0 ? (adjustedCommerceGDP * 0.5) / world.merchantCount : 0;
+
+  const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
+
+  world.actualGrainOutput = adjustedGrainOutput;
+  world.grainYieldPerMu =
+    (world.farmlandAreaMu ?? 0) > 0 ? clamp(adjustedGrainOutput / world.farmlandAreaMu) : 0;
+  world.lostGrainOutput = lostGrainOutput;
+  world.agricultureGDP = agricultureGDP;
+  world.commerceGDP = clamp(adjustedCommerceGDP);
+  world.gdpEstimate = gdpEstimate;
+
+  world.grainDemandTotal = grainDemandTotal;
+  world.grainBalance = grainBalance;
+  world.grainPerCapita = grainPerCapita;
+  world.grainCoverageRatio = grainCoverageRatio;
+  world.foodSecurityStatus = getFoodSecurityStatus(grainCoverageRatio);
+  world.foodSecurityIndex = Math.round(grainCoverageRatio * 100);
+  world.farmerIncomePerHead = farmerIncomePerHead;
+  world.merchantIncomePerHead = merchantIncomePerHead;
+  world.incomeGap = incomeGap;
 
   const taxGrainRatio = clampRatio(world.taxGrainRatio ?? 1);
   const salaryGrainRatio = clampRatio(world.salaryGrainRatio ?? 1);
@@ -381,13 +429,14 @@ export function updateEconomy(world, options = {}) {
   }
 
   return {
-    grainOutput,
+    grainOutput: adjustedGrainOutput,
     potentialGrainOutput,
     lostGrainOutput,
     agriculturalTax,
     grainDemandTotal,
     grainBalance,
     grainCoverageRatio,
+    behaviorMessages,
   };
 }
 

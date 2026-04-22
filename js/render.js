@@ -107,6 +107,30 @@ function getClassSatisfactionFactors(world) {
   };
 }
 
+function getActiveBehaviorWarnings(world) {
+  const warnings = [];
+
+  if ((world.farmerSatisfaction ?? 70) < 40) {
+    warnings.push('农民消极怠工，农业产出下降');
+  }
+
+  if ((world.merchantSatisfaction ?? 70) < 20) {
+    warnings.push('商业市场大规模萎缩');
+  } else if ((world.merchantSatisfaction ?? 70) < 40) {
+    warnings.push('商人拒收粮劵，改用实物交易');
+  }
+
+  if ((world.officialSatisfaction ?? 70) < 40) {
+    warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
+  }
+
+  if ((world.landlordSatisfaction ?? 70) < 40) {
+    warnings.push('地主抵制开荒，土地扩张受阻');
+  }
+
+  return warnings;
+}
+
 function getInflationDisplay(inflationRate) {
   if (inflationRate >= 0.3) {
     return {
@@ -328,6 +352,9 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
   const landlordSatisfactionHtml = `<span style="color: ${landlordSatisfactionDisplay.color}; font-weight: 700;">${formatNumber(
     world.landlordSatisfaction ?? 70
   )}</span> / 100 (${landlordSatisfactionDisplay.label})`;
+  const behaviorWarnings = getActiveBehaviorWarnings(world);
+  const behaviorWarningsText =
+    behaviorWarnings.length > 0 ? behaviorWarnings.join(' | ') : 'No active behavior warnings';
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -393,6 +420,7 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Official Factors', classFactors.official),
     statItem('Landlord Satisfaction', landlordSatisfactionHtml),
     statItem('Landlord Factors', classFactors.landlord),
+    statItem('Class Behavior Warnings', behaviorWarningsText),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
     statItem('Last Tax Collection', taxCollectionText),
     statItem('Tax Snapshot Mode', taxModeText),
