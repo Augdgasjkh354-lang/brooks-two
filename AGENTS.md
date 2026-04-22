@@ -58,3 +58,108 @@ Phase 0 is complete. Now implementing Phase 1A only.
 - Under-staffed farms produce less grain proportionally
 - UI shows: total labor / farming / idle / land utilization %
 - Opening state (30000 mu, 3000 labor) shows 100% utilization
+## Phase 1B Scope (Current)
+
+Phase 1A is complete. Now implementing Phase 1B only.
+
+**Goal:** Make land the second real constraint. Farming is limited
+by both labor AND farmland. Players can expand land via land
+reclamation, but it costs grain and labor.
+
+**Rules:**
+
+Land reclamation:
+- Minimum order: 1000 mu per reclamation action
+- Cost: 500 grain per 100 mu (5 grain/mu)
+- Reclamation takes 1 year (available next year-advance)
+- Cost is paid immediately from grainTreasury
+- Reclamation cost counts as farmer income (stimulates economy)
+- Cannot reclaim if grainTreasury < total cost
+
+State additions needed in world{}:
+- pendingFarmlandMu: 0  (land being reclaimed, added next year)
+- reclaimedThisYear: 0  (for log display)
+
+**Files to modify:** state.js, economy.js, render.js, game.js  
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 1B):**
+- Reclaim land button visible in UI with cost preview
+- Cannot reclaim if insufficient grain
+- Grain deducted immediately on reclaim action
+- New land added at next year-advance
+- Year log shows reclamation event
+- Existing labor allocation logic from Phase 1A still works
+**Do NOT touch under any circumstances:** 
+unlocks.js, policies.js, population.js
+## Phase 1C Scope (Current)
+
+Phase 1B is complete. Now implementing Phase 1C only.
+
+**Goal:** Add a basic shop system as the first non-farming 
+employment sector. Shops create commercial jobs and generate
+non-agricultural economic activity.
+
+**Rules:**
+
+Shops:
+- Player can build shops (button in UI)
+- Each shop costs 2000 grain to build
+- Each shop employs 5 workers (drawn from idle labor)
+- Each shop generates 500 GDP per year
+- Cannot build shop if idle labor < 5
+- Cannot build shop if grainTreasury < 2000
+
+State additions needed in world{}:
+- shopCount: 0
+- laborAssignedCommerce: 0
+- commerceGDP: 0
+
+Labor priority: farming first, then commerce.
+If labor drops, commerce workers are released first.
+
+**Files to modify:** state.js, economy.js, render.js, game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 1C):**
+- Build Shop button visible, shows cost and labor requirement
+- Button disabled if not enough grain or idle labor
+- Shop count tracked in state
+- Commercial labor calculated each year
+- Commerce GDP added to total GDP display
+- UI shows shop count and commercial employment
+**NEVER modify under any circumstances:**
+unlocks.js, policies.js, population.js
+
+population.js was finalized in Phase 1A. 
+Any labor logic changes go in economy.js only.
+## Phase 1D Scope (Current)
+
+Phase 1C is complete. Now implementing Phase 1D only.
+
+**Goal:** Split GDP into three real sectors so the player can
+see the economic structure, not just a single number.
+
+**Rules:**
+
+GDP breakdown:
+- Agricultural GDP = actualGrainOutput * grain price (1 grain = 1)
+- Commercial GDP = shopCount * 500 (already tracked)
+- Construction GDP = reclamation spending that year
+- Total GDP = sum of all three
+
+State additions needed in world{}:
+- agricultureGDP: 0
+- constructionGDP: 0
+(commerceGDP already exists from Phase 1C)
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 1D):**
+- GDP panel shows three lines: Agriculture / Commerce /
+  Construction
+- Total GDP = sum of three sectors
+- All three update correctly on each year-advance
+- Construction GDP is 0 in years with no reclamation
