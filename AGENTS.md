@@ -398,3 +398,32 @@ game.js
 - agricultureGDP uses grainPrice multiplier
 - UI shows grain price and supply ratio
 - UI shows grain consumed by commerce this year
+## Phase 2C-3 Scope (Current)
+
+Phase 2C-1+2 is complete. Now implementing Phase 2C-3 only.
+
+**Goal:** High commercial income accelerates population growth.
+Forms a positive feedback loop between commerce and population.
+
+**Rules:**
+
+Population growth adjustment:
+- Base growth rate: 2%
+- If merchantIncomePerHead > farmerIncomePerHead * 1.5:
+  growth rate += 0.5% (commerce is thriving)
+- If demandShortfall is true:
+  growth rate -= 0.5% (already implemented in 2B-3)
+- Both conditions can apply simultaneously
+- Final growth rate floored at 0.5% (never negative)
+
+No new state fields needed.
+
+**Files to modify:** population.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, game.js,
+state.js, economy.js
+
+**Definition of Done (Phase 2C-3):**
+- Population growth rate adjusted by commerce prosperity
+- Bonus applies when merchant income > 1.5x farmer income
+- UI shows current effective growth rate
+- UI shows which modifiers are active
