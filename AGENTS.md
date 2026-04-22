@@ -37,3 +37,24 @@ Do not implement in Phase 0: migration, schools, hospitals, stock market, housin
 - Grain coupons impossible before unlock
 - Grain coupon UI appears only after unlock
 - Required files are complete and non-placeholder
+## Phase 1A Scope (Current)
+
+Phase 0 is complete. Now implementing Phase 1A only.
+
+**Goal:** Make labor force a real constraint on agricultural output.
+
+**Rules:**
+- 10 mu of farmland requires 1 labor unit to farm
+- Required farming labor = farmlandAreaMu / 10
+- Actual farming labor = min(laborForce, required)
+- Idle labor = laborForce - actual farming labor
+- Farm efficiency = actual / required (grain output scales with this)
+
+**Files to modify:** state.js, population.js, render.js  
+**Do NOT touch:** unlocks.js, policies.js, game.js, economy.js
+
+**Definition of Done (Phase 1A):**
+- Labor allocation calculated every year-advance
+- Under-staffed farms produce less grain proportionally
+- UI shows: total labor / farming / idle / land utilization %
+- Opening state (30000 mu, 3000 labor) shows 100% utilization
