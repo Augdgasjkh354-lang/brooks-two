@@ -51,7 +51,12 @@ export function updateEconomy(world, options = {}) {
   const idleShops = Math.max(0, (world.shopCount ?? 0) - operatingShops);
 
   const agricultureGDP = grainOutput;
-  const commerceGDP = clamp(operatingShops * 500);
+
+  const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
+  const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
+  const efficiencyRate = demandSaturation > 1 ? 1 / demandSaturation : 1;
+  const commerceGDP = clamp(operatingShops * 500 * efficiencyRate);
+
   const constructionGDP = clamp(world.constructionGDP ?? 0);
   const gdpEstimate = clamp(agricultureGDP + commerceGDP + constructionGDP);
 
@@ -71,9 +76,6 @@ export function updateEconomy(world, options = {}) {
     (world.merchantCount ?? 0) > 0 ? (commerceGDP * 0.5) / world.merchantCount : 0;
 
   const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
-
-  const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
-  const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
 
   world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency);
   world.potentialGrainOutput = potentialGrainOutput;
