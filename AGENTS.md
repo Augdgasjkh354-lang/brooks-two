@@ -427,3 +427,38 @@ state.js, economy.js
 - Bonus applies when merchant income > 1.5x farmer income
 - UI shows current effective growth rate
 - UI shows which modifiers are active
+## Phase 3A-1 Scope (Current)
+
+Phase 2C-3 is complete. Now implementing Phase 3A-1 only.
+
+**Goal:** Add a social stability index driven by income
+inequality. High income gap = lower stability.
+
+**Rules:**
+
+Stability index:
+- stabilityIndex range: 0 to 100
+- Base stability: 80
+- Income gap penalty:
+  If incomeGap < 500: no penalty
+  If incomeGap 500-1000: -10
+  If incomeGap 1000-2000: -20
+  If incomeGap > 2000: -30
+- stabilityIndex = base - penalties (floored at 0)
+- Recalculated every year-advance
+
+State additions needed in world{}:
+- stabilityIndex: 80
+- stabilityPenalty: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3A-1):**
+- stabilityIndex calculated every year
+- UI shows stability index with color coding:
+  80-100: green (stable)
+  50-79: yellow (tense)
+  0-49: red (unstable)
+- UI shows current income gap and penalty reason
