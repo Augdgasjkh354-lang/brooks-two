@@ -629,3 +629,39 @@ game.js
 - UI shows current ratio settings clearly
 - Warning shown if coupon treasury insufficient for
   salary payment
+## Phase 3B-2 Scope (Current)
+
+Phase 3B-1b is complete. Now implementing Phase 3B-2 only.
+
+**Goal:** Coupon circulation affects commercial activity.
+More coupons in circulation = more active commerce.
+
+**Rules:**
+
+Commerce activity multiplier from coupon circulation:
+- Only applies when grainCouponsUnlocked = true
+- circulationRatio = couponCirculating / totalPopulation
+  (coupons per person)
+- If circulationRatio >= 2.0: commerceActivityBonus = 1.2
+- If circulationRatio 1.0-1.99: commerceActivityBonus = 1.0
+- If circulationRatio 0.5-0.99: commerceActivityBonus = 0.85
+- If circulationRatio < 0.5: commerceActivityBonus = 0.7
+- Before unlock: commerceActivityBonus = 1.0 (no effect)
+
+Apply to commerceGDP:
+- commerceGDP *= commerceActivityBonus
+
+State additions needed in world{}:
+- circulationRatio: 0
+- commerceActivityBonus: 1.0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3B-2):**
+- circulationRatio calculated each year-advance
+- commerceActivityBonus applied to commerceGDP
+- UI shows circulation ratio and activity bonus
+- UI shows estimated commerce boost/penalty
+- No effect before grainCouponsUnlocked = true
