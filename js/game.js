@@ -50,6 +50,14 @@ function nextYear() {
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
 
+  if ((state.world.landlordSatisfaction ?? 70) < 40) {
+    const blockedFarmland = Math.max(0, state.world.pendingFarmlandMu ?? 0);
+    if (blockedFarmland > 0) {
+      state.world.pendingFarmlandMu = 0;
+      state.world.reclaimedThisYear = 0;
+    }
+  }
+
   recordEconomySnapshot(econResult, true);
 
   logYearSummary({
@@ -58,6 +66,10 @@ function nextYear() {
     grainOutput: econResult.grainOutput,
     potentialGrainOutput: econResult.potentialGrainOutput,
     lostGrainOutput: econResult.lostGrainOutput,
+  });
+
+  (econResult.behaviorMessages ?? []).forEach((message) => {
+    state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
   });
 
   render();
@@ -90,12 +102,15 @@ function useGrainRedistribution() {
     return;
   }
 
+  const policyEffectMultiplier = state.world.officialPolicyEffectMultiplier ?? 1;
+  const stabilityGain = Math.round(15 * policyEffectMultiplier);
+
   state.world.grainTreasury -= 5000;
-  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + 15);
+  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
   state.world.grainRedistributionUsed = true;
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: Grain Redistribution enacted (-5000 grain treasury, +15 stability).`
+    `Year ${state.world.year}: Grain Redistribution enacted (-5000 grain treasury, +${stabilityGain} stability).`
   );
 
   render();
@@ -114,17 +129,25 @@ function useMerchantTax() {
     return;
   }
 
-  state.world.merchantIncomePerHead = (state.world.merchantIncomePerHead ?? 0) * 0.8;
+  const policyEffectMultiplier = state.world.officialPolicyEffectMultiplier ?? 1;
+  const merchantIncomeReduction = 0.2 * policyEffectMultiplier;
+  const stabilityGain = Math.round(10 * policyEffectMultiplier);
+  const treasuryGainPerMerchant = 200 * policyEffectMultiplier;
+
+  state.world.merchantIncomePerHead =
+    (state.world.merchantIncomePerHead ?? 0) * (1 - merchantIncomeReduction);
   state.world.incomeGap =
     (state.world.merchantIncomePerHead ?? 0) - (state.world.farmerIncomePerHead ?? 0);
-  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + 10);
+  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
 
-  const taxGain = (state.world.merchantCount ?? 0) * 200;
+  const taxGain = Math.round((state.world.merchantCount ?? 0) * treasuryGainPerMerchant);
   state.world.grainTreasury += taxGain;
   state.world.merchantTaxUsed = true;
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: Merchant Tax enacted (merchant income -20%, +10 stability, +${taxGain} grain treasury).`
+    `Year ${state.world.year}: Merchant Tax enacted (merchant income -${Math.round(
+      merchantIncomeReduction * 100
+    )}%, +${stabilityGain} stability, +${taxGain} grain treasury).`
   );
 
   render();
