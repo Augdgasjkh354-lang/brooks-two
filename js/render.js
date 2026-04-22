@@ -5,6 +5,13 @@ function formatNumber(num) {
   return new Intl.NumberFormat().format(num);
 }
 
+function formatDecimal(num, digits = 2) {
+  return Number(num ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
 function statItem(label, value) {
   return `
     <div class="stat-item">
@@ -30,6 +37,12 @@ export function renderCoreStats(state) {
       : `Projected only in Year ${latestSnapshot.year}`
     : 'No yearly snapshot yet';
 
+  const demandSaturationPercent = (world.demandSaturation ?? 0) * 100;
+  const demandWarning =
+    (world.demandSaturation ?? 0) > 1
+      ? `<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>`
+      : '';
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -38,10 +51,8 @@ export function renderCoreStats(state) {
       'Farming Labor',
       `${formatNumber(world.farmingLaborAllocated ?? 0)} / ${formatNumber(world.farmingLaborRequired ?? 0)}`
     ),
-    statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
-    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
-    statItem('Farm Efficiency', `${Math.round((world.farmEfficiency ?? 0) * 100)}%`),
-    statItem('Farming Labor', formatNumber(world.farmingLaborAllocated ?? 0)),
+    statItem('Commerce Labor', formatNumber(world.laborAssignedCommerce ?? 0)),
+    statItem('Merchants', formatNumber(world.merchantCount ?? 0)),
     statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
     statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
     statItem('Children', formatNumber(world.children)),
@@ -51,6 +62,14 @@ export function renderCoreStats(state) {
     statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0)),
     statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0)),
     statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0)),
+    statItem('Shop Count', formatNumber(world.shopCount ?? 0)),
+    statItem(
+      'Operating / Idle Shops',
+      `${formatNumber(world.operatingShops ?? 0)} / ${formatNumber(world.idleShops ?? 0)}`
+    ),
+    statItem('Max Market Demand (shops)', formatDecimal(world.maxMarketDemand ?? 0, 1)),
+    statItem('Demand Saturation', `${formatDecimal(demandSaturationPercent, 1)}%`),
+    demandWarning,
     statItem('Grain Demand / person', formatNumber(world.grainDemandPerPerson ?? 0)),
     statItem('Total Grain Demand', formatNumber(world.grainDemandTotal ?? 0)),
     statItem('Grain Balance', formatNumber(world.grainBalance ?? 0)),
@@ -58,13 +77,18 @@ export function renderCoreStats(state) {
     statItem('Grain Coverage', `${Math.round((world.grainCoverageRatio ?? 0) * 100)}%`),
     statItem('Food Security', world.foodSecurityStatus ?? 'Unknown'),
     statItem('Food Security Index', `${Math.round(world.foodSecurityIndex ?? 0)} / 100`),
-    statItem('Food Security', world.foodSecurityStatus ?? 'Unknown'),
+    statItem('Farmer Income / Head', formatDecimal(world.farmerIncomePerHead ?? 0, 2)),
+    statItem('Merchant Income / Head', formatDecimal(world.merchantIncomePerHead ?? 0, 2)),
+    statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2)),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
     statItem('Last Tax Collection', taxCollectionText),
     statItem('Tax Snapshot Mode', taxModeText),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
-    statItem('GDP Estimate', formatNumber(world.gdpEstimate)),
+    statItem('Agriculture GDP', formatNumber(world.agricultureGDP ?? 0)),
+    statItem('Commerce GDP', formatNumber(world.commerceGDP ?? 0)),
+    statItem('Construction GDP', formatNumber(world.constructionGDP ?? 0)),
+    statItem('GDP Estimate', formatNumber(world.gdpEstimate ?? 0)),
   ].join('');
 }
 
