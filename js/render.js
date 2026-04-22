@@ -96,6 +96,17 @@ function bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax) {
   }
 }
 
+function renderCouponDenominationBreakdown(world) {
+  const breakdown = world.lastCouponDenominationBreakdown ?? [];
+  if (breakdown.length === 0 || (world.lastCouponIssueAmount ?? 0) <= 0) {
+    return 'No issuance yet.';
+  }
+
+  return breakdown
+    .map((item) => `${item.label} × ${formatNumber(item.count)}`)
+    .join(' | ');
+}
+
 export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -192,6 +203,7 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Tax Snapshot Mode', taxModeText),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
+    statItem('Coupon Treasury (Gov Held)', formatNumber(world.couponTreasury ?? 0)),
     statItem('Agriculture GDP', formatNumber(world.agricultureGDP ?? 0)),
     statItem('Commerce GDP', formatNumber(world.commerceGDP ?? 0)),
     statItem('Construction GDP', formatNumber(world.constructionGDP ?? 0)),
@@ -244,9 +256,11 @@ export function renderSystems(state) {
 
   if (couponsUnlocked) {
     document.getElementById('grain-coupon-stats').innerHTML = [
-      statItem('Total Issued', formatNumber(state.grainCoupons.totalIssued)),
-      statItem('Government Reserves', formatNumber(state.grainCoupons.governmentReserves)),
-      statItem('Circulating Coupons', formatNumber(state.grainCoupons.circulating)),
+      statItem('Total Issued', formatNumber(state.world.couponTotalIssued ?? 0)),
+      statItem('Government Held', formatNumber(state.world.couponTreasury ?? 0)),
+      statItem('Circulating Coupons', formatNumber(state.world.couponCirculating ?? 0)),
+      statItem('Last Issue Amount', formatNumber(state.world.lastCouponIssueAmount ?? 0)),
+      statItem('Suggested Denominations', renderCouponDenominationBreakdown(state.world)),
     ].join('');
   }
 }

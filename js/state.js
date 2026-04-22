@@ -38,6 +38,11 @@ export const initialState = {
     lastAgriculturalTax: 0,
     lastTaxCollectionYear: 0,
     grainTreasury: 15000000,
+    couponTreasury: 0,
+    couponCirculating: 0,
+    couponTotalIssued: 0,
+    lastCouponIssueAmount: 0,
+    lastCouponDenominationBreakdown: [],
 
     totalGrainDemand: 0,
     grainPrice: 1.0,
@@ -63,11 +68,6 @@ export const initialState = {
 
     grainRedistributionUsed: false,
     merchantTaxUsed: false,
-  },
-  grainCoupons: {
-    totalIssued: 0,
-    governmentReserves: 0,
-    circulating: 0,
   },
   systems: {
     bankBuilt: false,
