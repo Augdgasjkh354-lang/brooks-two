@@ -199,3 +199,33 @@ economy.js
 - merchantCount tracked in state
 - UI shows merchant count alongside other labor stats
 - Idle labor correctly decreases when merchant assigned
+## Phase 2A-2 Scope (Current)
+
+Phase 2A-1 is complete. Now implementing Phase 2A-2 only.
+
+**Goal:** Shops now require merchants to operate. Shops without
+merchants produce zero GDP.
+
+**Rules:**
+
+Shop operation:
+- 1 shop requires 1 merchant to operate
+- operatingShops = min(shopCount, merchantCount)
+- idleShops = shopCount - operatingShops
+- commerceGDP = operatingShops * 500 (was shopCount * 500)
+
+No other changes to labor or state logic.
+
+State additions needed in world{}:
+- operatingShops: 0
+- idleShops: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 2A-2):**
+- operatingShops and idleShops calculated each year
+- commerceGDP based on operatingShops only
+- UI shows: operating shops / idle shops
+- If merchantCount = 0, all shops idle, commerceGDP = 0
