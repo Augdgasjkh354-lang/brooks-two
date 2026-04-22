@@ -44,6 +44,12 @@ export const initialState = {
     lastCouponIssueAmount: 0,
     lastCouponDenominationBreakdown: [],
 
+    taxGrainRatio: 1.0,
+    salaryGrainRatio: 1.0,
+    totalSalaryCost: 0,
+    lastSalaryCost: 0,
+    couponSalaryPaymentWarning: false,
+
     totalGrainDemand: 0,
     grainPrice: 1.0,
     supplyRatio: 1.0,

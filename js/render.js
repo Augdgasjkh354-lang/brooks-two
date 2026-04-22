@@ -107,6 +107,66 @@ function renderCouponDenominationBreakdown(world) {
     .join(' | ');
 }
 
+function renderRatioValue(value) {
+  const grainPercent = Math.round((value ?? 0) * 100);
+  const couponPercent = 100 - grainPercent;
+  return `Grain ${grainPercent}% / Coupon ${couponPercent}%`;
+}
+
+function getCouponRatioControlsHtml(world) {
+  return `
+    <div class="coupon-controls" style="display: block; margin-top: 12px;">
+      <label for="tax-grain-ratio-input">Tax Collection Mix</label>
+      <input
+        id="tax-grain-ratio-input"
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value="${world.taxGrainRatio ?? 1}"
+      />
+      <div id="tax-grain-ratio-value" class="muted">${renderRatioValue(world.taxGrainRatio ?? 1)}</div>
+    </div>
+
+    <div class="coupon-controls" style="display: block; margin-top: 12px;">
+      <label for="salary-grain-ratio-input">Official Salary Mix</label>
+      <input
+        id="salary-grain-ratio-input"
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value="${world.salaryGrainRatio ?? 1}"
+      />
+      <div id="salary-grain-ratio-value" class="muted">${renderRatioValue(world.salaryGrainRatio ?? 1)}</div>
+    </div>
+  `;
+}
+
+function bindCouponRatioEvents(state) {
+  const taxInput = document.getElementById('tax-grain-ratio-input');
+  const taxValue = document.getElementById('tax-grain-ratio-value');
+
+  if (taxInput && taxValue) {
+    taxInput.oninput = () => {
+      const nextValue = Math.max(0, Math.min(1, Number(taxInput.value)));
+      state.world.taxGrainRatio = nextValue;
+      taxValue.textContent = renderRatioValue(nextValue);
+    };
+  }
+
+  const salaryInput = document.getElementById('salary-grain-ratio-input');
+  const salaryValue = document.getElementById('salary-grain-ratio-value');
+
+  if (salaryInput && salaryValue) {
+    salaryInput.oninput = () => {
+      const nextValue = Math.max(0, Math.min(1, Number(salaryInput.value)));
+      state.world.salaryGrainRatio = nextValue;
+      salaryValue.textContent = renderRatioValue(nextValue);
+    };
+  }
+}
+
 export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -147,6 +207,11 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     efficiencyMultiplier < 1
       ? `⚠️ Estimated output loss ${formatDecimal(outputLossPercent, 1)}% due to low stability`
       : 'No stability-related output loss';
+
+  const salaryWarningText =
+    world.couponSalaryPaymentWarning
+      ? '⚠️ Coupon treasury was insufficient for configured coupon salary payment. Salary paid fully in grain this year.'
+      : 'No salary payment warning';
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -202,6 +267,10 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Last Tax Collection', taxCollectionText),
     statItem('Tax Snapshot Mode', taxModeText),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
+    statItem('Tax Ratio (Grain/Coupon)', renderRatioValue(world.taxGrainRatio ?? 1)),
+    statItem('Salary Ratio (Grain/Coupon)', renderRatioValue(world.salaryGrainRatio ?? 1)),
+    statItem('Last Salary Cost', formatNumber(world.lastSalaryCost ?? 0)),
+    statItem('Salary Payment Warning', salaryWarningText),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
     statItem('Coupon Treasury (Gov Held)', formatNumber(world.couponTreasury ?? 0)),
     statItem('Agriculture GDP', formatNumber(world.agricultureGDP ?? 0)),
@@ -261,7 +330,12 @@ export function renderSystems(state) {
       statItem('Circulating Coupons', formatNumber(state.world.couponCirculating ?? 0)),
       statItem('Last Issue Amount', formatNumber(state.world.lastCouponIssueAmount ?? 0)),
       statItem('Suggested Denominations', renderCouponDenominationBreakdown(state.world)),
+      statItem('Tax Ratio', renderRatioValue(state.world.taxGrainRatio ?? 1)),
+      statItem('Salary Ratio', renderRatioValue(state.world.salaryGrainRatio ?? 1)),
+      getCouponRatioControlsHtml(state.world),
     ].join('');
+
+    bindCouponRatioEvents(state);
   }
 }
 
