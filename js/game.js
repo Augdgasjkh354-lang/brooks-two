@@ -138,9 +138,14 @@ function issueCouponsFromInput() {
   if (!result.success) {
     state.yearLog.unshift(`Year ${state.world.year}: Coupon issuance failed - ${result.reason}`);
   } else {
+    const denominationSummary = result.denominationBreakdown
+      .map((item) => `${item.label}×${item.count}`)
+      .join(', ');
+
     state.yearLog.unshift(
-      `Year ${state.world.year}: Issued ${result.issueAmount} grain coupons; ${result.releaseToCirculation} entered circulation.`
+      `Year ${state.world.year}: Issued ${result.issueAmount} grain coupons (1:1). Grain treasury +${result.issueAmount}, circulating coupons +${result.issueAmount}. Denominations: ${denominationSummary || 'N/A'}.`
     );
+    input.value = '';
   }
 
   render();
