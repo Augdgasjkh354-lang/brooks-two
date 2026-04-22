@@ -709,3 +709,70 @@ game.js
 - UI shows backing ratio and inflation rate
 - UI shows inflation warning when rate > 0%
 - Color coding: 0%=green, 5%=yellow, 15%=orange, 30%=red
+## Phase 3C-1 Scope (Current)
+
+Phase 3B-3 is complete. Now implementing Phase 3C-1 only.
+
+**Goal:** Each social class has its own satisfaction index
+driven by different factors. This is display only — no
+behavioral effects yet.
+
+**Rules:**
+
+Four classes, each with satisfaction 0-100:
+
+1. farmerSatisfaction
+- Base: 70
+- Penalties:
+  agriculturalTaxRate > 0.5: -15
+  inflationRate >= 15%: -10
+  grainTreasury < totalPopulation * 1: -20
+    (less than 1 jin per person = food insecurity)
+  taxGrainRatio < 0.5: -10
+    (forced to accept too many coupons)
+
+2. merchantSatisfaction
+- Base: 70
+- Penalties:
+  inflationRate >= 15%: -20
+  inflationRate >= 30%: additional -20
+  demandSaturation > 1.5: -10
+  stabilityIndex < 50: -15
+- Bonus:
+  commerceActivityBonus > 1.0: +10
+
+3. officialSatisfaction
+- Base: 70
+- Penalties:
+  salaryGrainRatio < 0.5 AND inflationRate >= 15%: -20
+  salaryGrainRatio < 0.3 AND inflationRate >= 5%: -15
+  stabilityIndex < 50: -10
+
+4. landlordSatisfaction (new class, display only for now)
+- Base: 70
+- Penalties:
+  inflationRate >= 15%: -15
+  grainPrice < 0.8: -10
+  stabilityIndex < 50: -10
+- Bonus:
+  farmlandAreaMu > 40000: +10
+
+All satisfaction values floored at 0, capped at 100.
+Recalculated every year-advance.
+
+State additions needed in world{}:
+- farmerSatisfaction: 70
+- merchantSatisfaction: 70
+- officialSatisfaction: 70
+- landlordSatisfaction: 70
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3C-1):**
+- All four satisfaction indices calculated each year
+- UI shows satisfaction panel with all four classes
+- Color coding per class:
+  70-100: green, 40-69: yellow, 0-39: red
+- UI shows which factors are penalizing each class
