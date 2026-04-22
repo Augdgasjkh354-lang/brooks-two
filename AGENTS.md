@@ -262,3 +262,36 @@ game.js
 - incomeGap = merchantIncomePerHead - farmerIncomePerHead
 - UI shows all three values in an income panel
 - If no merchants, merchant income shows 0
+## Phase 2B-1 Scope (Current)
+
+Phase 2A-3 is complete. Now implementing Phase 2B-1 only.
+
+**Goal:** Population size sets a natural ceiling on commercial
+demand. Too many shops for the population = diminishing returns.
+
+**Rules:**
+
+Demand ceiling:
+- maxMarketDemand = totalPopulation / 50
+  (1 shop can serve 50 people at full efficiency)
+- demandSaturation = operatingShops / maxMarketDemand
+  (capped at 1.0 max)
+- If demandSaturation <= 1.0: no penalty
+- If demandSaturation > 1.0: excess shops still operate
+  but display a warning
+
+No GDP changes yet. Saturation is display only.
+
+State additions needed in world{}:
+- maxMarketDemand: 0
+- demandSaturation: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 2B-1):**
+- maxMarketDemand calculated each year from population
+- demandSaturation calculated and stored
+- UI shows market demand panel with both values
+- Warning visible in UI when demandSaturation > 1.0
