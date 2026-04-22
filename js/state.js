@@ -52,6 +52,10 @@ export const initialState = {
     merchantIncomePerHead: 0,
     incomeGap: 0,
 
+    stabilityIndex: 80,
+    stabilityPenalty: 0,
+    stabilityPenaltyReason: 'No penalty (income gap below 500)',
+
     maxMarketDemand: 0,
     demandSaturation: 0,
     demandShortfall: false,

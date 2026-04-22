@@ -40,6 +40,34 @@ function getGrainPrice(supplyRatio) {
   return Math.max(0, supplyRatio);
 }
 
+function getStabilityPenaltyFromIncomeGap(incomeGap) {
+  if (incomeGap > 2000) {
+    return {
+      penalty: 30,
+      reason: 'Income gap above 2000 (-30)',
+    };
+  }
+
+  if (incomeGap >= 1000) {
+    return {
+      penalty: 20,
+      reason: 'Income gap 1000-2000 (-20)',
+    };
+  }
+
+  if (incomeGap >= 500) {
+    return {
+      penalty: 10,
+      reason: 'Income gap 500-1000 (-10)',
+    };
+  }
+
+  return {
+    penalty: 0,
+    reason: 'No penalty (income gap below 500)',
+  };
+}
+
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
 
@@ -98,6 +126,10 @@ export function updateEconomy(world, options = {}) {
   const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
   const demandShortfall = demandSaturation < 0.5;
 
+  const { penalty: stabilityPenalty, reason: stabilityPenaltyReason } =
+    getStabilityPenaltyFromIncomeGap(incomeGap);
+  const stabilityIndex = Math.max(0, 80 - stabilityPenalty);
+
   world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
@@ -125,6 +157,10 @@ export function updateEconomy(world, options = {}) {
   world.farmerIncomePerHead = farmerIncomePerHead;
   world.merchantIncomePerHead = merchantIncomePerHead;
   world.incomeGap = incomeGap;
+
+  world.stabilityPenalty = stabilityPenalty;
+  world.stabilityPenaltyReason = stabilityPenaltyReason;
+  world.stabilityIndex = stabilityIndex;
 
   world.maxMarketDemand = maxMarketDemand;
   world.demandSaturation = demandSaturation;
