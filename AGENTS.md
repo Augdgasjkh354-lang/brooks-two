@@ -776,3 +776,52 @@ game.js
 - Color coding per class:
   70-100: green, 40-69: yellow, 0-39: red
 - UI shows which factors are penalizing each class
+## Phase 3C-2 Scope (Current)
+
+Phase 3C-1 is complete. Now implementing Phase 3C-2 only.
+
+**Goal:** Low satisfaction now triggers concrete behavioral
+responses from each class. These are real economic effects,
+not just display penalties.
+
+**Rules:**
+
+Farmer behavior:
+- farmerSatisfaction < 40:
+  farmEfficiency *= 0.8
+  yearLog shows: "农民消极怠工，农业产出下降"
+
+Merchant behavior:
+- merchantSatisfaction < 40:
+  commerceGDP *= 0.7
+  yearLog shows: "商人拒收粮劵，改用实物交易"
+- merchantSatisfaction < 20:
+  commerceGDP *= 0.5 (replaces 0.7, not stacked)
+  yearLog shows: "商业市场大规模萎缩"
+
+Official behavior:
+- officialSatisfaction < 40:
+  all policy effects reduced by 20%
+  stabilityIndex -= 10 additional
+  yearLog shows: "官员消极，政策执行力下降"
+
+Landlord behavior:
+- landlordSatisfaction < 40:
+  farmlandAreaMu growth from reclamation blocked
+  yearLog shows: "地主抵制开荒，土地扩张受阻"
+
+All behavior checks happen during year-advance,
+after satisfaction is calculated.
+
+No new state fields needed.
+
+**Files to modify:** economy.js, game.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+state.js
+
+**Definition of Done (Phase 3C-2):**
+- Each class behavior triggers at correct threshold
+- Effects applied correctly during year-advance
+- Year log records triggered behaviors
+- UI shows active behavior warnings per class
+- Effects stack correctly with existing multipliers
