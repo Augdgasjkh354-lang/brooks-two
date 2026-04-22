@@ -104,7 +104,8 @@ function getInflationState(world) {
   }
 
   const couponCirculating = Math.max(0, world.couponCirculating ?? 0);
-  const backingRatio = couponCirculating > 0 ? Math.max(0, (world.grainTreasury ?? 0) / couponCirculating) : 1.0;
+  const backingRatio =
+    couponCirculating > 0 ? Math.max(0, (world.grainTreasury ?? 0) / couponCirculating) : 1.0;
 
   if (backingRatio >= 1.0) {
     return {
@@ -141,7 +142,6 @@ function getInflationState(world) {
   };
 }
 
-
 function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -161,8 +161,10 @@ function calculateClassSatisfaction(world) {
   if ((world.commerceActivityBonus ?? 1) > 1.0) merchantSatisfaction += 10;
 
   let officialSatisfaction = 70;
-  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) officialSatisfaction -= 20;
-  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) officialSatisfaction -= 15;
+  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15)
+    officialSatisfaction -= 20;
+  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05)
+    officialSatisfaction -= 15;
   if ((world.stabilityIndex ?? 80) < 50) officialSatisfaction -= 10;
 
   let landlordSatisfaction = 70;
@@ -233,7 +235,8 @@ export function updateEconomy(world, options = {}) {
   const totalGrainDemand = clamp(operatingShops * 200);
   const availableGrainForCommerce = Math.max(0, world.grainTreasury ?? 0);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
-  const grainSupplyEfficiency = totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
+  const grainSupplyEfficiency =
+    totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
 
   const { circulationRatio, commerceActivityBonus } = getCommerceActivityBonus(world);
   const {
@@ -356,6 +359,45 @@ export function updateEconomy(world, options = {}) {
     world.stabilityPenaltyReason = `${world.stabilityPenaltyReason}; official compliance penalty -${additionalStabilityPenalty}`;
   }
 
+  let creditCrisisTriggered = false;
+  const crisisTriggerConditionsMet =
+    world.grainCouponsUnlocked &&
+    (world.backingRatio ?? 1) < 0.4 &&
+    (world.merchantSatisfaction ?? 70) < 40 &&
+    (world.inflationRate ?? 0) >= 0.3;
+
+  if (crisisTriggerConditionsMet && !world.creditCrisis) {
+    world.creditCrisis = true;
+    world.creditCrisisResolved = false;
+
+    const previousCirculating = Math.max(0, world.couponCirculating ?? 0);
+    const dumpedAmount = clamp(previousCirculating * 0.7);
+    world.couponCirculating = Math.max(0, previousCirculating - dumpedAmount);
+    world.grainTreasury = (world.grainTreasury ?? 0) - dumpedAmount;
+
+    if (world.grainTreasury < 0) {
+      world.grainTreasury = 0;
+      world.stabilityIndex = Math.max(0, (world.stabilityIndex ?? 0) - 30);
+      world.stabilityPenalty += 30;
+      world.stabilityPenaltyReason = `${world.stabilityPenaltyReason}; bank run treasury collapse -30`;
+    }
+
+    world.merchantSatisfaction = clampPercentIndex((world.merchantSatisfaction ?? 0) - 20);
+
+    const postCrisisBacking =
+      (world.couponCirculating ?? 0) > 0
+        ? Math.max(0, (world.grainTreasury ?? 0) / world.couponCirculating)
+        : 1;
+    world.backingRatio = postCrisisBacking;
+    creditCrisisTriggered = true;
+  }
+
+  if (world.creditCrisis && (world.couponCirculating ?? 0) <= 0) {
+    world.creditCrisis = false;
+    world.creditCrisisResolved = true;
+    world.backingRatio = 1;
+  }
+
   const lostGrainOutput = clamp(potentialGrainOutput - adjustedGrainOutput);
   const agricultureGDP = clamp(adjustedGrainOutput * grainPrice);
   const constructionGDP = clamp(world.constructionGDP ?? 0);
@@ -437,6 +479,7 @@ export function updateEconomy(world, options = {}) {
     grainBalance,
     grainCoverageRatio,
     behaviorMessages,
+    creditCrisisTriggered,
   };
 }
 

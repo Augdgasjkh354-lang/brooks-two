@@ -57,7 +57,6 @@ function getStabilityDisplay(stabilityIndex) {
   };
 }
 
-
 function getSatisfactionDisplay(score) {
   if (score >= 70) {
     return { color: '#1b8a3b', label: 'Content' };
@@ -74,13 +73,16 @@ function getClassSatisfactionFactors(world) {
   const farmerFactors = [];
   if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
   if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
-  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1) farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
+  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1)
+    farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
   if ((world.taxGrainRatio ?? 1) < 0.5) farmerFactors.push('Tax mix favors coupons (>50% coupons)');
 
   const merchantFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) merchantFactors.push('Inflation at or above 15%');
-  if ((world.inflationRate ?? 0) >= 0.3) merchantFactors.push('Additional severe inflation penalty (30%)');
-  if ((world.demandSaturation ?? 0) > 1.5) merchantFactors.push('Oversaturated market demand (>150%)');
+  if ((world.inflationRate ?? 0) >= 0.3)
+    merchantFactors.push('Additional severe inflation penalty (30%)');
+  if ((world.demandSaturation ?? 0) > 1.5)
+    merchantFactors.push('Oversaturated market demand (>150%)');
   if ((world.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
   if ((world.commerceActivityBonus ?? 1) > 1.0) merchantFactors.push('Commerce activity bonus active');
 
@@ -198,15 +200,55 @@ function bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax) {
   }
 }
 
+function getCreditCrisisControlsHtml(world) {
+  if (!world.creditCrisis) {
+    return '<span style="color: #1b8a3b; font-weight: 700;">No active credit crisis</span>';
+  }
+
+  const recirculationDisabled = (world.couponTreasury ?? 0) < 10000 || world.creditCrisisResolved;
+  const redemptionDisabled = (world.grainTreasury ?? 0) < 20000 || world.creditCrisisResolved;
+  const actionStatus = world.creditCrisisResolved
+    ? 'Action used this crisis'
+    : 'One action can be used per crisis';
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="background: #fde8e8; color: #b42318; border: 1px solid #f5c2c7; border-radius: 6px; padding: 8px; font-weight: 700;">
+        🚨 粮劵信用崩塌，市场发生挤兑
+      </div>
+      <div class="muted">${actionStatus}</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="credit-crisis-recirculation-btn" ${recirculationDisabled ? 'disabled' : ''}>
+          紧急回笼 (Cost: 10000 coupon treasury)
+        </button>
+        <button id="credit-crisis-redemption-btn" ${redemptionDisabled ? 'disabled' : ''}>
+          紧急赎回 (Cost: 20000 grain treasury)
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption) {
+  const recirculationBtn = document.getElementById('credit-crisis-recirculation-btn');
+  const redemptionBtn = document.getElementById('credit-crisis-redemption-btn');
+
+  if (recirculationBtn) {
+    recirculationBtn.addEventListener('click', onEmergencyRecirculation);
+  }
+
+  if (redemptionBtn) {
+    redemptionBtn.addEventListener('click', onEmergencyRedemption);
+  }
+}
+
 function renderCouponDenominationBreakdown(world) {
   const breakdown = world.lastCouponDenominationBreakdown ?? [];
   if (breakdown.length === 0 || (world.lastCouponIssueAmount ?? 0) <= 0) {
     return 'No issuance yet.';
   }
 
-  return breakdown
-    .map((item) => `${item.label} × ${formatNumber(item.count)}`)
-    .join(' | ');
+  return breakdown.map((item) => `${item.label} × ${formatNumber(item.count)}`).join(' | ');
 }
 
 function renderRatioValue(value) {
@@ -269,7 +311,13 @@ function bindCouponRatioEvents(state) {
   }
 }
 
-export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax) {
+export function renderCoreStats(
+  state,
+  onUseGrainRedistribution,
+  onUseMerchantTax,
+  onEmergencyRecirculation,
+  onEmergencyRedemption
+) {
   const world = state.world;
   const el = document.getElementById('core-stats');
 
@@ -329,10 +377,9 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
       ? `⚠️ Estimated output loss ${formatDecimal(outputLossPercent, 1)}% due to low stability`
       : 'No stability-related output loss';
 
-  const salaryWarningText =
-    world.couponSalaryPaymentWarning
-      ? '⚠️ Coupon treasury was insufficient for configured coupon salary payment. Salary paid fully in grain this year.'
-      : 'No salary payment warning';
+  const salaryWarningText = world.couponSalaryPaymentWarning
+    ? '⚠️ Coupon treasury was insufficient for configured coupon salary payment. Salary paid fully in grain this year.'
+    : 'No salary payment warning';
 
   const classFactors = getClassSatisfactionFactors(world);
   const farmerSatisfactionDisplay = getSatisfactionDisplay(world.farmerSatisfaction ?? 70);
@@ -358,6 +405,8 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
 
   el.innerHTML = [
     statItem('Year', world.year),
+    statItem('Credit Crisis Status', world.creditCrisis ? 'Active' : 'None'),
+    statItem('Credit Crisis Controls', getCreditCrisisControlsHtml(world)),
     statItem('Total Population', formatNumber(world.totalPopulation)),
     statItem('Total Labor', formatNumber(world.laborForce)),
     statItem(
@@ -406,7 +455,10 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2)),
     statItem('Stability Index', stabilityValueHtml),
     statItem('Stability Penalty', `-${formatNumber(world.stabilityPenalty ?? 0)}`),
-    statItem('Stability Penalty Reason', world.stabilityPenaltyReason ?? 'No penalty (income gap below 500)'),
+    statItem(
+      'Stability Penalty Reason',
+      world.stabilityPenaltyReason ?? 'No penalty (income gap below 500)'
+    ),
     statItem('Stability Efficiency Multiplier', `${formatDecimal(efficiencyMultiplier * 100, 1)}%`),
     statItem('Stability Output Loss', efficiencyLossText),
     statItem('Stability Policies', getStabilityPolicyControlsHtml(world)),
@@ -438,6 +490,7 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
   ].join('');
 
   bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
+  bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -529,9 +582,17 @@ export function renderAll(
   state,
   onEnactPolicy,
   onUseGrainRedistribution,
-  onUseMerchantTax
+  onUseMerchantTax,
+  onEmergencyRecirculation,
+  onEmergencyRedemption
 ) {
-  renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax);
+  renderCoreStats(
+    state,
+    onUseGrainRedistribution,
+    onUseMerchantTax,
+    onEmergencyRecirculation,
+    onEmergencyRedemption
+  );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
   renderYearLog(state);
