@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Policy-Driven Society Sim - Phase 0</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Policy-Driven Society Simulation (Phase 0)</h1>
+      <p class="subtitle">A minimal prototype for progressive system unlocks.</p>
+      <button id="next-year-btn" class="primary">Next Year</button>
+    </header>
+
+    <section class="panel" id="core-stats-panel">
+      <h2>Core Stats</h2>
+      <div id="core-stats"></div>
+    </section>
+
+    <section class="panel" id="policies-panel">
+      <h2>Available Policies</h2>
+      <div id="policy-list"></div>
+    </section>
+
+    <section class="panel" id="systems-panel">
+      <h2>Unlocked Systems</h2>
+      <ul id="systems-list"></ul>
+
+      <div id="grain-coupon-panel" class="subpanel hidden">
+        <h3>Grain Coupon System</h3>
+        <div id="grain-coupon-stats"></div>
+        <div class="coupon-controls">
+          <label for="coupon-issue-input">Issue amount:</label>
+          <input id="coupon-issue-input" type="number" min="1" step="1" value="1000" />
+          <button id="issue-coupon-btn">Issue Grain Coupons</button>
+        </div>
+      </div>
+
+      <p id="grain-coupon-locked" class="muted">
+        Grain coupon system is locked. Complete the bank policy chain to unlock.
+      </p>
+    </section>
+
+    <section class="panel" id="year-log-panel">
+      <h2>Year Log</h2>
+      <ul id="year-log"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
