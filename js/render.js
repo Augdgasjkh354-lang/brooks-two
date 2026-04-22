@@ -38,6 +38,8 @@ export function renderCoreStats(state) {
     : 'No yearly snapshot yet';
 
   const demandSaturationPercent = (world.demandSaturation ?? 0) * 100;
+  const commerceEfficiencyRate =
+    (world.demandSaturation ?? 0) > 1 ? 1 / (world.demandSaturation ?? 1) : 1;
   const demandWarning =
     (world.demandSaturation ?? 0) > 1
       ? `<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>`
@@ -69,6 +71,7 @@ export function renderCoreStats(state) {
     ),
     statItem('Max Market Demand (shops)', formatDecimal(world.maxMarketDemand ?? 0, 1)),
     statItem('Demand Saturation', `${formatDecimal(demandSaturationPercent, 1)}%`),
+    statItem('Commerce Efficiency Rate', `${formatDecimal(commerceEfficiencyRate * 100, 1)}%`),
     demandWarning,
     statItem('Grain Demand / person', formatNumber(world.grainDemandPerPerson ?? 0)),
     statItem('Total Grain Demand', formatNumber(world.grainDemandTotal ?? 0)),
