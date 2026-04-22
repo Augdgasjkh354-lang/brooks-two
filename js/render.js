@@ -102,6 +102,13 @@ export function renderCoreStats(state) {
     world.stabilityIndex ?? 80
   )}</span> / 100 (${stabilityDisplay.label})`;
 
+  const efficiencyMultiplier = world.efficiencyMultiplier ?? 1;
+  const outputLossPercent = Math.max(0, 1 - efficiencyMultiplier) * 100;
+  const efficiencyLossText =
+    efficiencyMultiplier < 1
+      ? `⚠️ Estimated output loss ${formatDecimal(outputLossPercent, 1)}% due to low stability`
+      : 'No stability-related output loss';
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -147,6 +154,8 @@ export function renderCoreStats(state) {
     statItem('Stability Index', stabilityValueHtml),
     statItem('Stability Penalty', `-${formatNumber(world.stabilityPenalty ?? 0)}`),
     statItem('Stability Penalty Reason', world.stabilityPenaltyReason ?? 'No penalty (income gap below 500)'),
+    statItem('Stability Efficiency Multiplier', `${formatDecimal(efficiencyMultiplier * 100, 1)}%`),
+    statItem('Stability Output Loss', efficiencyLossText),
     statItem('Population Growth Rate', `${formatDecimal(growthDetails.effectiveRate * 100, 2)}%`),
     statItem('Growth Modifiers', growthDetails.modifiersText),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
