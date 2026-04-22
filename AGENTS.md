@@ -882,3 +882,62 @@ game.js
 - Year log records crisis and resolution actions
 - Crisis resolves correctly when backingRatio >= 0.6
 - No duplicate crisis if already active
+## Phase 4A-1 Scope (Current)
+
+Phase 3C-3 is complete. Now implementing Phase 4A-1 only.
+
+**Goal:** Initialize Xikou Village as an independent entity
+with its own internal economy that runs every year-advance.
+
+**Rules:**
+
+Xikou Village initial state:
+- population: 3000
+- laborForce: 1800 (60%)
+- children: 600 (20%)
+- elderly: 600 (20%)
+- farmlandMu: 3000
+- mulberryLandMu: 2000
+- saltMines: 2
+- saltMineWorkers: 20 (10 per mine)
+- saltOutputJin: 200000 per year
+- grainTreasury: 500000 (initial reserve)
+- clothOutput: 0 (calculated from mulberry land)
+- stabilityIndex: 75
+- attitudeToPlayer: 0 (neutral, range -100 to +100)
+- diplomaticContact: false (no contact yet)
+
+Labor allocation (auto each year):
+- saltWorkers: 20 (fixed, priority)
+- farmWorkers: farmlandMu / 10 = 300
+- mulberryWorkers: mulberryLandMu / 10 = 200
+- idleLabor: 1800 - 520 = 1280
+
+Annual auto-calculation:
+- grainOutput = farmlandMu * 500 * farmEfficiency
+- clothOutput = mulberryLandMu * 50
+  (50 jin cloth per mu per year)
+- saltOutput = 200000 (fixed if saltMineWorkers >= 20)
+- grainTreasury += grainOutput - population * 2
+  (2 jin per person annual consumption)
+- grainTreasury floored at 0
+
+Population growth:
+- Same 2% annual growth as player city
+- laborForce, children, elderly scale proportionally
+
+Xikou state stored under state.xikou{}
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 4A-1):**
+- state.xikou initialized with all fields
+- Xikou economy auto-calculated each year-advance
+- UI shows Xikou Village panel with:
+  population / labor / grain reserve / salt output /
+  cloth output / stability / attitude
+- Attitude shown as: 敌对/中立/友好/依附
+- Panel visible but marked as "未建立外交关系"
+  when diplomaticContact = false
