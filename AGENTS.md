@@ -581,3 +581,51 @@ State additions needed:
 - Grain and coupons update correctly after issuance
 - UI shows total issued / circulating / government held
 - Denomination breakdown shown as reference in UI
+## Phase 3B-1b Scope (Current)
+
+Phase 3B-1a is complete. Now implementing Phase 3B-1b only.
+
+**Goal:** Tax collection and official salaries can be paid
+in grain, coupons, or a mix. Options only appear after
+grainCouponsUnlocked = true.
+
+**Rules:**
+
+Tax collection ratio:
+- New setting: taxGrainRatio (0.0 to 1.0)
+- taxCouponRatio = 1 - taxGrainRatio
+- Default: taxGrainRatio = 1.0 (all grain, pre-unlock behavior)
+- Player can adjust via slider in UI
+- On year-advance, tax revenue split accordingly:
+  grainTreasury += totalTaxRevenue * taxGrainRatio
+  couponTreasury += totalTaxRevenue * taxCouponRatio
+
+Official salary payment ratio:
+- New setting: salaryGrainRatio (0.0 to 1.0)
+- salaryCouponRatio = 1 - salaryGrainRatio
+- Default: salaryGrainRatio = 1.0 (all grain, pre-unlock)
+- Player can adjust via slider in UI
+- On year-advance, salary costs split accordingly:
+  grainTreasury -= totalSalaryCost * salaryGrainRatio
+  couponTreasury -= totalSalaryCost * salaryCouponRatio
+- Cannot pay coupon salary if couponTreasury insufficient
+
+Both sliders only visible when grainCouponsUnlocked = true.
+When locked: behavior identical to current (all grain).
+
+State additions needed in world{}:
+- taxGrainRatio: 1.0
+- salaryGrainRatio: 1.0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3B-1b):**
+- Tax ratio slider visible after coupon unlock
+- Salary ratio slider visible after coupon unlock
+- Both default to 1.0 (all grain) before unlock
+- Treasury updates correctly reflect chosen ratios
+- UI shows current ratio settings clearly
+- Warning shown if coupon treasury insufficient for
+  salary payment
