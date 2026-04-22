@@ -76,6 +76,7 @@ export function updateEconomy(world, options = {}) {
     (world.merchantCount ?? 0) > 0 ? (commerceGDP * 0.5) / world.merchantCount : 0;
 
   const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
+  const demandShortfall = demandSaturation < 0.5;
 
   world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency);
   world.potentialGrainOutput = potentialGrainOutput;
@@ -103,6 +104,7 @@ export function updateEconomy(world, options = {}) {
 
   world.maxMarketDemand = maxMarketDemand;
   world.demandSaturation = demandSaturation;
+  world.demandShortfall = demandShortfall;
 
   if (collectTax) {
     world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
