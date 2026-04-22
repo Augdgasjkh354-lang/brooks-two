@@ -17,14 +17,45 @@ function statItem(label, value) {
 export function renderCoreStats(state) {
   const world = state.world;
   const el = document.getElementById('core-stats');
+
+  const taxCollectionText =
+    (world.lastTaxCollectionYear ?? 0) > 0
+      ? `${formatNumber(world.lastAgriculturalTax ?? 0)} (Year ${world.lastTaxCollectionYear})`
+      : `${formatNumber(world.lastAgriculturalTax ?? 0)} (not collected yet)`;
+
+  const latestSnapshot = state.economyHistory?.[0];
+  const taxModeText = latestSnapshot
+    ? latestSnapshot.taxCollected
+      ? `Collected in Year ${latestSnapshot.year}`
+      : `Projected only in Year ${latestSnapshot.year}`
+    : 'No yearly snapshot yet';
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
-    statItem('Labor Force', formatNumber(world.laborForce)),
+    statItem('Total Labor', formatNumber(world.laborForce)),
+    statItem(
+      'Farming Labor',
+      `${formatNumber(world.farmingLaborAllocated ?? 0)} / ${formatNumber(world.farmingLaborRequired ?? 0)}`
+    ),
+    statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
+    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
+    statItem('Farm Efficiency', `${Math.round((world.farmEfficiency ?? 0) * 100)}%`),
     statItem('Children', formatNumber(world.children)),
     statItem('Elderly', formatNumber(world.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
-    statItem('Yield / mu', formatNumber(world.grainYieldPerMu)),
+    statItem('Yield / mu (effective)', formatNumber(world.grainYieldPerMu)),
+    statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0)),
+    statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0)),
+    statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0)),
+    statItem('Grain Demand / person', formatNumber(world.grainDemandPerPerson ?? 0)),
+    statItem('Total Grain Demand', formatNumber(world.grainDemandTotal ?? 0)),
+    statItem('Grain Balance', formatNumber(world.grainBalance ?? 0)),
+    statItem('Grain per Capita', formatNumber(world.grainPerCapita ?? 0)),
+    statItem('Food Security', world.foodSecurityStatus ?? 'Unknown'),
+    statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
+    statItem('Last Tax Collection', taxCollectionText),
+    statItem('Tax Snapshot Mode', taxModeText),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
     statItem('GDP Estimate', formatNumber(world.gdpEstimate)),
