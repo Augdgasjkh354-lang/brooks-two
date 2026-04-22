@@ -68,6 +68,12 @@ function getStabilityPenaltyFromIncomeGap(incomeGap) {
   };
 }
 
+function getEfficiencyMultiplier(stabilityIndex) {
+  if (stabilityIndex >= 80) return 1.0;
+  if (stabilityIndex >= 50) return 0.85;
+  return 0.65;
+}
+
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
 
@@ -77,9 +83,8 @@ export function updateEconomy(world, options = {}) {
   world.baseGrainYieldPerMu = clamp(baseYield);
 
   const potentialGrainOutput = clamp(world.farmlandAreaMu * world.baseGrainYieldPerMu);
-  const grainOutput = clamp(potentialGrainOutput * farmEfficiency);
-  const lostGrainOutput = clamp(potentialGrainOutput - grainOutput);
-  const agriculturalTax = clamp(grainOutput * world.agriculturalTaxRate);
+  const preStabilityGrainOutput = clamp(potentialGrainOutput * farmEfficiency);
+  const agriculturalTax = clamp(preStabilityGrainOutput * world.agriculturalTaxRate);
 
   const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
   const idleShops = Math.max(0, (world.shopCount ?? 0) - operatingShops);
@@ -93,7 +98,28 @@ export function updateEconomy(world, options = {}) {
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
   const grainSupplyEfficiency = totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
 
-  const commerceGDP = clamp(operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency);
+  const preStabilityCommerceGDP = clamp(
+    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency
+  );
+
+  const preStabilityFarmerIncomePerHead =
+    (world.farmingLaborAllocated ?? 0) > 0
+      ? (preStabilityGrainOutput * 0.3) / world.farmingLaborAllocated
+      : 0;
+
+  const preStabilityMerchantIncomePerHead =
+    (world.merchantCount ?? 0) > 0 ? (preStabilityCommerceGDP * 0.5) / world.merchantCount : 0;
+
+  const preStabilityIncomeGap = preStabilityMerchantIncomePerHead - preStabilityFarmerIncomePerHead;
+
+  const { penalty: stabilityPenalty, reason: stabilityPenaltyReason } =
+    getStabilityPenaltyFromIncomeGap(preStabilityIncomeGap);
+  const stabilityIndex = Math.max(0, 80 - stabilityPenalty);
+  const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
+
+  const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
+  const commerceGDP = clamp(preStabilityCommerceGDP * efficiencyMultiplier);
+  const lostGrainOutput = clamp(potentialGrainOutput - grainOutput);
 
   const treasuryAfterCommerce = collectTax
     ? availableGrainForCommerce - grainConsumedByCommerce
@@ -116,9 +142,7 @@ export function updateEconomy(world, options = {}) {
     grainDemandTotal > 0 ? clampRatio(grainOutput / grainDemandTotal) : 1;
 
   const farmerIncomePerHead =
-    (world.farmingLaborAllocated ?? 0) > 0
-      ? (grainOutput * 0.3) / world.farmingLaborAllocated
-      : 0;
+    (world.farmingLaborAllocated ?? 0) > 0 ? (grainOutput * 0.3) / world.farmingLaborAllocated : 0;
 
   const merchantIncomePerHead =
     (world.merchantCount ?? 0) > 0 ? (commerceGDP * 0.5) / world.merchantCount : 0;
@@ -126,11 +150,7 @@ export function updateEconomy(world, options = {}) {
   const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
   const demandShortfall = demandSaturation < 0.5;
 
-  const { penalty: stabilityPenalty, reason: stabilityPenaltyReason } =
-    getStabilityPenaltyFromIncomeGap(incomeGap);
-  const stabilityIndex = Math.max(0, 80 - stabilityPenalty);
-
-  world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency);
+  world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency * efficiencyMultiplier);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
   world.lostGrainOutput = lostGrainOutput;
@@ -161,6 +181,7 @@ export function updateEconomy(world, options = {}) {
   world.stabilityPenalty = stabilityPenalty;
   world.stabilityPenaltyReason = stabilityPenaltyReason;
   world.stabilityIndex = stabilityIndex;
+  world.efficiencyMultiplier = efficiencyMultiplier;
 
   world.maxMarketDemand = maxMarketDemand;
   world.demandSaturation = demandSaturation;

@@ -55,6 +55,7 @@ export const initialState = {
     stabilityIndex: 80,
     stabilityPenalty: 0,
     stabilityPenaltyReason: 'No penalty (income gap below 500)',
+    efficiencyMultiplier: 1.0,
 
     maxMarketDemand: 0,
     demandSaturation: 0,
