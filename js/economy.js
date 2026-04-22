@@ -40,6 +40,13 @@ export function updateEconomy(world) {
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
   world.lostGrainOutput = lostGrainOutput;
+  world.lastAgriculturalTax = agriculturalTax;
+
+  if (collectTax) {
+    world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
+    world.lastTaxCollectionYear = world.year;
+  }
+
 
   if (collectTax) {
     world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
