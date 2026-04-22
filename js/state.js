@@ -41,6 +41,7 @@ export const initialState = {
     couponTreasury: 0,
     couponCirculating: 0,
     couponTotalIssued: 0,
+    grainCouponsUnlocked: false,
     lastCouponIssueAmount: 0,
     lastCouponDenominationBreakdown: [],
 
@@ -53,6 +54,8 @@ export const initialState = {
     totalGrainDemand: 0,
     grainPrice: 1.0,
     supplyRatio: 1.0,
+    circulationRatio: 0,
+    commerceActivityBonus: 1.0,
 
     agricultureGDP: 0,
     commerceGDP: 0,

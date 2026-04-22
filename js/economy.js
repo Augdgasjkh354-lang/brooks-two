@@ -74,6 +74,25 @@ function getEfficiencyMultiplier(stabilityIndex) {
   return 0.65;
 }
 
+function getCommerceActivityBonus(world) {
+  if (!world?.grainCouponsUnlocked) return { circulationRatio: 0, commerceActivityBonus: 1.0 };
+
+  const totalPopulation = Math.max(1, world.totalPopulation ?? 0);
+  const circulationRatio = Math.max(0, (world.couponCirculating ?? 0) / totalPopulation);
+
+  if (circulationRatio >= 2.0) {
+    return { circulationRatio, commerceActivityBonus: 1.2 };
+  }
+  if (circulationRatio >= 1.0) {
+    return { circulationRatio, commerceActivityBonus: 1.0 };
+  }
+  if (circulationRatio >= 0.5) {
+    return { circulationRatio, commerceActivityBonus: 0.85 };
+  }
+
+  return { circulationRatio, commerceActivityBonus: 0.7 };
+}
+
 function getCouponDenominationBreakdown(issueAmount) {
   const units = [
     { label: '100斤', value: 10000 },
@@ -130,8 +149,9 @@ export function updateEconomy(world, options = {}) {
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
   const grainSupplyEfficiency = totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
 
+  const { circulationRatio, commerceActivityBonus } = getCommerceActivityBonus(world);
   const preStabilityCommerceGDP = clamp(
-    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency
+    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * commerceActivityBonus
   );
 
   const preStabilityFarmerIncomePerHead =
@@ -193,6 +213,8 @@ export function updateEconomy(world, options = {}) {
   world.totalGrainDemand = totalGrainDemand;
   world.grainPrice = grainPrice;
   world.supplyRatio = supplyRatio;
+  world.circulationRatio = circulationRatio;
+  world.commerceActivityBonus = commerceActivityBonus;
 
   world.agricultureGDP = agricultureGDP;
   world.commerceGDP = clamp(commerceGDP);

@@ -186,6 +186,14 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
   const demandSaturationPercent = (world.demandSaturation ?? 0) * 100;
   const commerceEfficiencyRate =
     (world.demandSaturation ?? 0) > 1 ? 1 / (world.demandSaturation ?? 1) : 1;
+  const commerceActivityBonus = world.commerceActivityBonus ?? 1;
+  const commerceActivityDelta = (commerceActivityBonus - 1) * 100;
+  const commerceActivityImpactText =
+    commerceActivityDelta === 0
+      ? 'No coupon-circulation impact'
+      : commerceActivityDelta > 0
+        ? `+${formatDecimal(commerceActivityDelta, 1)}% commerce boost from coupons`
+        : `${formatDecimal(commerceActivityDelta, 1)}% commerce penalty from low circulation`;
   const demandWarning =
     (world.demandSaturation ?? 0) > 1
       ? '<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>'
@@ -240,6 +248,9 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Max Market Demand (shops)', formatDecimal(world.maxMarketDemand ?? 0, 1)),
     statItem('Demand Saturation', `${formatDecimal(demandSaturationPercent, 1)}%`),
     statItem('Commerce Efficiency Rate', `${formatDecimal(commerceEfficiencyRate * 100, 1)}%`),
+    statItem('Coupon Circulation Ratio', formatDecimal(world.circulationRatio ?? 0, 2)),
+    statItem('Commerce Activity Bonus', `${formatDecimal(commerceActivityBonus * 100, 1)}%`),
+    statItem('Commerce Activity Impact', commerceActivityImpactText),
     demandWarning,
     demandShortfallWarning,
     statItem('Grain Consumed by Commerce', formatNumber(world.totalGrainDemand ?? 0)),
@@ -320,6 +331,7 @@ export function renderSystems(state) {
     .join('');
 
   const couponsUnlocked = state.systems.grainCouponsUnlocked;
+  state.world.grainCouponsUnlocked = couponsUnlocked;
   document.getElementById('grain-coupon-panel').classList.toggle('hidden', !couponsUnlocked);
   document.getElementById('grain-coupon-locked').classList.toggle('hidden', couponsUnlocked);
 
