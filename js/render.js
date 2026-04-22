@@ -20,7 +20,10 @@ export function renderCoreStats(state) {
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
-    statItem('Labor Force', formatNumber(world.laborForce)),
+    statItem('Total Labor', formatNumber(world.laborForce)),
+    statItem('Farming Labor', formatNumber(world.farmingLaborAllocated ?? 0)),
+    statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
+    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
     statItem('Children', formatNumber(world.children)),
     statItem('Elderly', formatNumber(world.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
