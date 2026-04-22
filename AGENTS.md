@@ -665,3 +665,47 @@ game.js
 - UI shows circulation ratio and activity bonus
 - UI shows estimated commerce boost/penalty
 - No effect before grainCouponsUnlocked = true
+## Phase 3B-3 Scope (Current)
+
+Phase 3B-2 is complete. Now implementing Phase 3B-3 only.
+
+**Goal:** Issuing too many coupons causes inflation.
+High inflation reduces real purchasing power and
+destabilizes society.
+
+**Rules:**
+
+Inflation calculation:
+- Only applies when grainCouponsUnlocked = true
+- backingRatio = grainTreasury / couponCirculating
+  (how much grain backs each coupon)
+- If backingRatio >= 1.0: inflationRate = 0%
+- If backingRatio 0.7-0.99: inflationRate = 5%
+- If backingRatio 0.4-0.69: inflationRate = 15%
+- If backingRatio < 0.4: inflationRate = 30%
+- Before unlock or couponCirculating = 0: inflationRate = 0%
+
+Inflation effects:
+- High inflation reduces stabilityIndex:
+  inflationRate 5%: stabilityIndex -= 5
+  inflationRate 15%: stabilityIndex -= 15
+  inflationRate 30%: stabilityIndex -= 25
+- High inflation reduces commerceActivityBonus:
+  inflationRate 15%: commerceActivityBonus *= 0.9
+  inflationRate 30%: commerceActivityBonus *= 0.7
+
+State additions needed in world{}:
+- backingRatio: 1.0
+- inflationRate: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3B-3):**
+- backingRatio calculated each year-advance
+- inflationRate derived from backingRatio
+- Stability and commerce penalties applied
+- UI shows backing ratio and inflation rate
+- UI shows inflation warning when rate > 0%
+- Color coding: 0%=green, 5%=yellow, 15%=orange, 30%=red
