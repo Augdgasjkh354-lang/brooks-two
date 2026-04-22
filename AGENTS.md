@@ -128,3 +128,8 @@ If labor drops, commerce workers are released first.
 - Commercial labor calculated each year
 - Commerce GDP added to total GDP display
 - UI shows shop count and commercial employment
+**NEVER modify under any circumstances:**
+unlocks.js, policies.js, population.js
+
+population.js was finalized in Phase 1A. 
+Any labor logic changes go in economy.js only.
