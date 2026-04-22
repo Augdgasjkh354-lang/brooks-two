@@ -37,6 +37,28 @@ function getPopulationGrowthDisplayDetails(world) {
   };
 }
 
+
+function getStabilityDisplay(stabilityIndex) {
+  if (stabilityIndex >= 80) {
+    return {
+      label: 'Stable',
+      color: '#1b8a3b',
+    };
+  }
+
+  if (stabilityIndex >= 50) {
+    return {
+      label: 'Tense',
+      color: '#b28704',
+    };
+  }
+
+  return {
+    label: 'Unstable',
+    color: '#b42318',
+  };
+}
+
 function statItem(label, value) {
   return `
     <div class="stat-item">
@@ -75,6 +97,10 @@ export function renderCoreStats(state) {
       : '';
 
   const growthDetails = getPopulationGrowthDisplayDetails(world);
+  const stabilityDisplay = getStabilityDisplay(world.stabilityIndex ?? 80);
+  const stabilityValueHtml = `<span style="color: ${stabilityDisplay.color}; font-weight: 700;">${formatNumber(
+    world.stabilityIndex ?? 80
+  )}</span> / 100 (${stabilityDisplay.label})`;
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -118,6 +144,9 @@ export function renderCoreStats(state) {
     statItem('Farmer Income / Head', formatDecimal(world.farmerIncomePerHead ?? 0, 2)),
     statItem('Merchant Income / Head', formatDecimal(world.merchantIncomePerHead ?? 0, 2)),
     statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2)),
+    statItem('Stability Index', stabilityValueHtml),
+    statItem('Stability Penalty', `-${formatNumber(world.stabilityPenalty ?? 0)}`),
+    statItem('Stability Penalty Reason', world.stabilityPenaltyReason ?? 'No penalty (income gap below 500)'),
     statItem('Population Growth Rate', `${formatDecimal(growthDetails.effectiveRate * 100, 2)}%`),
     statItem('Growth Modifiers', growthDetails.modifiersText),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
