@@ -825,3 +825,60 @@ state.js
 - Year log records triggered behaviors
 - UI shows active behavior warnings per class
 - Effects stack correctly with existing multipliers
+## Phase 3C-3 Scope (Current)
+
+Phase 3C-2 is complete. Now implementing Phase 3C-3 only.
+
+**Goal:** When coupon credibility collapses, a bank run
+event triggers. Player must respond or face cascading
+collapse.
+
+**Rules:**
+
+Credit crisis trigger conditions (all must be true):
+- grainCouponsUnlocked = true
+- backingRatio < 0.4
+- merchantSatisfaction < 40
+- inflationRate >= 30%
+
+When triggered:
+- creditCrisis = true
+- couponCirculating *= 0.3 (70% of coupons dumped back)
+- grainTreasury -= dumped amount (people redeem for grain)
+- If grainTreasury goes negative: grainTreasury = 0
+  and stabilityIndex -= 30
+- merchantSatisfaction -= 20
+- yearLog shows: "粮劵信用崩塌，市场发生挤兑"
+
+Credit crisis resolution:
+- Player can trigger "紧急回笼" once per crisis:
+  Cost: couponTreasury >= 10000
+  Effect: couponCirculating -= 10000
+          couponTreasury -= 10000
+          backingRatio recalculated
+          creditCrisis = false if backingRatio >= 0.6
+- Player can trigger "紧急赎回" once per crisis:
+  Cost: grainTreasury >= 20000
+  Effect: couponCirculating -= 20000
+          grainTreasury -= 20000
+          creditCrisis = false if backingRatio >= 0.6
+
+Crisis persists until resolved or couponCirculating = 0.
+Only one crisis can be active at a time.
+
+State additions needed in world{}:
+- creditCrisis: false
+- creditCrisisResolved: false
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 3C-3):**
+- Crisis triggers when all conditions met
+- Crisis event shown prominently in UI (red banner)
+- Two resolution buttons appear during crisis
+- Buttons disabled if resources insufficient
+- Year log records crisis and resolution actions
+- Crisis resolves correctly when backingRatio >= 0.6
+- No duplicate crisis if already active
