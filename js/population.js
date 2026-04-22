@@ -24,11 +24,27 @@ function updateLaborAllocation(world) {
   world.grainYieldPerMu = clamp(baseYield * farmEfficiency);
 }
 
+function getPopulationGrowthDetails(world) {
+  const baseGrowthRate = 0.02;
+  const commerceProsperityBonus =
+    (world.merchantIncomePerHead ?? 0) > (world.farmerIncomePerHead ?? 0) * 1.5 ? 0.005 : 0;
+  const demandShortfallPenalty = world.demandShortfall ? 0.005 : 0;
+
+  const growthRate = Math.max(0.005, baseGrowthRate + commerceProsperityBonus - demandShortfallPenalty);
+
+  return {
+    growthRate,
+    baseGrowthRate,
+    commerceProsperityBonus,
+    demandShortfallPenalty,
+  };
+}
+
 export function updatePopulation(world) {
   const total = world.totalPopulation;
-  const yearlyGrowthRate = world.demandShortfall ? 0.015 : 0.02;
+  const growthDetails = getPopulationGrowthDetails(world);
 
-  const nextTotal = clamp(total * (1 + yearlyGrowthRate));
+  const nextTotal = clamp(total * (1 + growthDetails.growthRate));
   const nextChildren = clamp(nextTotal * 0.2);
   const nextElderly = clamp(nextTotal * 0.2);
   const nextLaborForce = clamp(nextTotal - nextChildren - nextElderly);
@@ -38,9 +54,17 @@ export function updatePopulation(world) {
   world.elderly = nextElderly;
   world.laborForce = nextLaborForce;
 
+  world.populationGrowthRate = growthDetails.growthRate;
+  world.populationGrowthBaseRate = growthDetails.baseGrowthRate;
+  world.populationGrowthCommerceBonus = growthDetails.commerceProsperityBonus;
+  world.populationGrowthDemandPenalty = growthDetails.demandShortfallPenalty;
+
   updateLaborAllocation(world);
 
   return {
     populationDelta: nextTotal - total,
+    growthRate: growthDetails.growthRate,
+    commerceProsperityBonusApplied: growthDetails.commerceProsperityBonus > 0,
+    demandShortfallPenaltyApplied: growthDetails.demandShortfallPenalty > 0,
   };
 }

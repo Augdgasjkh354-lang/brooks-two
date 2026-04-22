@@ -12,6 +12,31 @@ function formatDecimal(num, digits = 2) {
   });
 }
 
+
+function getPopulationGrowthDisplayDetails(world) {
+  const baseRate = 0.02;
+  const commerceBonus =
+    (world.merchantIncomePerHead ?? 0) > (world.farmerIncomePerHead ?? 0) * 1.5 ? 0.005 : 0;
+  const demandPenalty = world.demandShortfall ? 0.005 : 0;
+  const effectiveRate = Math.max(0.005, baseRate + commerceBonus - demandPenalty);
+
+  const modifiers = [];
+  if (commerceBonus > 0) {
+    modifiers.push('Commerce prosperity bonus +0.5%');
+  }
+  if (demandPenalty > 0) {
+    modifiers.push('Demand shortfall penalty -0.5%');
+  }
+  if (modifiers.length === 0) {
+    modifiers.push('Base growth only');
+  }
+
+  return {
+    effectiveRate,
+    modifiersText: modifiers.join(' | '),
+  };
+}
+
 function statItem(label, value) {
   return `
     <div class="stat-item">
@@ -48,6 +73,8 @@ export function renderCoreStats(state) {
     world.demandShortfall
       ? `<div class="stat-item"><div class="stat-label">Demand Shortfall</div><div class="stat-value">⚠️ Low market satisfaction suppresses yearly population growth (2.0% → 1.5%)</div></div>`
       : '';
+
+  const growthDetails = getPopulationGrowthDisplayDetails(world);
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -91,6 +118,8 @@ export function renderCoreStats(state) {
     statItem('Farmer Income / Head', formatDecimal(world.farmerIncomePerHead ?? 0, 2)),
     statItem('Merchant Income / Head', formatDecimal(world.merchantIncomePerHead ?? 0, 2)),
     statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2)),
+    statItem('Population Growth Rate', `${formatDecimal(growthDetails.effectiveRate * 100, 2)}%`),
+    statItem('Growth Modifiers', growthDetails.modifiersText),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
     statItem('Last Tax Collection', taxCollectionText),
     statItem('Tax Snapshot Mode', taxModeText),
