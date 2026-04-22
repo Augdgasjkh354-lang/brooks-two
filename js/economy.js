@@ -219,8 +219,35 @@ export function updateEconomy(world, options = {}) {
   world.demandSaturation = demandSaturation;
   world.demandShortfall = demandShortfall;
 
+  const taxGrainRatio = clampRatio(world.taxGrainRatio ?? 1);
+  const salaryGrainRatio = clampRatio(world.salaryGrainRatio ?? 1);
+  world.taxGrainRatio = taxGrainRatio;
+  world.salaryGrainRatio = salaryGrainRatio;
+
   if (collectTax) {
-    world.grainTreasury = clamp(treasuryAfterCommerce + agriculturalTax);
+    const taxToGrain = agriculturalTax * taxGrainRatio;
+    const taxToCoupon = agriculturalTax - taxToGrain;
+
+    const totalSalaryCost = Math.max(0, Number(world.totalSalaryCost ?? 0));
+    const desiredCouponSalary = totalSalaryCost * (1 - salaryGrainRatio);
+    const desiredGrainSalary = totalSalaryCost - desiredCouponSalary;
+
+    const couponTreasuryAfterTax = Math.max(0, Number(world.couponTreasury ?? 0)) + taxToCoupon;
+
+    let actualCouponSalary = desiredCouponSalary;
+    let actualGrainSalary = desiredGrainSalary;
+    let couponSalaryPaymentWarning = false;
+
+    if (desiredCouponSalary > couponTreasuryAfterTax) {
+      couponSalaryPaymentWarning = true;
+      actualCouponSalary = 0;
+      actualGrainSalary = totalSalaryCost;
+    }
+
+    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain - actualGrainSalary);
+    world.couponTreasury = clamp(couponTreasuryAfterTax - actualCouponSalary);
+    world.lastSalaryCost = clamp(totalSalaryCost);
+    world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;
     world.lastTaxCollectionYear = world.year;
   }
 
