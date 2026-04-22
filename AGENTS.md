@@ -295,3 +295,34 @@ game.js
 - demandSaturation calculated and stored
 - UI shows market demand panel with both values
 - Warning visible in UI when demandSaturation > 1.0
+## Phase 2B-2 Scope (Current)
+
+Phase 2B-1 is complete. Now implementing Phase 2B-2 only.
+
+**Goal:** Demand saturation now actually affects commerceGDP.
+Oversaturated markets earn less per shop.
+
+**Rules:**
+
+GDP adjustment:
+- If demandSaturation <= 1.0:
+  commerceGDP = operatingShops * 500 (no change)
+- If demandSaturation > 1.0:
+  efficiencyRate = 1 / demandSaturation
+  commerceGDP = operatingShops * 500 * efficiencyRate
+
+Example: 20 shops, maxMarketDemand = 10
+  demandSaturation = 2.0
+  efficiencyRate = 0.5
+  commerceGDP = 20 * 500 * 0.5 = 5000 (not 10000)
+
+No new state fields needed.
+
+**Files to modify:** economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js, state.js
+
+**Definition of Done (Phase 2B-2):**
+- commerceGDP reduced when demandSaturation > 1.0
+- UI shows effective commerce GDP
+- UI shows efficiency rate as a percentage
