@@ -20,11 +20,21 @@ export function renderCoreStats(state) {
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
-    statItem('Labor Force', formatNumber(world.laborForce)),
+    statItem('Total Labor', formatNumber(world.laborForce)),
+    statItem(
+      'Farming Labor',
+      `${formatNumber(world.farmingLaborAllocated ?? 0)} / ${formatNumber(world.farmingLaborRequired ?? 0)}`
+    ),
+    statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
+    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
+    statItem('Farm Efficiency', `${Math.round((world.farmEfficiency ?? 0) * 100)}%`),
     statItem('Children', formatNumber(world.children)),
     statItem('Elderly', formatNumber(world.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
-    statItem('Yield / mu', formatNumber(world.grainYieldPerMu)),
+    statItem('Yield / mu (effective)', formatNumber(world.grainYieldPerMu)),
+    statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0)),
+    statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0)),
+    statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0)),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
     statItem('GDP Estimate', formatNumber(world.gdpEstimate)),
