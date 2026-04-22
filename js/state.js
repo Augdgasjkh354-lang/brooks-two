@@ -56,6 +56,8 @@ export const initialState = {
     supplyRatio: 1.0,
     circulationRatio: 0,
     commerceActivityBonus: 1.0,
+    backingRatio: 1.0,
+    inflationRate: 0,
 
     agricultureGDP: 0,
     commerceGDP: 0,

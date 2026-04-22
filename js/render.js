@@ -57,6 +57,34 @@ function getStabilityDisplay(stabilityIndex) {
   };
 }
 
+function getInflationDisplay(inflationRate) {
+  if (inflationRate >= 0.3) {
+    return {
+      color: '#b42318',
+      label: 'Severe inflation',
+    };
+  }
+
+  if (inflationRate >= 0.15) {
+    return {
+      color: '#c2410c',
+      label: 'High inflation',
+    };
+  }
+
+  if (inflationRate >= 0.05) {
+    return {
+      color: '#b28704',
+      label: 'Mild inflation',
+    };
+  }
+
+  return {
+    color: '#1b8a3b',
+    label: 'Stable prices',
+  };
+}
+
 function statItem(label, value) {
   return `
     <div class="stat-item">
@@ -193,7 +221,7 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
       ? 'No coupon-circulation impact'
       : commerceActivityDelta > 0
         ? `+${formatDecimal(commerceActivityDelta, 1)}% commerce boost from coupons`
-        : `${formatDecimal(commerceActivityDelta, 1)}% commerce penalty from low circulation`;
+        : `${formatDecimal(commerceActivityDelta, 1)}% commerce penalty from low circulation or inflation`;
   const demandWarning =
     (world.demandSaturation ?? 0) > 1
       ? '<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>'
@@ -208,6 +236,17 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
   const stabilityValueHtml = `<span style="color: ${stabilityDisplay.color}; font-weight: 700;">${formatNumber(
     world.stabilityIndex ?? 80
   )}</span> / 100 (${stabilityDisplay.label})`;
+
+  const inflationRate = world.inflationRate ?? 0;
+  const inflationDisplay = getInflationDisplay(inflationRate);
+  const inflationRateHtml = `<span style="color: ${inflationDisplay.color}; font-weight: 700;">${formatDecimal(
+    inflationRate * 100,
+    1
+  )}%</span> (${inflationDisplay.label})`;
+  const inflationWarningText =
+    inflationRate > 0
+      ? '⚠️ Inflation is reducing economic stability and may suppress commerce efficiency.'
+      : 'No inflation warning';
 
   const efficiencyMultiplier = world.efficiencyMultiplier ?? 1;
   const outputLossPercent = Math.max(0, 1 - efficiencyMultiplier) * 100;
@@ -256,6 +295,9 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Grain Consumed by Commerce', formatNumber(world.totalGrainDemand ?? 0)),
     statItem('Grain Price', formatDecimal(world.grainPrice ?? 1, 2)),
     statItem('Grain Supply Ratio', formatDecimal(world.supplyRatio ?? 0, 2)),
+    statItem('Coupon Backing Ratio', formatDecimal(world.backingRatio ?? 1, 2)),
+    statItem('Inflation Rate', inflationRateHtml),
+    statItem('Inflation Warning', inflationWarningText),
     statItem('Grain Demand / person', formatNumber(world.grainDemandPerPerson ?? 0)),
     statItem('Total Grain Demand', formatNumber(world.grainDemandTotal ?? 0)),
     statItem('Grain Balance', formatNumber(world.grainBalance ?? 0)),
@@ -336,6 +378,13 @@ export function renderSystems(state) {
   document.getElementById('grain-coupon-locked').classList.toggle('hidden', couponsUnlocked);
 
   if (couponsUnlocked) {
+    const inflationRate = state.world.inflationRate ?? 0;
+    const inflationDisplay = getInflationDisplay(inflationRate);
+    const inflationText = `<span style="color: ${inflationDisplay.color}; font-weight: 700;">${formatDecimal(
+      inflationRate * 100,
+      1
+    )}%</span> (${inflationDisplay.label})`;
+
     document.getElementById('grain-coupon-stats').innerHTML = [
       statItem('Total Issued', formatNumber(state.world.couponTotalIssued ?? 0)),
       statItem('Government Held', formatNumber(state.world.couponTreasury ?? 0)),
@@ -344,6 +393,12 @@ export function renderSystems(state) {
       statItem('Suggested Denominations', renderCouponDenominationBreakdown(state.world)),
       statItem('Tax Ratio', renderRatioValue(state.world.taxGrainRatio ?? 1)),
       statItem('Salary Ratio', renderRatioValue(state.world.salaryGrainRatio ?? 1)),
+      statItem('Backing Ratio', formatDecimal(state.world.backingRatio ?? 1, 2)),
+      statItem('Inflation', inflationText),
+      statItem(
+        'Inflation Warning',
+        inflationRate > 0 ? '⚠️ Inflation penalties are active.' : 'No inflation warning'
+      ),
       getCouponRatioControlsHtml(state.world),
     ].join('');
 
