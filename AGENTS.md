@@ -354,3 +354,47 @@ render.js
 - Population growth rate reduced when shortfall is true
 - UI shows warning message when demandShortfall is true
 - No penalty when demandSaturation >= 0.5
+## Phase 2C-1+2 Scope (Current)
+
+Phase 2B-3 is complete. Now implementing Phase 2C-1+2 only.
+
+**Goal:** Shops consume grain each year. Grain supply vs
+demand sets a basic grain price that affects agricultural GDP.
+
+**Rules:**
+
+Grain consumption:
+- Each operating shop consumes 200 grain per year
+- totalGrainDemand = operatingShops * 200
+- Grain deducted from grainTreasury each year-advance
+- If grainTreasury < totalGrainDemand:
+  only consume what's available
+  remaining shops still operate but at reduced efficiency
+
+Grain price:
+- baseGrainPrice = 1.0
+- supplyRatio = grainTreasury / (totalPopulation * 2)
+  (2 grain per person = comfortable supply)
+- If supplyRatio >= 1.0: grainPrice = 1.0
+- If supplyRatio < 1.0: grainPrice = supplyRatio (cheaper)
+- If supplyRatio > 2.0: grainPrice = 1.2 (scarcity premium)
+
+Agricultural GDP:
+- agricultureGDP = actualGrainOutput * grainPrice
+  (was actualGrainOutput * 1)
+
+State additions needed in world{}:
+- totalGrainDemand: 0
+- grainPrice: 1.0
+- supplyRatio: 1.0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 2C-1+2):**
+- Grain consumed by shops each year-advance
+- grainPrice calculated from supply ratio
+- agricultureGDP uses grainPrice multiplier
+- UI shows grain price and supply ratio
+- UI shows grain consumed by commerce this year
