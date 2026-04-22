@@ -42,6 +42,92 @@ function logYearSummary({
   );
 }
 
+function updateCreditCrisisResolutionState() {
+  const circulating = Math.max(0, state.world.couponCirculating ?? 0);
+  if (circulating <= 0) {
+    state.world.couponCirculating = 0;
+    state.world.backingRatio = 1;
+    state.world.creditCrisis = false;
+    return true;
+  }
+
+  state.world.backingRatio = Math.max(0, (state.world.grainTreasury ?? 0) / circulating);
+  if (state.world.backingRatio >= 0.6) {
+    state.world.creditCrisis = false;
+    return true;
+  }
+
+  return false;
+}
+
+function resolveByEmergencyRecirculation() {
+  if (!state.world.creditCrisis) {
+    state.yearLog.unshift(`Year ${state.world.year}: No active credit crisis to resolve.`);
+    render();
+    return;
+  }
+
+  if (state.world.creditCrisisResolved) {
+    state.yearLog.unshift(`Year ${state.world.year}: Credit crisis action already used this crisis.`);
+    render();
+    return;
+  }
+
+  if ((state.world.couponTreasury ?? 0) < 10000) {
+    state.yearLog.unshift(`Year ${state.world.year}: 紧急回笼 failed - requires 10000 coupon treasury.`);
+    render();
+    return;
+  }
+
+  state.world.couponTreasury -= 10000;
+  state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 10000);
+  state.world.creditCrisisResolved = true;
+
+  const resolved = updateCreditCrisisResolutionState();
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 执行紧急回笼（-10000 coupon treasury, -10000 circulating coupons）${
+      resolved ? '，危机已缓解。' : '，危机仍在持续。'
+    }`
+  );
+
+  render();
+}
+
+function resolveByEmergencyRedemption() {
+  if (!state.world.creditCrisis) {
+    state.yearLog.unshift(`Year ${state.world.year}: No active credit crisis to resolve.`);
+    render();
+    return;
+  }
+
+  if (state.world.creditCrisisResolved) {
+    state.yearLog.unshift(`Year ${state.world.year}: Credit crisis action already used this crisis.`);
+    render();
+    return;
+  }
+
+  if ((state.world.grainTreasury ?? 0) < 20000) {
+    state.yearLog.unshift(`Year ${state.world.year}: 紧急赎回 failed - requires 20000 grain treasury.`);
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= 20000;
+  state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 20000);
+  state.world.creditCrisisResolved = true;
+
+  const resolved = updateCreditCrisisResolutionState();
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 执行紧急赎回（-20000 grain treasury, -20000 circulating coupons）${
+      resolved ? '，危机已缓解。' : '，危机仍在持续。'
+    }`
+  );
+
+  render();
+}
+
 function nextYear() {
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
@@ -67,6 +153,10 @@ function nextYear() {
     potentialGrainOutput: econResult.potentialGrainOutput,
     lostGrainOutput: econResult.lostGrainOutput,
   });
+
+  if (econResult.creditCrisisTriggered) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮劵信用崩塌，市场发生挤兑`);
+  }
 
   (econResult.behaviorMessages ?? []).forEach((message) => {
     state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
@@ -180,7 +270,14 @@ function bindEvents() {
 }
 
 function render() {
-  renderAll(state, enactPolicy, useGrainRedistribution, useMerchantTax);
+  renderAll(
+    state,
+    enactPolicy,
+    useGrainRedistribution,
+    useMerchantTax,
+    resolveByEmergencyRecirculation,
+    resolveByEmergencyRedemption
+  );
 }
 
 function init() {

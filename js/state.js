@@ -64,6 +64,9 @@ export const initialState = {
     officialSatisfaction: 70,
     landlordSatisfaction: 70,
 
+    creditCrisis: false,
+    creditCrisisResolved: false,
+
     agricultureGDP: 0,
     commerceGDP: 0,
     constructionGDP: 0,
