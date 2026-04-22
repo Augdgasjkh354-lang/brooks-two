@@ -60,6 +60,9 @@ export const initialState = {
     maxMarketDemand: 0,
     demandSaturation: 0,
     demandShortfall: false,
+
+    grainRedistributionUsed: false,
+    merchantTaxUsed: false,
   },
   grainCoupons: {
     totalIssued: 0,

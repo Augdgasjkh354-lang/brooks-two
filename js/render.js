@@ -12,7 +12,6 @@ function formatDecimal(num, digits = 2) {
   });
 }
 
-
 function getPopulationGrowthDisplayDetails(world) {
   const baseRate = 0.02;
   const commerceBonus =
@@ -36,7 +35,6 @@ function getPopulationGrowthDisplayDetails(world) {
     modifiersText: modifiers.join(' | '),
   };
 }
-
 
 function getStabilityDisplay(stabilityIndex) {
   if (stabilityIndex >= 80) {
@@ -68,7 +66,37 @@ function statItem(label, value) {
   `;
 }
 
-export function renderCoreStats(state) {
+function getStabilityPolicyControlsHtml(world) {
+  const grainRedistributionDisabled =
+    world.grainRedistributionUsed || (world.grainTreasury ?? 0) < 5000;
+  const merchantTaxDisabled = world.merchantTaxUsed || (world.merchantCount ?? 0) <= 0;
+
+  return `
+    <div>
+      <button id="grain-redistribution-btn" ${grainRedistributionDisabled ? 'disabled' : ''}>
+        Grain Redistribution (${world.grainRedistributionUsed ? 'Used this year' : 'Cost: 5000 grain'})
+      </button>
+      <button id="merchant-tax-btn" ${merchantTaxDisabled ? 'disabled' : ''}>
+        Merchant Tax (${world.merchantTaxUsed ? 'Used this year' : '+10 stability, +200 grain per merchant'})
+      </button>
+    </div>
+  `;
+}
+
+function bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax) {
+  const grainBtn = document.getElementById('grain-redistribution-btn');
+  const merchantBtn = document.getElementById('merchant-tax-btn');
+
+  if (grainBtn) {
+    grainBtn.addEventListener('click', onUseGrainRedistribution);
+  }
+
+  if (merchantBtn) {
+    merchantBtn.addEventListener('click', onUseMerchantTax);
+  }
+}
+
+export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax) {
   const world = state.world;
   const el = document.getElementById('core-stats');
 
@@ -89,11 +117,11 @@ export function renderCoreStats(state) {
     (world.demandSaturation ?? 0) > 1 ? 1 / (world.demandSaturation ?? 1) : 1;
   const demandWarning =
     (world.demandSaturation ?? 0) > 1
-      ? `<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>`
+      ? '<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>'
       : '';
   const demandShortfallWarning =
     world.demandShortfall
-      ? `<div class="stat-item"><div class="stat-label">Demand Shortfall</div><div class="stat-value">⚠️ Low market satisfaction suppresses yearly population growth (2.0% → 1.5%)</div></div>`
+      ? '<div class="stat-item"><div class="stat-label">Demand Shortfall</div><div class="stat-value">⚠️ Low market satisfaction suppresses yearly population growth (2.0% → 1.5%)</div></div>'
       : '';
 
   const growthDetails = getPopulationGrowthDisplayDetails(world);
@@ -156,6 +184,7 @@ export function renderCoreStats(state) {
     statItem('Stability Penalty Reason', world.stabilityPenaltyReason ?? 'No penalty (income gap below 500)'),
     statItem('Stability Efficiency Multiplier', `${formatDecimal(efficiencyMultiplier * 100, 1)}%`),
     statItem('Stability Output Loss', efficiencyLossText),
+    statItem('Stability Policies', getStabilityPolicyControlsHtml(world)),
     statItem('Population Growth Rate', `${formatDecimal(growthDetails.effectiveRate * 100, 2)}%`),
     statItem('Growth Modifiers', growthDetails.modifiersText),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
@@ -168,6 +197,8 @@ export function renderCoreStats(state) {
     statItem('Construction GDP', formatNumber(world.constructionGDP ?? 0)),
     statItem('GDP Estimate', formatNumber(world.gdpEstimate ?? 0)),
   ].join('');
+
+  bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -234,8 +265,13 @@ export function renderYearLog(state) {
     .join('');
 }
 
-export function renderAll(state, onEnactPolicy) {
-  renderCoreStats(state);
+export function renderAll(
+  state,
+  onEnactPolicy,
+  onUseGrainRedistribution,
+  onUseMerchantTax
+) {
+  renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTax);
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
   renderYearLog(state);

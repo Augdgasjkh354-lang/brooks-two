@@ -33,19 +33,19 @@ function logYearSummary({
   potentialGrainOutput,
   lostGrainOutput,
 }) {
-function logYearSummary({ populationDelta, agriculturalTax, grainOutput, potentialGrainOutput }) {
   const populationDirection = populationDelta >= 0 ? 'grow' : 'decline';
   const treasuryDirection = agriculturalTax >= 0 ? 'increased' : 'decreased';
   const utilization = Math.round(state.world.landUtilizationPercent);
 
   state.yearLog.unshift(
     `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection} by ${agriculturalTax}.`
-    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection}.`
-    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput}, and the grain treasury ${treasuryDirection}.`
   );
 }
 
 function nextYear() {
+  state.world.grainRedistributionUsed = false;
+  state.world.merchantTaxUsed = false;
+
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
@@ -75,6 +75,61 @@ function enactPolicy(policyId) {
   render();
 }
 
+function useGrainRedistribution() {
+  if (state.world.grainRedistributionUsed) {
+    state.yearLog.unshift(`Year ${state.world.year}: Grain Redistribution already used this year.`);
+    render();
+    return;
+  }
+
+  if (state.world.grainTreasury < 5000) {
+    state.yearLog.unshift(
+      `Year ${state.world.year}: Grain Redistribution failed - requires 5000 grain in treasury.`
+    );
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= 5000;
+  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + 15);
+  state.world.grainRedistributionUsed = true;
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: Grain Redistribution enacted (-5000 grain treasury, +15 stability).`
+  );
+
+  render();
+}
+
+function useMerchantTax() {
+  if (state.world.merchantTaxUsed) {
+    state.yearLog.unshift(`Year ${state.world.year}: Merchant Tax already used this year.`);
+    render();
+    return;
+  }
+
+  if ((state.world.merchantCount ?? 0) <= 0) {
+    state.yearLog.unshift(`Year ${state.world.year}: Merchant Tax failed - no merchants available.`);
+    render();
+    return;
+  }
+
+  state.world.merchantIncomePerHead = (state.world.merchantIncomePerHead ?? 0) * 0.8;
+  state.world.incomeGap =
+    (state.world.merchantIncomePerHead ?? 0) - (state.world.farmerIncomePerHead ?? 0);
+  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + 10);
+
+  const taxGain = (state.world.merchantCount ?? 0) * 200;
+  state.world.grainTreasury += taxGain;
+  state.world.merchantTaxUsed = true;
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: Merchant Tax enacted (merchant income -20%, +10 stability, +${taxGain} grain treasury).`
+  );
+
+  render();
+}
+
 function issueCouponsFromInput() {
   const input = document.getElementById('coupon-issue-input');
   const amount = Number(input.value);
@@ -97,14 +152,12 @@ function bindEvents() {
 }
 
 function render() {
-  renderAll(state, enactPolicy);
+  renderAll(state, enactPolicy, useGrainRedistribution, useMerchantTax);
 }
 
 function init() {
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
-  updateEconomy(state.world, { collectTax: false });
-  updateEconomy(state.world);
   bindEvents();
   render();
 }
