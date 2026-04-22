@@ -492,3 +492,45 @@ game.js
 - Both grain and commerce output reduced when unstable
 - UI shows current efficiency multiplier as percentage
 - UI shows estimated output loss when multiplier < 1.0
+## Phase 3A-3 Scope (Current)
+
+Phase 3A-2 is complete. Now implementing Phase 3A-3 only.
+
+**Goal:** Player can use policies to stabilize society,
+but each intervention has a real cost.
+
+**Rules:**
+
+Two new policies available:
+
+1. Grain Redistribution
+- Cost: 5000 grain from grainTreasury
+- Effect: stabilityIndex += 15 (capped at 100)
+- Can only use once per year
+- Button disabled if grainTreasury < 5000
+
+2. Merchant Tax
+- Effect: merchantIncomePerHead *= 0.8 (20% income cut)
+- Effect: stabilityIndex += 10
+- Effect: grainTreasury += merchantCount * 200
+- Can only use once per year
+- Button disabled if merchantCount = 0
+
+Policy limits:
+- Each policy has a usedThisYear boolean
+- Both reset to false on each year-advance
+
+State additions needed in world{}:
+- grainRedistributionUsed: false
+- merchantTaxUsed: false
+
+**Files to modify:** state.js, render.js, game.js
+**Do NOT touch:** unlocks.js, economy.js, population.js
+
+**Definition of Done (Phase 3A-3):**
+- Both policy buttons visible in UI
+- Buttons disabled when conditions not met
+- Buttons disabled after use until next year
+- Effects applied immediately on click
+- Year log records which policies were used
+- stabilityIndex updates immediately after policy use
