@@ -534,3 +534,50 @@ State additions needed in world{}:
 - Effects applied immediately on click
 - Year log records which policies were used
 - stabilityIndex updates immediately after policy use
+## Phase 3B-1a Scope (Current)
+
+Phase 3A-3 is complete. Now implementing Phase 3B-1a only.
+
+**Goal:** Split treasury into grain and coupon. Add basic
+grain coupon issuance mechanism. Only available after
+grainCouponsUnlocked = true.
+
+**Rules:**
+
+Treasury split:
+- grainTreasury remains (physical grain)
+- New: couponTreasury (government-held coupons, not circulating)
+- New: couponCirculating (coupons in market)
+- New: couponTotalIssued
+
+Coupon issuance:
+- Player sets amount to issue (in jin units)
+- Government pays farmers that amount in coupons
+- Farmers hand over equivalent grain (1:1 fixed rate always)
+- grainTreasury += issued amount
+- couponCirculating += issued amount
+- couponTotalIssued += issued amount
+- Cannot issue more than grainTreasury can absorb
+- Cannot issue if grainCouponsUnlocked = false
+
+Coupon denominations (UI display only, internal is total):
+1钱、5钱、1两、5两、1斤、2斤、5斤、10斤、20斤、50斤、100斤
+Show suggested denomination breakdown in UI after issuance.
+
+Exchange rate: always 1:1, never changes.
+
+State additions needed:
+- world.couponTreasury: 0
+- world.couponCirculating: 0  
+- world.couponTotalIssued: 0
+
+**Files to modify:** state.js, economy.js, render.js, game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 3B-1a):**
+- Treasury panel shows grain and coupon separately
+- Issue Coupons button only visible after unlock
+- Player can input amount to issue
+- Grain and coupons update correctly after issuance
+- UI shows total issued / circulating / government held
+- Denomination breakdown shown as reference in UI
