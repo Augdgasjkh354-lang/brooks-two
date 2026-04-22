@@ -229,3 +229,36 @@ game.js
 - commerceGDP based on operatingShops only
 - UI shows: operating shops / idle shops
 - If merchantCount = 0, all shops idle, commerceGDP = 0
+## Phase 2A-3 Scope (Current)
+
+Phase 2A-2 is complete. Now implementing Phase 2A-3 only.
+
+**Goal:** Merchants earn more than farmers. Income difference
+is calculated and displayed. No labor flow simulation yet.
+
+**Rules:**
+
+Income calculation (per person per year):
+- Farmer income = (actualGrainOutput * 0.3) / farmingLaborAllocated
+- Merchant income = (commerceGDP * 0.5) / merchantCount
+  (if merchantCount = 0, merchant income = 0)
+- Income gap = merchant income - farmer income
+
+These are display values only. Do not affect any other
+system yet.
+
+State additions needed in world{}:
+- farmerIncomePerHead: 0
+- merchantIncomePerHead: 0
+- incomeGap: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 2A-3):**
+- farmerIncomePerHead calculated each year
+- merchantIncomePerHead calculated each year
+- incomeGap = merchantIncomePerHead - farmerIncomePerHead
+- UI shows all three values in an income panel
+- If no merchants, merchant income shows 0
