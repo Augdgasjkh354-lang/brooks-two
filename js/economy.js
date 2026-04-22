@@ -93,6 +93,54 @@ function getCommerceActivityBonus(world) {
   return { circulationRatio, commerceActivityBonus: 0.7 };
 }
 
+function getInflationState(world) {
+  if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
+    return {
+      backingRatio: 1.0,
+      inflationRate: 0,
+      inflationStabilityPenalty: 0,
+      inflationCommercePenaltyMultiplier: 1.0,
+    };
+  }
+
+  const couponCirculating = Math.max(0, world.couponCirculating ?? 0);
+  const backingRatio = couponCirculating > 0 ? Math.max(0, (world.grainTreasury ?? 0) / couponCirculating) : 1.0;
+
+  if (backingRatio >= 1.0) {
+    return {
+      backingRatio,
+      inflationRate: 0,
+      inflationStabilityPenalty: 0,
+      inflationCommercePenaltyMultiplier: 1.0,
+    };
+  }
+
+  if (backingRatio >= 0.7) {
+    return {
+      backingRatio,
+      inflationRate: 0.05,
+      inflationStabilityPenalty: 5,
+      inflationCommercePenaltyMultiplier: 1.0,
+    };
+  }
+
+  if (backingRatio >= 0.4) {
+    return {
+      backingRatio,
+      inflationRate: 0.15,
+      inflationStabilityPenalty: 15,
+      inflationCommercePenaltyMultiplier: 0.9,
+    };
+  }
+
+  return {
+    backingRatio,
+    inflationRate: 0.3,
+    inflationStabilityPenalty: 25,
+    inflationCommercePenaltyMultiplier: 0.7,
+  };
+}
+
 function getCouponDenominationBreakdown(issueAmount) {
   const units = [
     { label: '100斤', value: 10000 },
@@ -150,8 +198,17 @@ export function updateEconomy(world, options = {}) {
   const grainSupplyEfficiency = totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
 
   const { circulationRatio, commerceActivityBonus } = getCommerceActivityBonus(world);
+  const {
+    backingRatio,
+    inflationRate,
+    inflationStabilityPenalty,
+    inflationCommercePenaltyMultiplier,
+  } = getInflationState(world);
+
+  const effectiveCommerceActivityBonus = commerceActivityBonus * inflationCommercePenaltyMultiplier;
+
   const preStabilityCommerceGDP = clamp(
-    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * commerceActivityBonus
+    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus
   );
 
   const preStabilityFarmerIncomePerHead =
@@ -164,8 +221,9 @@ export function updateEconomy(world, options = {}) {
 
   const preStabilityIncomeGap = preStabilityMerchantIncomePerHead - preStabilityFarmerIncomePerHead;
 
-  const { penalty: stabilityPenalty, reason: stabilityPenaltyReason } =
+  const { penalty: incomeGapPenalty, reason: stabilityPenaltyReason } =
     getStabilityPenaltyFromIncomeGap(preStabilityIncomeGap);
+  const stabilityPenalty = incomeGapPenalty + inflationStabilityPenalty;
   const stabilityIndex = Math.max(0, 80 - stabilityPenalty);
   const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
 
@@ -214,7 +272,9 @@ export function updateEconomy(world, options = {}) {
   world.grainPrice = grainPrice;
   world.supplyRatio = supplyRatio;
   world.circulationRatio = circulationRatio;
-  world.commerceActivityBonus = commerceActivityBonus;
+  world.commerceActivityBonus = effectiveCommerceActivityBonus;
+  world.backingRatio = backingRatio;
+  world.inflationRate = inflationRate;
 
   world.agricultureGDP = agricultureGDP;
   world.commerceGDP = clamp(commerceGDP);
@@ -233,7 +293,10 @@ export function updateEconomy(world, options = {}) {
   world.incomeGap = incomeGap;
 
   world.stabilityPenalty = stabilityPenalty;
-  world.stabilityPenaltyReason = stabilityPenaltyReason;
+  world.stabilityPenaltyReason =
+    inflationStabilityPenalty > 0
+      ? `${stabilityPenaltyReason}; inflation penalty -${inflationStabilityPenalty}`
+      : stabilityPenaltyReason;
   world.stabilityIndex = stabilityIndex;
   world.efficiencyMultiplier = efficiencyMultiplier;
 
