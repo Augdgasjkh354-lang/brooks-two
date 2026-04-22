@@ -462,3 +462,33 @@ game.js
   50-79: yellow (tense)
   0-49: red (unstable)
 - UI shows current income gap and penalty reason
+## Phase 3A-2 Scope (Current)
+
+Phase 3A-1 is complete. Now implementing Phase 3A-2 only.
+
+**Goal:** Low stability now causes real economic damage.
+Unstable society = lower farming and commerce output.
+
+**Rules:**
+
+Efficiency multiplier from stability:
+- stabilityIndex 80-100: efficiencyMultiplier = 1.0
+- stabilityIndex 50-79: efficiencyMultiplier = 0.85
+- stabilityIndex 0-49: efficiencyMultiplier = 0.65
+
+Apply multiplier to:
+- actualGrainOutput *= efficiencyMultiplier
+- commerceGDP *= efficiencyMultiplier
+
+State additions needed in world{}:
+- efficiencyMultiplier: 1.0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 3A-2):**
+- efficiencyMultiplier calculated from stabilityIndex
+- Both grain and commerce output reduced when unstable
+- UI shows current efficiency multiplier as percentage
+- UI shows estimated output loss when multiplier < 1.0
