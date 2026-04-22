@@ -9,12 +9,18 @@ function clampRatio(value) {
 function calculateLaborAllocation(world) {
   const requiredFarmingLabor = world.farmlandAreaMu / 10;
   const farmingLaborAllocated = Math.min(world.laborForce, requiredFarmingLabor);
-  const idleLabor = Math.max(0, world.laborForce - farmingLaborAllocated);
+
+  const remainingAfterFarming = Math.max(0, world.laborForce - farmingLaborAllocated);
+  const commerceLaborDemand = (world.shopCount ?? 0) * 5;
+  const laborAssignedCommerce = Math.min(remainingAfterFarming, commerceLaborDemand);
+
+  const idleLabor = Math.max(0, remainingAfterFarming - laborAssignedCommerce);
   const farmEfficiency =
     requiredFarmingLabor > 0 ? clampRatio(farmingLaborAllocated / requiredFarmingLabor) : 1;
 
   world.farmingLaborRequired = clamp(requiredFarmingLabor);
   world.farmingLaborAllocated = clamp(farmingLaborAllocated);
+  world.laborAssignedCommerce = clamp(laborAssignedCommerce);
   world.idleLabor = clamp(idleLabor);
   world.farmEfficiency = farmEfficiency;
   world.landUtilizationPercent = farmEfficiency * 100;
@@ -25,19 +31,12 @@ function calculateLaborAllocation(world) {
 function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
   if (grainCoverageRatio >= 0.85) return 'Strained';
-function getFoodSecurityStatus(grainBalance) {
-  if (grainBalance > 0) return 'Surplus';
-  if (grainBalance === 0) return 'Balanced';
   return 'Shortage';
 }
 
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
 
-export function updateEconomy(world, options = {}) {
-  const { collectTax = true } = options;
-
-export function updateEconomy(world) {
   const farmEfficiency = calculateLaborAllocation(world);
 
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
@@ -48,6 +47,14 @@ export function updateEconomy(world) {
   const lostGrainOutput = clamp(potentialGrainOutput - grainOutput);
   const agriculturalTax = clamp(grainOutput * world.agriculturalTaxRate);
 
+  const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
+  const idleShops = Math.max(0, (world.shopCount ?? 0) - operatingShops);
+
+  const agricultureGDP = grainOutput;
+  const commerceGDP = clamp(operatingShops * 500);
+  const constructionGDP = clamp(world.constructionGDP ?? 0);
+  const gdpEstimate = clamp(agricultureGDP + commerceGDP + constructionGDP);
+
   const grainDemandTotal = clamp(world.totalPopulation * (world.grainDemandPerPerson ?? 0));
   const grainBalance = grainOutput - grainDemandTotal;
   const grainPerCapita =
@@ -55,31 +62,50 @@ export function updateEconomy(world) {
   const grainCoverageRatio =
     grainDemandTotal > 0 ? clampRatio(grainOutput / grainDemandTotal) : 1;
 
+  const farmerIncomePerHead =
+    (world.farmingLaborAllocated ?? 0) > 0
+      ? (grainOutput * 0.3) / world.farmingLaborAllocated
+      : 0;
+
+  const merchantIncomePerHead =
+    (world.merchantCount ?? 0) > 0 ? (commerceGDP * 0.5) / world.merchantCount : 0;
+
+  const incomeGap = merchantIncomePerHead - farmerIncomePerHead;
+
+  const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
+  const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
+
   world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
   world.lostGrainOutput = lostGrainOutput;
+
+  world.operatingShops = clamp(operatingShops);
+  world.idleShops = clamp(idleShops);
+
+  world.agricultureGDP = clamp(agricultureGDP);
+  world.commerceGDP = clamp(commerceGDP);
+  world.gdpEstimate = gdpEstimate;
+
   world.grainDemandTotal = grainDemandTotal;
   world.grainBalance = grainBalance;
   world.grainPerCapita = grainPerCapita;
   world.grainCoverageRatio = grainCoverageRatio;
   world.foodSecurityStatus = getFoodSecurityStatus(grainCoverageRatio);
   world.foodSecurityIndex = Math.round(grainCoverageRatio * 100);
-  world.foodSecurityStatus = getFoodSecurityStatus(grainBalance);
   world.lastAgriculturalTax = agriculturalTax;
+
+  world.farmerIncomePerHead = farmerIncomePerHead;
+  world.merchantIncomePerHead = merchantIncomePerHead;
+  world.incomeGap = incomeGap;
+
+  world.maxMarketDemand = maxMarketDemand;
+  world.demandSaturation = demandSaturation;
 
   if (collectTax) {
     world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
     world.lastTaxCollectionYear = world.year;
   }
-
-
-  if (collectTax) {
-    world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
-  }
-
-  world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
-  world.gdpEstimate = clamp(grainOutput * 1.2);
 
   return {
     grainOutput,
