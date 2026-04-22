@@ -26,7 +26,7 @@ function updateLaborAllocation(world) {
 
 export function updatePopulation(world) {
   const total = world.totalPopulation;
-  const yearlyGrowthRate = 0.012;
+  const yearlyGrowthRate = world.demandShortfall ? 0.015 : 0.02;
 
   const nextTotal = clamp(total * (1 + yearlyGrowthRate));
   const nextChildren = clamp(nextTotal * 0.2);

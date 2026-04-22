@@ -44,6 +44,10 @@ export function renderCoreStats(state) {
     (world.demandSaturation ?? 0) > 1
       ? `<div class="stat-item"><div class="stat-label">Demand Warning</div><div class="stat-value">⚠️ Shops exceed population demand ceiling</div></div>`
       : '';
+  const demandShortfallWarning =
+    world.demandShortfall
+      ? `<div class="stat-item"><div class="stat-label">Demand Shortfall</div><div class="stat-value">⚠️ Low market satisfaction suppresses yearly population growth (2.0% → 1.5%)</div></div>`
+      : '';
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -73,6 +77,7 @@ export function renderCoreStats(state) {
     statItem('Demand Saturation', `${formatDecimal(demandSaturationPercent, 1)}%`),
     statItem('Commerce Efficiency Rate', `${formatDecimal(commerceEfficiencyRate * 100, 1)}%`),
     demandWarning,
+    demandShortfallWarning,
     statItem('Grain Demand / person', formatNumber(world.grainDemandPerPerson ?? 0)),
     statItem('Total Grain Demand', formatNumber(world.grainDemandTotal ?? 0)),
     statItem('Grain Balance', formatNumber(world.grainBalance ?? 0)),
