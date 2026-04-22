@@ -25,12 +25,19 @@ function calculateLaborAllocation(world) {
 function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
   if (grainCoverageRatio >= 0.85) return 'Strained';
+function getFoodSecurityStatus(grainBalance) {
+  if (grainBalance > 0) return 'Surplus';
+  if (grainBalance === 0) return 'Balanced';
   return 'Shortage';
 }
 
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
 
+export function updateEconomy(world, options = {}) {
+  const { collectTax = true } = options;
+
+export function updateEconomy(world) {
   const farmEfficiency = calculateLaborAllocation(world);
 
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
@@ -58,6 +65,7 @@ export function updateEconomy(world, options = {}) {
   world.grainCoverageRatio = grainCoverageRatio;
   world.foodSecurityStatus = getFoodSecurityStatus(grainCoverageRatio);
   world.foodSecurityIndex = Math.round(grainCoverageRatio * 100);
+  world.foodSecurityStatus = getFoodSecurityStatus(grainBalance);
   world.lastAgriculturalTax = agriculturalTax;
 
   if (collectTax) {
@@ -65,6 +73,12 @@ export function updateEconomy(world, options = {}) {
     world.lastTaxCollectionYear = world.year;
   }
 
+
+  if (collectTax) {
+    world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
+  }
+
+  world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
   world.gdpEstimate = clamp(grainOutput * 1.2);
 
   return {
