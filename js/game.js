@@ -11,12 +11,13 @@ function getPolicyById(policyId) {
   return policies.find((policy) => policy.id === policyId);
 }
 
-function logYearSummary({ populationDelta, agriculturalTax }) {
+function logYearSummary({ populationDelta, agriculturalTax, grainOutput, potentialGrainOutput }) {
   const populationDirection = populationDelta >= 0 ? 'grow' : 'decline';
   const treasuryDirection = agriculturalTax >= 0 ? 'increased' : 'decreased';
+  const utilization = Math.round(state.world.landUtilizationPercent);
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: Population continued to ${populationDirection}, and the grain treasury ${treasuryDirection}.`
+    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput}, and the grain treasury ${treasuryDirection}.`
   );
 }
 
@@ -28,6 +29,8 @@ function nextYear() {
   logYearSummary({
     populationDelta: popResult.populationDelta,
     agriculturalTax: econResult.agriculturalTax,
+    grainOutput: econResult.grainOutput,
+    potentialGrainOutput: econResult.potentialGrainOutput,
   });
 
   render();
@@ -71,6 +74,7 @@ function render() {
 }
 
 function init() {
+  updateEconomy(state.world);
   bindEvents();
   render();
 }
