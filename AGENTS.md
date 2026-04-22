@@ -58,3 +58,35 @@ Phase 0 is complete. Now implementing Phase 1A only.
 - Under-staffed farms produce less grain proportionally
 - UI shows: total labor / farming / idle / land utilization %
 - Opening state (30000 mu, 3000 labor) shows 100% utilization
+## Phase 1B Scope (Current)
+
+Phase 1A is complete. Now implementing Phase 1B only.
+
+**Goal:** Make land the second real constraint. Farming is limited
+by both labor AND farmland. Players can expand land via land
+reclamation, but it costs grain and labor.
+
+**Rules:**
+
+Land reclamation:
+- Minimum order: 1000 mu per reclamation action
+- Cost: 500 grain per 100 mu (5 grain/mu)
+- Reclamation takes 1 year (available next year-advance)
+- Cost is paid immediately from grainTreasury
+- Reclamation cost counts as farmer income (stimulates economy)
+- Cannot reclaim if grainTreasury < total cost
+
+State additions needed in world{}:
+- pendingFarmlandMu: 0  (land being reclaimed, added next year)
+- reclaimedThisYear: 0  (for log display)
+
+**Files to modify:** state.js, economy.js, render.js, game.js  
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 1B):**
+- Reclaim land button visible in UI with cost preview
+- Cannot reclaim if insufficient grain
+- Grain deducted immediately on reclaim action
+- New land added at next year-advance
+- Year log shows reclamation event
+- Existing labor allocation logic from Phase 1A still works
