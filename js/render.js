@@ -57,6 +57,56 @@ function getStabilityDisplay(stabilityIndex) {
   };
 }
 
+
+function getSatisfactionDisplay(score) {
+  if (score >= 70) {
+    return { color: '#1b8a3b', label: 'Content' };
+  }
+
+  if (score >= 40) {
+    return { color: '#b28704', label: 'Uneasy' };
+  }
+
+  return { color: '#b42318', label: 'Discontent' };
+}
+
+function getClassSatisfactionFactors(world) {
+  const farmerFactors = [];
+  if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
+  if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
+  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1) farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
+  if ((world.taxGrainRatio ?? 1) < 0.5) farmerFactors.push('Tax mix favors coupons (>50% coupons)');
+
+  const merchantFactors = [];
+  if ((world.inflationRate ?? 0) >= 0.15) merchantFactors.push('Inflation at or above 15%');
+  if ((world.inflationRate ?? 0) >= 0.3) merchantFactors.push('Additional severe inflation penalty (30%)');
+  if ((world.demandSaturation ?? 0) > 1.5) merchantFactors.push('Oversaturated market demand (>150%)');
+  if ((world.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
+  if ((world.commerceActivityBonus ?? 1) > 1.0) merchantFactors.push('Commerce activity bonus active');
+
+  const officialFactors = [];
+  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) {
+    officialFactors.push('Low grain salary share (<50%) with inflation >=15%');
+  }
+  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) {
+    officialFactors.push('Very low grain salary share (<30%) with inflation >=5%');
+  }
+  if ((world.stabilityIndex ?? 80) < 50) officialFactors.push('Low social stability (<50)');
+
+  const landlordFactors = [];
+  if ((world.inflationRate ?? 0) >= 0.15) landlordFactors.push('Inflation at or above 15%');
+  if ((world.grainPrice ?? 1) < 0.8) landlordFactors.push('Low grain price (<0.8)');
+  if ((world.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
+  if ((world.farmlandAreaMu ?? 0) > 40000) landlordFactors.push('Large estate bonus (>40,000 mu)');
+
+  return {
+    farmer: farmerFactors.length > 0 ? farmerFactors.join(' | ') : 'No active factors',
+    merchant: merchantFactors.length > 0 ? merchantFactors.join(' | ') : 'No active factors',
+    official: officialFactors.length > 0 ? officialFactors.join(' | ') : 'No active factors',
+    landlord: landlordFactors.length > 0 ? landlordFactors.join(' | ') : 'No active factors',
+  };
+}
+
 function getInflationDisplay(inflationRate) {
   if (inflationRate >= 0.3) {
     return {
@@ -260,6 +310,25 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
       ? '⚠️ Coupon treasury was insufficient for configured coupon salary payment. Salary paid fully in grain this year.'
       : 'No salary payment warning';
 
+  const classFactors = getClassSatisfactionFactors(world);
+  const farmerSatisfactionDisplay = getSatisfactionDisplay(world.farmerSatisfaction ?? 70);
+  const merchantSatisfactionDisplay = getSatisfactionDisplay(world.merchantSatisfaction ?? 70);
+  const officialSatisfactionDisplay = getSatisfactionDisplay(world.officialSatisfaction ?? 70);
+  const landlordSatisfactionDisplay = getSatisfactionDisplay(world.landlordSatisfaction ?? 70);
+
+  const farmerSatisfactionHtml = `<span style="color: ${farmerSatisfactionDisplay.color}; font-weight: 700;">${formatNumber(
+    world.farmerSatisfaction ?? 70
+  )}</span> / 100 (${farmerSatisfactionDisplay.label})`;
+  const merchantSatisfactionHtml = `<span style="color: ${merchantSatisfactionDisplay.color}; font-weight: 700;">${formatNumber(
+    world.merchantSatisfaction ?? 70
+  )}</span> / 100 (${merchantSatisfactionDisplay.label})`;
+  const officialSatisfactionHtml = `<span style="color: ${officialSatisfactionDisplay.color}; font-weight: 700;">${formatNumber(
+    world.officialSatisfaction ?? 70
+  )}</span> / 100 (${officialSatisfactionDisplay.label})`;
+  const landlordSatisfactionHtml = `<span style="color: ${landlordSatisfactionDisplay.color}; font-weight: 700;">${formatNumber(
+    world.landlordSatisfaction ?? 70
+  )}</span> / 100 (${landlordSatisfactionDisplay.label})`;
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -316,6 +385,14 @@ export function renderCoreStats(state, onUseGrainRedistribution, onUseMerchantTa
     statItem('Stability Policies', getStabilityPolicyControlsHtml(world)),
     statItem('Population Growth Rate', `${formatDecimal(growthDetails.effectiveRate * 100, 2)}%`),
     statItem('Growth Modifiers', growthDetails.modifiersText),
+    statItem('Farmer Satisfaction', farmerSatisfactionHtml),
+    statItem('Farmer Factors', classFactors.farmer),
+    statItem('Merchant Satisfaction', merchantSatisfactionHtml),
+    statItem('Merchant Factors', classFactors.merchant),
+    statItem('Official Satisfaction', officialSatisfactionHtml),
+    statItem('Official Factors', classFactors.official),
+    statItem('Landlord Satisfaction', landlordSatisfactionHtml),
+    statItem('Landlord Factors', classFactors.landlord),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
     statItem('Last Tax Collection', taxCollectionText),
     statItem('Tax Snapshot Mode', taxModeText),

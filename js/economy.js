@@ -141,6 +141,44 @@ function getInflationState(world) {
   };
 }
 
+
+function clampPercentIndex(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function calculateClassSatisfaction(world) {
+  let farmerSatisfaction = 70;
+  if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerSatisfaction -= 15;
+  if ((world.inflationRate ?? 0) >= 0.15) farmerSatisfaction -= 10;
+  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1) farmerSatisfaction -= 20;
+  if ((world.taxGrainRatio ?? 1) < 0.5) farmerSatisfaction -= 10;
+
+  let merchantSatisfaction = 70;
+  if ((world.inflationRate ?? 0) >= 0.15) merchantSatisfaction -= 20;
+  if ((world.inflationRate ?? 0) >= 0.3) merchantSatisfaction -= 20;
+  if ((world.demandSaturation ?? 0) > 1.5) merchantSatisfaction -= 10;
+  if ((world.stabilityIndex ?? 80) < 50) merchantSatisfaction -= 15;
+  if ((world.commerceActivityBonus ?? 1) > 1.0) merchantSatisfaction += 10;
+
+  let officialSatisfaction = 70;
+  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) officialSatisfaction -= 20;
+  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) officialSatisfaction -= 15;
+  if ((world.stabilityIndex ?? 80) < 50) officialSatisfaction -= 10;
+
+  let landlordSatisfaction = 70;
+  if ((world.inflationRate ?? 0) >= 0.15) landlordSatisfaction -= 15;
+  if ((world.grainPrice ?? 1) < 0.8) landlordSatisfaction -= 10;
+  if ((world.stabilityIndex ?? 80) < 50) landlordSatisfaction -= 10;
+  if ((world.farmlandAreaMu ?? 0) > 40000) landlordSatisfaction += 10;
+
+  return {
+    farmerSatisfaction: clampPercentIndex(farmerSatisfaction),
+    merchantSatisfaction: clampPercentIndex(merchantSatisfaction),
+    officialSatisfaction: clampPercentIndex(officialSatisfaction),
+    landlordSatisfaction: clampPercentIndex(landlordSatisfaction),
+  };
+}
+
 function getCouponDenominationBreakdown(issueAmount) {
   const units = [
     { label: '100斤', value: 10000 },
@@ -303,6 +341,12 @@ export function updateEconomy(world, options = {}) {
   world.maxMarketDemand = maxMarketDemand;
   world.demandSaturation = demandSaturation;
   world.demandShortfall = demandShortfall;
+
+  const satisfaction = calculateClassSatisfaction(world);
+  world.farmerSatisfaction = satisfaction.farmerSatisfaction;
+  world.merchantSatisfaction = satisfaction.merchantSatisfaction;
+  world.officialSatisfaction = satisfaction.officialSatisfaction;
+  world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
   const taxGrainRatio = clampRatio(world.taxGrainRatio ?? 1);
   const salaryGrainRatio = clampRatio(world.salaryGrainRatio ?? 1);

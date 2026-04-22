@@ -59,6 +59,11 @@ export const initialState = {
     backingRatio: 1.0,
     inflationRate: 0,
 
+    farmerSatisfaction: 70,
+    merchantSatisfaction: 70,
+    officialSatisfaction: 70,
+    landlordSatisfaction: 70,
+
     agricultureGDP: 0,
     commerceGDP: 0,
     constructionGDP: 0,
