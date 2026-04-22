@@ -163,3 +163,39 @@ game.js
 - Total GDP = sum of three sectors
 - All three update correctly on each year-advance
 - Construction GDP is 0 in years with no reclamation
+## Phase 2A-1 Scope (Current)
+
+Phase 1D is complete. Now implementing Phase 2A-1 only.
+
+**Goal:** Add merchant as a distinct profession split from
+labor force. No economic effects yet — identity only.
+
+**Rules:**
+
+Merchants:
+- Merchants are drawn from idle labor only
+- Player can assign idle workers as merchants (button in UI)
+- Each click assigns 1 idle worker as merchant
+- Cannot assign if idleLabor = 0
+- Player can also release merchants back to idle labor
+
+State additions needed in world{}:
+- merchantCount: 0
+
+Labor hierarchy:
+1. Farming (first priority)
+2. Commerce (shops)
+3. Merchants
+4. Idle (remainder)
+
+**Files to modify:** state.js, render.js, game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+economy.js
+
+**Definition of Done (Phase 2A-1):**
+- Assign Merchant button in UI
+- Release Merchant button in UI
+- Both buttons disabled when not applicable
+- merchantCount tracked in state
+- UI shows merchant count alongside other labor stats
+- Idle labor correctly decreases when merchant assigned
