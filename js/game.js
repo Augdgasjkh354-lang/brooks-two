@@ -33,12 +33,15 @@ function logYearSummary({
   potentialGrainOutput,
   lostGrainOutput,
 }) {
+function logYearSummary({ populationDelta, agriculturalTax, grainOutput, potentialGrainOutput }) {
   const populationDirection = populationDelta >= 0 ? 'grow' : 'decline';
   const treasuryDirection = agriculturalTax >= 0 ? 'increased' : 'decreased';
   const utilization = Math.round(state.world.landUtilizationPercent);
 
   state.yearLog.unshift(
     `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection} by ${agriculturalTax}.`
+    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection}.`
+    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput}, and the grain treasury ${treasuryDirection}.`
   );
 }
 
@@ -100,6 +103,8 @@ function render() {
 function init() {
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
+  updateEconomy(state.world, { collectTax: false });
+  updateEconomy(state.world);
   bindEvents();
   render();
 }
