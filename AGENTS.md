@@ -90,3 +90,5 @@ State additions needed in world{}:
 - New land added at next year-advance
 - Year log shows reclamation event
 - Existing labor allocation logic from Phase 1A still works
+**Do NOT touch under any circumstances:** 
+unlocks.js, policies.js, population.js
