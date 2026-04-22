@@ -133,3 +133,33 @@ unlocks.js, policies.js, population.js
 
 population.js was finalized in Phase 1A. 
 Any labor logic changes go in economy.js only.
+## Phase 1D Scope (Current)
+
+Phase 1C is complete. Now implementing Phase 1D only.
+
+**Goal:** Split GDP into three real sectors so the player can
+see the economic structure, not just a single number.
+
+**Rules:**
+
+GDP breakdown:
+- Agricultural GDP = actualGrainOutput * grain price (1 grain = 1)
+- Commercial GDP = shopCount * 500 (already tracked)
+- Construction GDP = reclamation spending that year
+- Total GDP = sum of all three
+
+State additions needed in world{}:
+- agricultureGDP: 0
+- constructionGDP: 0
+(commerceGDP already exists from Phase 1C)
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 1D):**
+- GDP panel shows three lines: Agriculture / Commerce /
+  Construction
+- Total GDP = sum of three sectors
+- All three update correctly on each year-advance
+- Construction GDP is 0 in years with no reclamation
