@@ -39,6 +39,10 @@ export const initialState = {
     lastTaxCollectionYear: 0,
     grainTreasury: 15000000,
 
+    totalGrainDemand: 0,
+    grainPrice: 1.0,
+    supplyRatio: 1.0,
+
     agricultureGDP: 0,
     commerceGDP: 0,
     constructionGDP: 0,
