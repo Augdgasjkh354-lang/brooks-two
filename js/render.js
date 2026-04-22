@@ -23,6 +23,13 @@ export function renderCoreStats(state) {
       ? `${formatNumber(world.lastAgriculturalTax ?? 0)} (Year ${world.lastTaxCollectionYear})`
       : `${formatNumber(world.lastAgriculturalTax ?? 0)} (not collected yet)`;
 
+  const latestSnapshot = state.economyHistory?.[0];
+  const taxModeText = latestSnapshot
+    ? latestSnapshot.taxCollected
+      ? `Collected in Year ${latestSnapshot.year}`
+      : `Projected only in Year ${latestSnapshot.year}`
+    : 'No yearly snapshot yet';
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -46,6 +53,7 @@ export function renderCoreStats(state) {
     statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0)),
     statItem('Projected Agri Tax', formatNumber(world.lastAgriculturalTax ?? 0)),
     statItem('Last Tax Collection', taxCollectionText),
+    statItem('Tax Snapshot Mode', taxModeText),
     statItem('Agricultural Tax Rate', `${Math.round(world.agriculturalTaxRate * 100)}%`),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
     statItem('GDP Estimate', formatNumber(world.gdpEstimate)),

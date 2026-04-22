@@ -45,6 +45,7 @@ export const initialState = {
   },
   policyHistory: [],
   yearLog: [],
+  economyHistory: [],
 };
 
 export function createGameState() {

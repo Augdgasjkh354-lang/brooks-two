@@ -11,6 +11,21 @@ function getPolicyById(policyId) {
   return policies.find((policy) => policy.id === policyId);
 }
 
+function recordEconomySnapshot(econResult, taxCollected) {
+  state.economyHistory.unshift({
+    year: state.world.year,
+    grainOutput: econResult.grainOutput,
+    potentialGrainOutput: econResult.potentialGrainOutput,
+    lostGrainOutput: econResult.lostGrainOutput,
+    agriculturalTax: econResult.agriculturalTax,
+    taxCollected,
+  });
+
+  if (state.economyHistory.length > 20) {
+    state.economyHistory.length = 20;
+  }
+}
+
 function logYearSummary({
   populationDelta,
   agriculturalTax,
@@ -24,6 +39,7 @@ function logYearSummary({ populationDelta, agriculturalTax, grainOutput, potenti
   const utilization = Math.round(state.world.landUtilizationPercent);
 
   state.yearLog.unshift(
+    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection} by ${agriculturalTax}.`
     `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection}.`
     `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput}, and the grain treasury ${treasuryDirection}.`
   );
@@ -33,6 +49,8 @@ function nextYear() {
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
+
+  recordEconomySnapshot(econResult, true);
 
   logYearSummary({
     populationDelta: popResult.populationDelta,
@@ -83,6 +101,8 @@ function render() {
 }
 
 function init() {
+  const econResult = updateEconomy(state.world, { collectTax: false });
+  recordEconomySnapshot(econResult, false);
   updateEconomy(state.world, { collectTax: false });
   updateEconomy(state.world);
   bindEvents();
