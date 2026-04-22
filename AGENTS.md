@@ -326,3 +326,31 @@ game.js, state.js
 - commerceGDP reduced when demandSaturation > 1.0
 - UI shows effective commerce GDP
 - UI shows efficiency rate as a percentage
+## Phase 2B-3 Scope (Current)
+
+Phase 2B-2 is complete. Now implementing Phase 2B-3 only.
+
+**Goal:** Persistent low demand satisfaction shows a warning
+and slightly suppresses population growth.
+
+**Rules:**
+
+Demand shortage penalty:
+- If demandSaturation < 0.5 for current year:
+  populationGrowthRate reduced by 0.5%
+  (from default 2% to 1.5%)
+- If demandSaturation >= 0.5: no penalty
+- Penalty is recalculated every year, not cumulative
+
+State additions needed in world{}:
+- demandShortfall: false (boolean, true if sat < 0.5)
+
+**Files to modify:** state.js, economy.js, population.js,
+render.js
+**Do NOT touch:** unlocks.js, policies.js, game.js
+
+**Definition of Done (Phase 2B-3):**
+- demandShortfall calculated each year
+- Population growth rate reduced when shortfall is true
+- UI shows warning message when demandShortfall is true
+- No penalty when demandSaturation >= 0.5
