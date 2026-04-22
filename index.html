@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Policy-Driven Society Sim - Phase 1</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Policy-Driven Society Simulation (Phase 1)</h1>
+      <p class="subtitle">Labor is limited. Agriculture, construction, and commerce now compete for workers.</p>
+      <button id="next-year-btn" class="primary">Next Year</button>
+    </header>
+
+    <section class="grid-top">
+      <article class="panel" id="macro-panel">
+        <h2>Macro Stats</h2>
+        <div id="macro-stats"></div>
+
+        <h3>Labor Allocation</h3>
+        <div class="action-row">
+          <label for="agri-labor-input">Agriculture labor target</label>
+          <input id="agri-labor-input" type="number" min="0" step="1" value="3000" />
+          <button id="set-agri-labor-btn">Set Target</button>
+        </div>
+        <div id="labor-breakdown"></div>
+      </article>
+
+      <article class="panel" id="actions-panel">
+        <h2>Actions</h2>
+
+        <section class="subpanel">
+          <h3>Construction</h3>
+          <p id="reclaim-rule" class="muted"></p>
+          <div class="action-row">
+            <label for="reclaim-units-input">Reclaim Land (units of 1000 mu)</label>
+            <input id="reclaim-units-input" type="number" min="1" step="1" value="1" />
+            <button id="reclaim-land-btn">Start Reclamation</button>
+          </div>
+
+          <p id="shop-rule" class="muted"></p>
+          <div class="action-row">
+            <label for="shop-count-input">Build Shops</label>
+            <input id="shop-count-input" type="number" min="1" step="1" value="1" />
+            <button id="build-shop-btn">Start Shop Build</button>
+          </div>
+
+          <div id="construction-status" class="muted"></div>
+        </section>
+
+        <section class="subpanel">
+          <h3>Policies</h3>
+          <div id="policy-list"></div>
+        </section>
+
+        <section class="subpanel">
+          <h3>Technology</h3>
+          <ul id="technology-list"></ul>
+        </section>
+      </article>
+    </section>
+
+    <section class="panel" id="systems-panel">
+      <h2>Unlocked Systems</h2>
+      <ul id="systems-list"></ul>
+
+      <div id="grain-coupon-panel" class="subpanel hidden">
+        <h3>Grain Coupon System</h3>
+        <div id="grain-coupon-stats"></div>
+        <div class="action-row">
+          <label for="coupon-issue-input">Issue amount</label>
+          <input id="coupon-issue-input" type="number" min="1" step="1" value="1000" />
+          <button id="issue-coupon-btn">Issue Grain Coupons</button>
+        </div>
+      </div>
+
+      <p id="grain-coupon-locked" class="muted">
+        Grain coupon system is locked. Complete the bank policy chain to unlock.
+      </p>
+    </section>
+
+    <section class="panel" id="year-log-panel">
+      <h2>Yearly Summary Log</h2>
+      <ul id="year-log"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
