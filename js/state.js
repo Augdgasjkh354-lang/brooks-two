@@ -13,6 +13,8 @@ export const initialState = {
     idleLabor: 0,
     farmEfficiency: 1,
     landUtilizationPercent: 100,
+    potentialGrainOutput: 0,
+    actualGrainOutput: 0,
     potentialGrainOutput: 15000000,
     actualGrainOutput: 15000000,
     lostGrainOutput: 0,

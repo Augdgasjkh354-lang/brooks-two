@@ -25,6 +25,9 @@ export function renderCoreStats(state) {
       'Farming Labor',
       `${formatNumber(world.farmingLaborAllocated ?? 0)} / ${formatNumber(world.farmingLaborRequired ?? 0)}`
     ),
+    statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
+    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
+    statItem('Farm Efficiency', `${Math.round((world.farmEfficiency ?? 0) * 100)}%`),
     statItem('Farming Labor', formatNumber(world.farmingLaborAllocated ?? 0)),
     statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
     statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
