@@ -31,6 +31,10 @@ function getFoodSecurityStatus(grainBalance) {
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
 
+export function updateEconomy(world, options = {}) {
+  const { collectTax = true } = options;
+
+export function updateEconomy(world) {
   const farmEfficiency = calculateLaborAllocation(world);
 
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
@@ -61,6 +65,12 @@ export function updateEconomy(world, options = {}) {
     world.lastTaxCollectionYear = world.year;
   }
 
+
+  if (collectTax) {
+    world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
+  }
+
+  world.grainTreasury = clamp(world.grainTreasury + agriculturalTax);
   world.gdpEstimate = clamp(grainOutput * 1.2);
 
   return {
