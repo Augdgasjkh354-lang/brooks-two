@@ -15,10 +15,12 @@ export const initialState = {
     landUtilizationPercent: 100,
     potentialGrainOutput: 0,
     actualGrainOutput: 0,
+    potentialGrainOutput: 15000000,
+    actualGrainOutput: 15000000,
     lostGrainOutput: 0,
     agriculturalTaxRate: 0.7,
     grainTreasury: 15000000,
-    gdpEstimate: 0,
+    gdpEstimate: 18000000,
   },
   grainCoupons: {
     totalIssued: 0,
