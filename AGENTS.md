@@ -3371,3 +3371,123 @@ society/stability.js
   roads: length / trade bonus / reclaim bonus
   health bureau prereq status
 - yearLog records construction and milestone events
+## Phase 7B-4 Scope (Current)
+
+Phase 7B-3 complete. Now implementing 7B-4 only.
+
+**Goal:** Add health bureau as specialized institution.
+Requires public infrastructure prerequisites.
+Affects population death rate and life quality.
+
+**Rules:**
+
+Unlock condition:
+- healthBureauPrereqMet = true
+  (publicToilets >= 50, sanitationWorkers >= 5,
+  cleaningWorkers >= 5)
+- governmentEstablished = true
+
+Health bureau setup:
+- playerSets: healthOfficerCount
+- Each officer drawn from adminTalent pool
+- healthOfficerWage: playerAdjustable
+  default: gdpPerCapita * 1.2
+- Annual cost = healthOfficerCount * healthOfficerWage
+  flows to officialIncomePool
+
+Health bureau efficiency:
+- Same 3-dimension framework as other institutions
+- Paper consumption: paperOutput * 5% per year
+
+Population health index:
+- baseHealthIndex: 50
+- healthIndex range: 0-100
+
+Factors affecting healthIndex:
+
+Positive:
+- healthBureauEstablished: +10
+- healthEfficiency > 80%: +10
+- toiletCoverage >= 50%: +10
+- toiletCoverage >= 80%: +5 additional
+- basicMedicineCompleted (tech): +10
+- advancedMedicineCompleted (tech): +10
+- grainSurplus > 0: +5
+- cleaningWorkerCount >= roadLength * 0.2: +5
+
+Negative:
+- toiletCoverage < 10%: -15
+- grainSurplus < 0: -10
+- saltShortfallRatio > 0.3: -5
+- healthEfficiency < 30%: -10
+- population > 20000 AND healthIndex < 50: -5
+  (crowding effect)
+
+Health index effects:
+- healthIndex >= 80:
+  populationGrowthRate += 0.005
+  farmerLifeQuality += 5
+  yearLog: "公共卫生优良，人口健康"
+- healthIndex 60-79:
+  populationGrowthRate += 0.002
+  farmerLifeQuality += 2
+- healthIndex 40-59:
+  no change (baseline)
+- healthIndex 20-39:
+  populationGrowthRate -= 0.005
+  farmerLifeQuality -= 5
+  yearLog: "公共卫生堪忧，疾病风险上升"
+- healthIndex < 20:
+  populationGrowthRate -= 0.01
+  farmerLifeQuality -= 15
+  all lifeQuality -= 5
+  yearLog: "卫生危机，疾病肆虐"
+
+Disease event trigger:
+- If healthIndex < 20 for 3 consecutive years:
+  diseaseOutbreak = true
+  totalPopulation -= totalPopulation * 0.05
+  yearLog: "瘟疫爆发，人口骤减5%"
+  diseaseOutbreak resets healthIndex check
+
+State additions needed in world{}:
+- healthBureauEstablished: false
+- healthOfficerCount: 0
+- healthOfficerWage: 0
+- healthEfficiency: 0
+- healthIndex: 50
+- adminTalentDeployedHealth: 0
+- consecutiveLowHealthYears: 0
+- diseaseOutbreak: false
+
+**Files to modify:**
+- js/state.js
+- js/society/population.js (health growth effects)
+- js/society/satisfaction.js (health life quality)
+- js/society/stability.js (health stability effects)
+- js/game.js (annual health costs + disease check)
+- js/ui/render_society.js (health bureau panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/market.js economy/currency.js
+economy/labor.js diplomacy/xikou.js
+tech/research.js economy/agriculture.js
+economy/commerce.js
+
+**Definition of Done (Phase 7B-4):**
+- Health bureau panel appears when prereqs met
+- Player sets officer count and wage
+- healthIndex calculated each year from all factors
+- Population growth rate modified by healthIndex
+- Disease outbreak triggers after 3 bad years
+- healthEfficiency calculated from 3 dimensions
+- Annual costs deducted to officialIncomePool
+- UI shows health bureau panel in 社会 tab:
+  establishment status
+  officer count and wage
+  healthIndex with color coding:
+    80-100: green, 60-79: blue,
+    40-59: grey, 20-39: orange, 0-19: red
+  active health factors (positive/negative)
+  consecutive low health year counter
+- yearLog records health milestones and disease
