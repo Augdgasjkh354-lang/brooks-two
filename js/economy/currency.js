@@ -1,4 +1,5 @@
 // Currency module: coupons and inflation
+import { clamp } from './labor.js';
 
 export function getInflationState(world) {
   if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
@@ -113,4 +114,3 @@ export function issueGrainCoupons(state, amount) {
     denominationBreakdown,
   };
 }
-
