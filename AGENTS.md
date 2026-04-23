@@ -1272,3 +1272,67 @@ game.js
   demand / imported / reserve / shortfall ratio
 - Shortfall warning shown when ratio > 0.1
 - yearLog records import amount and cost
+## Phase 5B-2 Scope (Current)
+
+Phase 5B-1 is complete. Now implementing Phase 5B-2 only.
+
+**Goal:** Player can intervene in salt market by selling
+from government reserve at a set price. Selling below
+market price costs money but stabilizes society.
+
+**Rules:**
+
+Official salt sale:
+- Player sets officialSaltPrice (in grain or coupons)
+- Player sets officialSaltAmount (jin to release)
+- Cannot set price above current saltPrice
+  (no point selling above market)
+- Cannot release more than saltReserve
+- Minimum release: 1000 jin
+
+Effects of official sale:
+- saltReserve -= officialSaltAmount
+- Revenue = officialSaltAmount * officialSaltPrice
+- If grainCouponsUnlocked:
+  couponTreasury += revenue
+- Else:
+  grainTreasury += revenue
+- Loss = officialSaltAmount * (saltPrice - officialSaltPrice)
+  (subsidy cost to government)
+
+Market price response:
+- officialSaltAmount / saltAnnualDemand >= 0.3:
+  saltPrice *= 0.85 (significant supply injection)
+- officialSaltAmount / saltAnnualDemand 0.1-0.29:
+  saltPrice *= 0.95 (modest price relief)
+- officialSaltAmount / saltAnnualDemand < 0.1:
+  saltPrice unchanged
+
+Satisfaction effects:
+- officialSaltPrice <= saltPrice * 0.7:
+  farmerSatisfaction += 15
+  yearLog: "官府平价放盐，民心稳定"
+- officialSaltPrice <= saltPrice * 0.9:
+  farmerSatisfaction += 8
+  yearLog: "官府适量投放食盐"
+
+Official sale can happen once per year.
+Player can choose not to intervene.
+
+State additions needed in world{}:
+- officialSaltPrice: 0
+- officialSaltAmount: 0
+- officialSaltSaleUsed: false
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 5B-2):**
+- Official salt sale panel visible in UI
+- Player inputs price and amount
+- Cost/revenue/loss preview shown before confirming
+- saltPrice adjusts after sale
+- Satisfaction effects applied correctly
+- Button disabled after use until next year
+- yearLog records sale price, amount, and subsidy cost
