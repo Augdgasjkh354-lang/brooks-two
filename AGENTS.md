@@ -2072,3 +2072,89 @@ js/tech/research.js, any society/ diplomacy/ files
   paper material / hemp stalks / building fiber
   construction cost reduction %
   structural bonus status
+## Cost Rebalance (Current)
+
+All previous costs were too low relative to actual
+economy scale. Annual net grain gain is ~8.7M jin.
+Rebalancing all costs to create real economic pressure.
+
+**New cost standards:**
+
+Land reclamation:
+- Farmland: 500 grain/mu (was 5)
+- Hemp land: 800 grain/mu (was 8)
+- Mulberry land: 1500 grain/mu (was 15)
+
+Buildings:
+- Shop: 1,500,000 grain (was 2,000)
+
+Diplomacy:
+- Send envoy: 500,000 grain (was 5,000)
+- Salt trade: prices unchanged (market-driven)
+- Cloth trade: prices unchanged (market-driven)
+
+Policy interventions:
+- Grain redistribution: 3,000,000 grain (was 5,000)
+- Merchant tax: unchanged (revenue-generating)
+
+Bureaucracy policies (bureaucracyUnlocked required):
+- 户籍制度 (Household Registry):
+  1,500,000 grain one-time + 300,000 grain/year
+  Effect: tax efficiency +10%
+- 粮仓台账 (Granary Ledger):
+  800,000 grain one-time
+  Effect: grainTreasury retains 3% more each year
+- 官府布告 (Official Proclamation):
+  600,000 grain/year
+  Effect: stability penalty reduced by 15%
+- 契约制度 (Contract System):
+  2,000,000 grain one-time
+  Effect: merchantSatisfaction permanent +10
+- 律法成文 (Codified Law):
+  4,000,000 grain one-time
+  Effect: stabilityIndex base +10
+
+Bureaucracy policy rules:
+- All require bureaucracyUnlocked = true
+- All can be active simultaneously
+- One-time costs deducted immediately
+- Annual maintenance deducted each year-advance
+- Cannot activate if insufficient grain
+
+Tech research costs (all ×100 from original):
+- basic_farming: 200,000 grain (was 2,000)
+- intensive_farming: 500,000 grain (was 5,000)
+- crop_rotation: 800,000 grain (was 8,000)
+- irrigation: 1,000,000 grain + 100,000 cloth (was 10,000)
+- folk_trade: 100,000 grain (was 1,000)
+- contract_law: 400,000 grain (was 4,000)
+- weights_measures: 300,000 grain (was 3,000)
+- written_records: 300,000 grain (was 3,000)
+- papermaking: 500,000 grain + 50,000 cloth (was 5,000)
+- codified_law: 400,000 grain (was 4,000)
+- herbalism: 200,000 grain (was 2,000)
+- basic_medicine: 600,000 grain (was 6,000)
+- militia: 300,000 grain (was 3,000)
+- weapon_forging: 500,000 grain + 100,000 cloth (was 5,000)
+
+**Files to modify:**
+- js/economy/agriculture.js (reclamation costs)
+- js/economy/commerce.js (shop cost)
+- js/diplomacy/xikou.js (envoy cost)
+- js/society/stability.js (policy costs)
+- js/tech/research.js (all tech costs)
+- js/state.js (new bureaucracy policy state fields)
+- js/ui/render_society.js (bureaucracy policy buttons)
+- js/ui/render_tech.js (updated cost display)
+
+**Do NOT touch:** unlocks.js, any economy/market.js,
+economy/currency.js, economy/labor.js
+
+**Definition of Done:**
+- All costs updated to new values
+- Bureaucracy policies implemented with correct costs
+- Annual maintenance deducted each year-advance
+- UI shows bureaucracy policy panel in 社会 tab
+  when bureaucracyUnlocked = true
+- Tech costs updated in research panel
+- yearLog records policy activation and costs
