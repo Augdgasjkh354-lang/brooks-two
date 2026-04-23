@@ -21,6 +21,29 @@ function applySavingsRateEffect(score, savingsRate) {
   return score;
 }
 
+
+function applyHealthLifeQualityEffects(world, lifeQualityValues, factors) {
+  const farmerDelta = Number(world.healthLifeQualityFarmerDelta ?? 0);
+  const allDelta = Number(world.healthLifeQualityAllDelta ?? 0);
+
+  if (allDelta !== 0) {
+    lifeQualityValues.farmer += allDelta;
+    lifeQualityValues.merchant += allDelta;
+    lifeQualityValues.official += allDelta;
+    lifeQualityValues.landlord += allDelta;
+    const text = `公共卫生全阶层影响 ${allDelta > 0 ? '+' : ''}${allDelta}`;
+    factors.farmer.push(text);
+    factors.merchant.push(text);
+    factors.official.push(text);
+    factors.landlord.push(text);
+  }
+
+  if (farmerDelta !== 0) {
+    lifeQualityValues.farmer += farmerDelta;
+    factors.farmer.push(`公共卫生农民影响 ${farmerDelta > 0 ? '+' : ''}${farmerDelta}`);
+  }
+}
+
 function getPopulationByClass(world) {
   return {
     farmer: Math.max(0, Number(world.farmerPopulation ?? 0)),
@@ -303,10 +326,19 @@ export function calculateClassSatisfaction(world) {
   world.officialSavingsRate = officialSavings.savingsRate;
   world.landlordSavingsRate = landlordSavings.savingsRate;
 
-  world.farmerLifeQuality = clampPercentIndex(farmerLifeQuality);
-  world.merchantLifeQuality = clampPercentIndex(merchantLifeQuality);
-  world.officialLifeQuality = clampPercentIndex(officialLifeQuality);
-  world.landlordLifeQuality = clampPercentIndex(landlordLifeQuality);
+  const lifeQualityValues = {
+    farmer: farmerLifeQuality,
+    merchant: merchantLifeQuality,
+    official: officialLifeQuality,
+    landlord: landlordLifeQuality,
+  };
+
+  applyHealthLifeQualityEffects(world, lifeQualityValues, factors);
+
+  world.farmerLifeQuality = clampPercentIndex(lifeQualityValues.farmer);
+  world.merchantLifeQuality = clampPercentIndex(lifeQualityValues.merchant);
+  world.officialLifeQuality = clampPercentIndex(lifeQualityValues.official);
+  world.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
   world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? world.farmerLifeQuality ?? 50));
 
   // Backward compatibility for existing triggers.

@@ -527,3 +527,218 @@ export function calculatePoliceEffects(world) {
     annualPoliceCost: officerCount * Math.max(0, Number(world.officerWage ?? 0)),
   };
 }
+
+export function ensureHealthBureauInstitution(world, yearLog = null) {
+  if (!world) return false;
+
+  const unlocked =
+    Boolean(world.governmentEstablished) &&
+    Boolean(world.healthBureauPrereqMet);
+
+  if (unlocked && !world.healthBureauEstablished) {
+    world.healthBureauEstablished = true;
+    if (Array.isArray(yearLog)) {
+      yearLog.unshift(`Year ${world.year}: 卫生局已建立（公共卫生前置条件已满足）。`);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function hasTechCompleted(world, techId) {
+  if (world?.techBonuses?.[techId]) return true;
+
+  const completed = world?.research?.completed;
+  if (!Array.isArray(completed)) return false;
+  return completed.some((item) => item?.id === techId || item === techId);
+}
+
+function getHealthIndexColorLabel(index) {
+  if (index >= 80) return '优良';
+  if (index >= 60) return '良好';
+  if (index >= 40) return '基线';
+  if (index >= 20) return '堪忧';
+  return '危机';
+}
+
+export function calculateHealthEffects(world) {
+  if (!world) {
+    return {
+      healthIndex: 50,
+      growthModifier: 0,
+      farmerLifeQualityDelta: 0,
+      allLifeQualityDelta: 0,
+      message: '',
+      lowHealth: false,
+      efficiency: 0,
+      annualHealthCost: 0,
+      factorsPositive: [],
+      factorsNegative: [],
+    };
+  }
+
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 0));
+  const adminTalent = Math.max(0, Number(world.adminTalent ?? 0));
+
+  world.healthOfficerCount = Math.max(0, Math.floor(Number(world.healthOfficerCount ?? 0)));
+  world.adminTalentDeployedHealth = Math.min(world.healthOfficerCount, adminTalent);
+
+  const gdpPerCapita = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  if ((world.healthOfficerWage ?? 0) <= 0) {
+    world.healthOfficerWage = gdpPerCapita * 1.2;
+  }
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const requiredTalent = institutionSize * 2;
+  const deployedTalent = Math.max(0, world.adminTalentDeployedHealth);
+  const talentRatio = requiredTalent > 0 ? deployedTalent / requiredTalent : 1;
+
+  let talentTierMultiplier = 1.0;
+  if (talentRatio < 0.3) talentTierMultiplier = 0;
+  else if (talentRatio < 0.6) talentTierMultiplier = 0.5;
+  else if (talentRatio < 0.9) talentTierMultiplier = 0.8;
+  else if (talentRatio > 1.0) talentTierMultiplier = 1.1;
+
+  const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
+
+  const paperOutput = Math.max(0, Number(world.paperOutput ?? 0));
+  const requiredPaper = paperOutput * 0.05;
+  let paperSupply = 50;
+  if (paperOutput > 0) {
+    const availablePaper = paperOutput * 0.05;
+    const ratio = requiredPaper > 0 ? availablePaper / requiredPaper : 1;
+    paperSupply = Math.max(30, Math.min(100, ratio * 100));
+  }
+
+  const requiredStaff = institutionSize * 5;
+  const staffingRatio = requiredStaff > 0 ? world.healthOfficerCount / requiredStaff : 1;
+  const staffing = clampPercent(Math.min(1, staffingRatio) * 100);
+
+  const healthEfficiency = clampPercent(talentAdequacy * 0.4 + paperSupply * 0.3 + staffing * 0.3);
+
+  world.healthEfficiencyTalent = talentAdequacy;
+  world.healthEfficiencyPaper = paperSupply;
+  world.healthEfficiencyStaffing = staffing;
+  world.healthEfficiency = world.healthBureauEstablished ? healthEfficiency : 0;
+
+  let healthIndex = 50;
+  const factorsPositive = [];
+  const factorsNegative = [];
+
+  if (world.healthBureauEstablished) {
+    healthIndex += 10;
+    factorsPositive.push('卫生局已建立 +10');
+  }
+
+  if ((world.healthEfficiency ?? 0) > 80) {
+    healthIndex += 10;
+    factorsPositive.push('卫生局效率高于80% +10');
+  }
+
+  if ((world.toiletCoverage ?? 0) >= 50) {
+    healthIndex += 10;
+    factorsPositive.push('公厕覆盖≥50% +10');
+  }
+
+  if ((world.toiletCoverage ?? 0) >= 80) {
+    healthIndex += 5;
+    factorsPositive.push('公厕覆盖≥80% +5');
+  }
+
+  if (hasTechCompleted(world, 'basic_medicine') || hasTechCompleted(world, 'basicMedicineCompleted')) {
+    healthIndex += 10;
+    factorsPositive.push('基础医术已完成 +10');
+  }
+
+  if (hasTechCompleted(world, 'advanced_medicine') || hasTechCompleted(world, 'advancedMedicineCompleted')) {
+    healthIndex += 10;
+    factorsPositive.push('进阶医术已完成 +10');
+  }
+
+  if ((world.grainSurplus ?? 0) > 0) {
+    healthIndex += 5;
+    factorsPositive.push('粮食结余为正 +5');
+  }
+
+  if (Number(world.cleaningWorkerCount ?? 0) >= Number(world.roadLength ?? 0) * 0.2) {
+    healthIndex += 5;
+    factorsPositive.push('道路清洁工配置达标 +5');
+  }
+
+  if ((world.toiletCoverage ?? 0) < 10) {
+    healthIndex -= 15;
+    factorsNegative.push('公厕覆盖<10% -15');
+  }
+
+  if ((world.grainSurplus ?? 0) < 0) {
+    healthIndex -= 10;
+    factorsNegative.push('粮食结余为负 -10');
+  }
+
+  if ((world.saltShortfallRatio ?? 0) > 0.3) {
+    healthIndex -= 5;
+    factorsNegative.push('食盐短缺率>30% -5');
+  }
+
+  if ((world.healthEfficiency ?? 0) < 30) {
+    healthIndex -= 10;
+    factorsNegative.push('卫生局效率<30% -10');
+  }
+
+  if (totalPopulation > 20000 && healthIndex < 50) {
+    healthIndex -= 5;
+    factorsNegative.push('人口拥挤效应 -5');
+  }
+
+  healthIndex = clampPercent(healthIndex);
+
+  let growthModifier = 0;
+  let farmerLifeQualityDelta = 0;
+  let allLifeQualityDelta = 0;
+  let message = '';
+
+  if (healthIndex >= 80) {
+    growthModifier = 0.005;
+    farmerLifeQualityDelta = 5;
+    message = '公共卫生优良，人口健康';
+  } else if (healthIndex >= 60) {
+    growthModifier = 0.002;
+    farmerLifeQualityDelta = 2;
+  } else if (healthIndex >= 40) {
+    growthModifier = 0;
+  } else if (healthIndex >= 20) {
+    growthModifier = -0.005;
+    farmerLifeQualityDelta = -5;
+    message = '公共卫生堪忧，疾病风险上升';
+  } else {
+    growthModifier = -0.01;
+    farmerLifeQualityDelta = -15;
+    allLifeQualityDelta = -5;
+    message = '卫生危机，疾病肆虐';
+  }
+
+  const lowHealth = healthIndex < 20;
+
+  world.healthIndex = healthIndex;
+  world.healthStatusLabel = getHealthIndexColorLabel(healthIndex);
+  world.healthFactorsPositive = factorsPositive;
+  world.healthFactorsNegative = factorsNegative;
+  world.healthGrowthModifier = growthModifier;
+  world.healthLifeQualityFarmerDelta = farmerLifeQualityDelta;
+  world.healthLifeQualityAllDelta = allLifeQualityDelta;
+  world.healthAnnualCost = world.healthOfficerCount * Math.max(0, Number(world.healthOfficerWage ?? 0));
+
+  return {
+    healthIndex,
+    growthModifier,
+    farmerLifeQualityDelta,
+    allLifeQualityDelta,
+    message,
+    lowHealth,
+    efficiency: world.healthEfficiency,
+    annualHealthCost: world.healthAnnualCost,
+    factorsPositive,
+    factorsNegative,
+  };
+}
