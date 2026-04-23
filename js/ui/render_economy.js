@@ -137,46 +137,55 @@ export function bindOfficialSaltSaleEvents(state, onOfficialSaltSale) {
   if (button && typeof onOfficialSaltSale === 'function') button.addEventListener('click', onOfficialSaltSale);
 }
 
-export function getLandDevelopmentControlsHtml() {
+export function getLandDevelopmentControlsHtml(world) {
   const defaultHempMu = 100;
   const defaultMulberryMu = 100;
+  const reduction = Math.max(0, Math.min(0.15, Number(world?.constructionCostReduction ?? 0)));
+  const hempCostPerMu = 8 * (1 - reduction);
+  const mulberryCostPerMu = 15 * (1 - reduction);
+
   return `
     <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div class="muted">燃料减免：${formatDecimal(reduction * 100, 1)}%（当前预估）</div>
       <div>
-        <div><strong>开垦麻田</strong>（最低100亩，成本8粮/亩，次年生效）</div>
+        <div><strong>开垦麻田</strong>（最低100亩，基准8粮/亩，次年生效）</div>
         <input id="hemp-land-input" type="number" min="100" step="100" value="${defaultHempMu}" />
-        <div class="muted">预计成本：${formatNumber(defaultHempMu * 8)} 粮</div>
+        <div class="muted" data-role="hemp-cost">预计成本：${formatNumber(defaultHempMu * hempCostPerMu)} 粮（折后）</div>
         <button id="open-hemp-land-btn">确认开垦麻田</button>
       </div>
       <div>
-        <div><strong>开垦桑田</strong>（最低100亩，成本15粮/亩，2年后首收）</div>
+        <div><strong>开垦桑田</strong>（最低100亩，基准15粮/亩，2年后首收）</div>
         <input id="mulberry-land-input" type="number" min="100" step="100" value="${defaultMulberryMu}" />
-        <div class="muted">预计成本：${formatNumber(defaultMulberryMu * 15)} 粮</div>
+        <div class="muted" data-role="mulberry-cost">预计成本：${formatNumber(defaultMulberryMu * mulberryCostPerMu)} 粮（折后）</div>
         <button id="open-mulberry-land-btn">确认开垦桑田</button>
       </div>
     </div>
   `;
 }
 
-export function bindLandDevelopmentEvents(onOpenHempLand, onOpenMulberryLand) {
+export function bindLandDevelopmentEvents(world, onOpenHempLand, onOpenMulberryLand) {
   const hempInput = document.getElementById('hemp-land-input');
   const hempButton = document.getElementById('open-hemp-land-btn');
   const mulberryInput = document.getElementById('mulberry-land-input');
   const mulberryButton = document.getElementById('open-mulberry-land-btn');
 
+  const reduction = Math.max(0, Math.min(0.15, Number(world?.constructionCostReduction ?? 0)));
+  const hempCostPerMu = 8 * (1 - reduction);
+  const mulberryCostPerMu = 15 * (1 - reduction);
+
   if (hempInput) {
     hempInput.addEventListener('input', () => {
-      const costEl = hempInput.parentElement?.querySelector('.muted');
+      const costEl = hempInput.parentElement?.querySelector('[data-role="hemp-cost"]');
       const mu = Math.max(0, Math.floor(Number(hempInput.value || 0)));
-      if (costEl) costEl.textContent = `预计成本：${formatNumber(mu * 8)} 粮`;
+      if (costEl) costEl.textContent = `预计成本：${formatNumber(mu * hempCostPerMu)} 粮（折后）`;
     });
   }
 
   if (mulberryInput) {
     mulberryInput.addEventListener('input', () => {
-      const costEl = mulberryInput.parentElement?.querySelector('.muted');
+      const costEl = mulberryInput.parentElement?.querySelector('[data-role="mulberry-cost"]');
       const mu = Math.max(0, Math.floor(Number(mulberryInput.value || 0)));
-      if (costEl) costEl.textContent = `预计成本：${formatNumber(mu * 15)} 粮`;
+      if (costEl) costEl.textContent = `预计成本：${formatNumber(mu * mulberryCostPerMu)} 粮（折后）`;
     });
   }
 
@@ -235,10 +244,21 @@ export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) 
       ${statItem('Dung Coverage', `${formatDecimal((world.dungCoverage ?? 0) * 100, 1)}%`)}
       ${statItem('Fertilizer Bonus', `${formatDecimal(((world.fertilizerBonus ?? 1) - 1) * 100, 1)}%`)}
     </div></section>
+    <section class="panel"><h2>Hemp Byproducts</h2><div class="tab-grid">
+      ${statItem('Paper Material / Year', `${formatNumber(world.paperMaterial ?? 0)} 斤`)}
+      ${statItem('Paper Material Reserve', `${formatNumber(world.paperMaterialReserve ?? 0)} 斤`)}
+      ${statItem('Paper Output', formatDecimal(world.paperOutput ?? 0, 1))}
+      ${statItem('Hemp Stalk Fuel / Year', `${formatNumber(world.hempStalks ?? 0)} 斤`)}
+      ${statItem('Building Fiber / Year', `${formatNumber(world.buildingFiber ?? 0)} 斤`)}
+      ${statItem('Building Fiber Reserve', `${formatNumber(world.buildingFiberReserve ?? 0)} 斤`)}
+      ${statItem('Construction Cost Reduction', `${formatDecimal((world.constructionCostReduction ?? 0) * 100, 1)}%`)}
+      ${statItem('Structural Bonus', world.structuralBonus ? 'Active (+2% labor output)' : 'Inactive')}
+      ${statItem('Labor Efficiency', `${formatDecimal((world.laborEfficiency ?? 1) * 100, 1)}%`)}
+    </div></section>
     <section class="panel"><h2>Land Reclamation</h2>${getLandDevelopmentControlsHtml(world)}</section>
   `;
 
-  bindLandDevelopmentEvents(onOpenHempLand, onOpenMulberryLand);
+  bindLandDevelopmentEvents(world, onOpenHempLand, onOpenMulberryLand);
 }
 
 export function renderCurrencyTab(state, onOfficialSaltSale) {
