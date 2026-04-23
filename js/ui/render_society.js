@@ -1,167 +1,75 @@
-import { formatNumber, formatDecimal } from './render_world.js';
+import { formatNumber, formatDecimal, statItem, getPopulationGrowthDisplayDetails } from './render_world.js';
 
 export function getStabilityDisplay(stabilityIndex) {
-  if (stabilityIndex >= 80) {
-    return {
-      label: 'Stable',
-      color: '#1b8a3b',
-    };
-  }
-
-  if (stabilityIndex >= 50) {
-    return {
-      label: 'Tense',
-      color: '#b28704',
-    };
-  }
-
-  return {
-    label: 'Unstable',
-    color: '#b42318',
-  };
+  if (stabilityIndex >= 80) return { label: 'Stable', color: '#1b8a3b' };
+  if (stabilityIndex >= 50) return { label: 'Tense', color: '#b28704' };
+  return { label: 'Unstable', color: '#b42318' };
 }
 
 export function getSatisfactionDisplay(score) {
-  if (score >= 70) {
-    return { color: '#1b8a3b', label: 'Content' };
-  }
-
-  if (score >= 40) {
-    return { color: '#b28704', label: 'Uneasy' };
-  }
-
+  if (score >= 70) return { color: '#1b8a3b', label: 'Content' };
+  if (score >= 40) return { color: '#b28704', label: 'Uneasy' };
   return { color: '#b42318', label: 'Discontent' };
 }
 
 export function getClassSatisfactionFactors(world) {
-  const saltAffordability = (world.saltPrice ?? 4) / 4.0;
-  const clothAffordability = (world.clothPrice ?? 2) / 2.0;
-
   const farmerFactors = [];
   if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
   if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
-  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1)
-    farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
+  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1) farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
   if ((world.taxGrainRatio ?? 1) < 0.5) farmerFactors.push('Tax mix favors coupons (>50% coupons)');
-  if (saltAffordability > 2.0) {
-    farmerFactors.push('Extreme salt price pressure (salt affordability > 2.0)');
-  } else if (saltAffordability > 1.5) {
-    farmerFactors.push('High salt price pressure (salt affordability > 1.5)');
-  }
-  if (clothAffordability > 1.5) farmerFactors.push('High cloth price pressure (cloth affordability > 1.5)');
-  if ((world.grainSurplus ?? 0) < 0) farmerFactors.push('Grain shortage (grain surplus below 0)');
 
   const merchantFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) merchantFactors.push('Inflation at or above 15%');
-  if ((world.inflationRate ?? 0) >= 0.3)
-    merchantFactors.push('Additional severe inflation penalty (30%)');
-  if ((world.demandSaturation ?? 0) > 1.5)
-    merchantFactors.push('Oversaturated market demand (>150%)');
+  if ((world.inflationRate ?? 0) >= 0.3) merchantFactors.push('Additional severe inflation penalty (30%)');
+  if ((world.demandSaturation ?? 0) > 1.5) merchantFactors.push('Oversaturated market demand (>150%)');
   if ((world.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
   if ((world.commerceActivityBonus ?? 1) > 1.0) merchantFactors.push('Commerce activity bonus active');
-  if ((world.saltPrice ?? 4) > 5.0) merchantFactors.push('High salt price boosts merchant margins (>5.0)');
-  if ((world.clothPrice ?? 2) > 3.0) merchantFactors.push('High cloth price boosts merchant margins (>3.0)');
-  if ((world.purchasingPower ?? 100) < 50)
-    merchantFactors.push('Weak purchasing power reduces customer demand (<50)');
-  if (world.clothImportReductionPenaltyApplied)
-    merchantFactors.push('Reduced cloth imports too early hurt Xikou relations (-5 attitude)');
 
   const officialFactors = [];
-  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) {
-    officialFactors.push('Low grain salary share (<50%) with inflation >=15%');
-  }
-  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) {
-    officialFactors.push('Very low grain salary share (<30%) with inflation >=5%');
-  }
+  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) officialFactors.push('Low grain salary share (<50%) with inflation >=15%');
+  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) officialFactors.push('Very low grain salary share (<30%) with inflation >=5%');
   if ((world.stabilityIndex ?? 80) < 50) officialFactors.push('Low social stability (<50)');
-  if ((world.purchasingPower ?? 100) < 50) {
-    officialFactors.push('Weak purchasing power risks unrest (<50)');
-  }
-  if ((world.grainSurplus ?? 0) < 0) {
-    officialFactors.push('Grain shortage is a governance failure (grain surplus below 0)');
-  }
 
   const landlordFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) landlordFactors.push('Inflation at or above 15%');
   if ((world.grainPrice ?? 1) < 0.8) landlordFactors.push('Low grain price (<0.8)');
   if ((world.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
   if ((world.farmlandAreaMu ?? 0) > 40000) landlordFactors.push('Large estate bonus (>40,000 mu)');
-  if ((world.grainSurplus ?? 0) < 0) landlordFactors.push('Grain scarcity bonus active (grain surplus below 0)');
-  if (saltAffordability > 2.0) landlordFactors.push('Extreme salt prices still hurt elites (salt affordability > 2.0)');
 
   return {
-    farmer: farmerFactors.length > 0 ? farmerFactors.join(' | ') : 'No active factors',
-    merchant: merchantFactors.length > 0 ? merchantFactors.join(' | ') : 'No active factors',
-    official: officialFactors.length > 0 ? officialFactors.join(' | ') : 'No active factors',
-    landlord: landlordFactors.length > 0 ? landlordFactors.join(' | ') : 'No active factors',
+    farmer: farmerFactors.length ? farmerFactors.join(' | ') : 'No active factors',
+    merchant: merchantFactors.length ? merchantFactors.join(' | ') : 'No active factors',
+    official: officialFactors.length ? officialFactors.join(' | ') : 'No active factors',
+    landlord: landlordFactors.length ? landlordFactors.join(' | ') : 'No active factors',
   };
 }
 
 export function getActiveBehaviorWarnings(world) {
   const warnings = [];
-
-  if ((world.farmerSatisfaction ?? 70) < 40) {
-    warnings.push('农民消极怠工，农业产出下降');
-  }
-
-  if ((world.merchantSatisfaction ?? 70) < 20) {
-    warnings.push('商业市场大规模萎缩');
-  } else if ((world.merchantSatisfaction ?? 70) < 40) {
-    warnings.push('商人拒收粮劵，改用实物交易');
-  }
-
-  if ((world.officialSatisfaction ?? 70) < 40) {
-    warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
-  }
-
-  if ((world.landlordSatisfaction ?? 70) < 40) {
-    warnings.push('地主抵制开荒，土地扩张受阻');
-  }
-
+  if ((world.farmerSatisfaction ?? 70) < 40) warnings.push('农民消极怠工，农业产出下降');
+  if ((world.merchantSatisfaction ?? 70) < 20) warnings.push('商业市场大规模萎缩');
+  else if ((world.merchantSatisfaction ?? 70) < 40) warnings.push('商人拒收粮劵，改用实物交易');
+  if ((world.officialSatisfaction ?? 70) < 40) warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
+  if ((world.landlordSatisfaction ?? 70) < 40) warnings.push('地主抵制开荒，土地扩张受阻');
   return warnings;
 }
 
 export function getInflationDisplay(inflationRate) {
-  if (inflationRate >= 0.3) {
-    return {
-      color: '#b42318',
-      label: 'Severe inflation',
-    };
-  }
-
-  if (inflationRate >= 0.15) {
-    return {
-      color: '#c2410c',
-      label: 'High inflation',
-    };
-  }
-
-  if (inflationRate >= 0.05) {
-    return {
-      color: '#b28704',
-      label: 'Mild inflation',
-    };
-  }
-
-  return {
-    color: '#1b8a3b',
-    label: 'Stable prices',
-  };
+  if (inflationRate >= 0.3) return { color: '#b42318', label: 'Severe inflation' };
+  if (inflationRate >= 0.15) return { color: '#c2410c', label: 'High inflation' };
+  if (inflationRate >= 0.05) return { color: '#b28704', label: 'Mild inflation' };
+  return { color: '#1b8a3b', label: 'Stable prices' };
 }
 
 export function getPurchasingPowerDisplay(purchasingPower) {
-  if (purchasingPower >= 80) {
-    return { color: '#1b8a3b', label: 'Strong' };
-  }
-  if (purchasingPower >= 50) {
-    return { color: '#b28704', label: 'Stressed' };
-  }
+  if (purchasingPower >= 80) return { color: '#1b8a3b', label: 'Strong' };
+  if (purchasingPower >= 50) return { color: '#b28704', label: 'Stressed' };
   return { color: '#b42318', label: 'Weak' };
 }
 
 export function getStabilityPolicyControlsHtml(world) {
-  const grainRedistributionDisabled =
-    world.grainRedistributionUsed || (world.grainTreasury ?? 0) < 5000;
+  const grainRedistributionDisabled = world.grainRedistributionUsed || (world.grainTreasury ?? 0) < 5000;
   const merchantTaxDisabled = world.merchantTaxUsed || (world.merchantCount ?? 0) <= 0;
 
   return `
@@ -179,14 +87,8 @@ export function getStabilityPolicyControlsHtml(world) {
 export function bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax) {
   const grainBtn = document.getElementById('grain-redistribution-btn');
   const merchantBtn = document.getElementById('merchant-tax-btn');
-
-  if (grainBtn) {
-    grainBtn.addEventListener('click', onUseGrainRedistribution);
-  }
-
-  if (merchantBtn) {
-    merchantBtn.addEventListener('click', onUseMerchantTax);
-  }
+  if (grainBtn) grainBtn.addEventListener('click', onUseGrainRedistribution);
+  if (merchantBtn) merchantBtn.addEventListener('click', onUseMerchantTax);
 }
 
 export function getCreditCrisisControlsHtml(world) {
@@ -196,9 +98,7 @@ export function getCreditCrisisControlsHtml(world) {
 
   const recirculationDisabled = (world.couponTreasury ?? 0) < 10000 || world.creditCrisisResolved;
   const redemptionDisabled = (world.grainTreasury ?? 0) < 20000 || world.creditCrisisResolved;
-  const actionStatus = world.creditCrisisResolved
-    ? 'Action used this crisis'
-    : 'One action can be used per crisis';
+  const actionStatus = world.creditCrisisResolved ? 'Action used this crisis' : 'One action can be used per crisis';
 
   return `
     <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -207,12 +107,8 @@ export function getCreditCrisisControlsHtml(world) {
       </div>
       <div class="muted">${actionStatus}</div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <button id="credit-crisis-recirculation-btn" ${recirculationDisabled ? 'disabled' : ''}>
-          紧急回笼 (Cost: 10000 coupon treasury)
-        </button>
-        <button id="credit-crisis-redemption-btn" ${redemptionDisabled ? 'disabled' : ''}>
-          紧急赎回 (Cost: 20000 grain treasury)
-        </button>
+        <button id="credit-crisis-recirculation-btn" ${recirculationDisabled ? 'disabled' : ''}>紧急回笼 (Cost: 10000 coupon treasury)</button>
+        <button id="credit-crisis-redemption-btn" ${redemptionDisabled ? 'disabled' : ''}>紧急赎回 (Cost: 20000 grain treasury)</button>
       </div>
     </div>
   `;
@@ -221,13 +117,48 @@ export function getCreditCrisisControlsHtml(world) {
 export function bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption) {
   const recirculationBtn = document.getElementById('credit-crisis-recirculation-btn');
   const redemptionBtn = document.getElementById('credit-crisis-redemption-btn');
-
-  if (recirculationBtn) {
-    recirculationBtn.addEventListener('click', onEmergencyRecirculation);
-  }
-
-  if (redemptionBtn) {
-    redemptionBtn.addEventListener('click', onEmergencyRedemption);
-  }
+  if (recirculationBtn) recirculationBtn.addEventListener('click', onEmergencyRecirculation);
+  if (redemptionBtn) redemptionBtn.addEventListener('click', onEmergencyRedemption);
 }
 
+export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
+  const world = state.world;
+  const mount = document.getElementById('society-tab-content');
+  if (!mount) return;
+
+  const stabilityDisplay = getStabilityDisplay(world.stabilityIndex ?? 80);
+  const factors = getClassSatisfactionFactors(world);
+  const warnings = getActiveBehaviorWarnings(world);
+  const growth = getPopulationGrowthDisplayDetails(world);
+
+  const sat = (value) => {
+    const d = getSatisfactionDisplay(value ?? 70);
+    return `<span style="color:${d.color};font-weight:700;">${formatNumber(value ?? 70)}</span> / 100 (${d.label})`;
+  };
+
+  mount.innerHTML = `
+    <section class="panel"><h2>Stability</h2><div class="tab-grid">
+      ${statItem('Stability Index', `<span style="color:${stabilityDisplay.color};font-weight:700;">${formatNumber(world.stabilityIndex ?? 80)}</span> / 100 (${stabilityDisplay.label})`)}
+      ${statItem('Stability Penalty', `-${formatNumber(world.stabilityPenalty ?? 0)}`)}
+      ${statItem('Efficiency Multiplier', `${formatDecimal((world.efficiencyMultiplier ?? 1) * 100, 1)}%`)}
+      ${statItem('Population Growth Rate', `${formatDecimal(growth.effectiveRate * 100, 2)}%`)}
+      ${statItem('Growth Modifiers', growth.modifiersText)}
+      ${statItem('Policy Intervention', getStabilityPolicyControlsHtml(world))}
+    </div></section>
+    <section class="panel"><h2>Class Satisfaction</h2><div class="tab-grid">
+      ${statItem('Farmer Satisfaction', sat(world.farmerSatisfaction))}
+      ${statItem('Farmer Factors', factors.farmer)}
+      ${statItem('Merchant Satisfaction', sat(world.merchantSatisfaction))}
+      ${statItem('Merchant Factors', factors.merchant)}
+      ${statItem('Official Satisfaction', sat(world.officialSatisfaction))}
+      ${statItem('Official Factors', factors.official)}
+      ${statItem('Landlord Satisfaction', sat(world.landlordSatisfaction))}
+      ${statItem('Landlord Factors', factors.landlord)}
+    </div></section>
+    <section class="panel"><h2>Behavior Warnings</h2>${warnings.length ? warnings.map((w) => `<div class="stat-item"><div class="stat-value">⚠️ ${w}</div></div>`).join('') : '<div class="muted">No active behavior warnings</div>'}</section>
+    <section class="panel"><h2>Credit Crisis</h2>${getCreditCrisisControlsHtml(world)}</section>
+  `;
+
+  bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
+  bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
+}
