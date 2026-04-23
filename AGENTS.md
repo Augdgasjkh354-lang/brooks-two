@@ -1152,3 +1152,59 @@ game.js
 - UI shows purchasingPower with color coding:
   80-150: green, 50-79: yellow, 10-49: red
 - Famine risk warning shown when grainSurplus < 0
+## Phase 5A-2 Scope (Current)
+
+Phase 5A-1 is complete. Now implementing Phase 5A-2 only.
+
+**Goal:** Purchasing power now actually affects class
+satisfaction. Different classes are affected differently
+by commodity price changes.
+
+**Rules:**
+
+Class purchasing power sensitivity:
+
+Farmer:
+- Most affected by salt price (daily necessity)
+- saltAffordability > 1.5: farmerSatisfaction -= 15
+- saltAffordability > 2.0: farmerSatisfaction -= 25
+- clothAffordability > 1.5: farmerSatisfaction -= 10
+- grainSurplus < 0: farmerSatisfaction -= 20
+  (food insecurity hits farmers hardest)
+
+Merchant:
+- Benefits from high prices (sells goods)
+- saltPrice > 5.0: merchantSatisfaction += 10
+- clothPrice > 3.0: merchantSatisfaction += 10
+- purchasingPower < 50: merchantSatisfaction -= 15
+  (collapsed purchasing power = no customers)
+
+Official:
+- Cares about stability, not prices directly
+- purchasingPower < 50: officialSatisfaction -= 10
+  (social unrest from unaffordable goods)
+- grainSurplus < 0: officialSatisfaction -= 15
+  (famine is a governance failure)
+
+Landlord:
+- Benefits from grain scarcity
+- grainSurplus < 0: landlordSatisfaction += 10
+  (shortage means their grain is worth more)
+- saltAffordability > 2.0: landlordSatisfaction -= 5
+  (even wealthy feel extreme salt prices)
+
+All adjustments applied after base satisfaction
+calculation. Stack with existing penalties.
+
+No new state fields needed.
+
+**Files to modify:** economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js, state.js
+
+**Definition of Done (Phase 5A-2):**
+- Each class satisfaction updated by commodity prices
+- Effects stack correctly with existing satisfaction logic
+- UI shows which price factors are affecting each class
+- Landlord grain scarcity bonus visible in UI
+- All effects recalculated every year-advance
