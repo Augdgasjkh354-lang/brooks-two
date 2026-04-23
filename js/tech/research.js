@@ -47,6 +47,34 @@ export const techTree = [
     status: 'locked',
   },
   {
+    id: 'selective_breeding',
+    name: '育种改良',
+    category: 'agriculture',
+    description: '通过系统育种进一步提高亩产并解锁新作物研发。',
+    researchYears: 3,
+    cost: { grain: 1200000, cloth: 0, coupon: 0 },
+    prerequisites: ['crop_rotation'],
+    unlocks: [
+      { type: 'bonus', target: 'grainYieldPerMu', value: 50 },
+      { type: 'available', target: 'new_crops' },
+    ],
+    status: 'locked',
+  },
+  {
+    id: 'watermill',
+    name: '水车磨坊',
+    category: 'agriculture',
+    description: '利用水车磨坊提升劳动效率并解锁磨粉加工体系。',
+    researchYears: 3,
+    cost: { grain: 1500000, cloth: 150000, coupon: 0 },
+    prerequisites: ['irrigation'],
+    unlocks: [
+      { type: 'bonus', target: 'laborEfficiency', value: 0.05 },
+      { type: 'system', target: 'flour_processing' },
+    ],
+    status: 'locked',
+  },
+  {
     id: 'folk_trade',
     name: '民间贸易',
     category: 'commerce',
@@ -80,6 +108,34 @@ export const techTree = [
     cost: { grain: 300000, cloth: 0, coupon: 0 },
     prerequisites: ['folk_trade'],
     unlocks: [{ type: 'bonus', target: 'tradeEfficiency', value: 0.1 }],
+    status: 'locked',
+  },
+  {
+    id: 'moneylender',
+    name: '钱庄系统',
+    category: 'commerce',
+    description: '建立借贷网络，增强商业资本周转能力。',
+    researchYears: 3,
+    cost: { grain: 2000000, cloth: 0, coupon: 0 },
+    prerequisites: ['contract_law'],
+    unlocks: [
+      { type: 'system', target: 'lending_system' },
+      { type: 'bonus', target: 'commerceGDP', value: 0.1 },
+    ],
+    status: 'locked',
+  },
+  {
+    id: 'long_distance_trade',
+    name: '远途贸易',
+    category: 'commerce',
+    description: '发展远程商路并拓展跨区域贸易伙伴。',
+    researchYears: 4,
+    cost: { grain: 2500000, cloth: 200000, coupon: 0 },
+    prerequisites: ['weights_measures'],
+    unlocks: [
+      { type: 'system', target: 'new_trade_partners' },
+      { type: 'bonus', target: 'tradeEfficiency', value: 0.15 },
+    ],
     status: 'locked',
   },
   {
@@ -141,6 +197,35 @@ export const techTree = [
     status: 'locked',
   },
   {
+    id: 'imperial_exam_proto',
+    name: '科举雏形',
+    category: 'society',
+    description: '搭建官员选拔雏形，提高官僚质量与秩序基础。',
+    researchYears: 4,
+    cost: { grain: 3000000, cloth: 0, coupon: 0 },
+    prerequisites: ['papermaking', 'codified_law'],
+    unlocks: [
+      { type: 'system', target: 'scholar_class' },
+      { type: 'bonus', target: 'officialSatisfaction', value: 15 },
+      { type: 'bonus', target: 'stabilityBase', value: 5 },
+    ],
+    status: 'locked',
+  },
+  {
+    id: 'advanced_medicine',
+    name: '高级医学',
+    category: 'society',
+    description: '提升医疗体系成熟度，进一步促进人口与民生。',
+    researchYears: 4,
+    cost: { grain: 2000000, cloth: 100000, coupon: 0 },
+    prerequisites: ['basic_medicine'],
+    unlocks: [
+      { type: 'bonus', target: 'populationGrowthRate', value: 0.005 },
+      { type: 'bonus', target: 'farmerSatisfaction', value: 5 },
+    ],
+    status: 'locked',
+  },
+  {
     id: 'militia',
     name: '民兵训练',
     category: 'military',
@@ -165,8 +250,35 @@ export const techTree = [
     unlocks: [{ type: 'bonus', target: 'combatPower', value: 0.2 }],
     status: 'locked',
   },
+  {
+    id: 'fortification',
+    name: '城防工事',
+    category: 'military',
+    description: '构建防御体系，显著提升城市防御能力。',
+    researchYears: 3,
+    cost: { grain: 2500000, cloth: 250000, coupon: 0 },
+    prerequisites: ['weapon_forging'],
+    unlocks: [
+      { type: 'bonus', target: 'defenseRating', value: 0.3 },
+      { type: 'system', target: 'defense_system' },
+    ],
+    status: 'locked',
+  },
+  {
+    id: 'intelligence',
+    name: '情报系统',
+    category: 'military',
+    description: '建立情报网络，提升对外态势掌控能力。',
+    researchYears: 3,
+    cost: { grain: 1500000, cloth: 0, coupon: 0 },
+    prerequisites: ['weapon_forging'],
+    unlocks: [
+      { type: 'system', target: 'espionage_system' },
+      { type: 'bonus', target: 'attitudeToPlayer', value: 5 },
+    ],
+    status: 'locked',
+  },
 ];
-
 
 function ensureTechBonusesShape(state) {
   if (!state.techBonuses) {
@@ -181,6 +293,16 @@ function ensureTechBonusesShape(state) {
   state.techBonuses.bureaucracyUnlocked = Boolean(state.techBonuses.bureaucracyUnlocked ?? false);
   state.techBonuses.merchantSatisfactionBonus = Number(state.techBonuses.merchantSatisfactionBonus ?? 0);
   state.techBonuses.droughtResistance = Boolean(state.techBonuses.droughtResistance ?? false);
+  state.techBonuses.defenseRating = Number(state.techBonuses.defenseRating ?? 0);
+  state.techBonuses.flourProcessing = Boolean(state.techBonuses.flourProcessing ?? false);
+  state.techBonuses.lendingSystem = Boolean(state.techBonuses.lendingSystem ?? false);
+  state.techBonuses.newTradePartners = Boolean(state.techBonuses.newTradePartners ?? false);
+  state.techBonuses.scholarClass = Boolean(state.techBonuses.scholarClass ?? false);
+  state.techBonuses.espionageSystem = Boolean(state.techBonuses.espionageSystem ?? false);
+  state.techBonuses.laborEfficiencyBonus = Number(state.techBonuses.laborEfficiencyBonus ?? 0);
+  state.techBonuses.commerceGDPMultiplierBonus = Number(state.techBonuses.commerceGDPMultiplierBonus ?? 0);
+  state.techBonuses.officialSatisfactionBonus = Number(state.techBonuses.officialSatisfactionBonus ?? 0);
+  state.techBonuses.farmerSatisfactionBonus = Number(state.techBonuses.farmerSatisfactionBonus ?? 0);
 }
 
 export function initResearch(state) {
@@ -311,6 +433,18 @@ export function applyTechEffect(state, tech) {
       appliedEffects.push('亩产+75（总亩产上限800）');
       break;
     }
+    case 'selective_breeding': {
+      state.techBonuses.grainYieldBonus += 50;
+      appliedEffects.push('亩产+50');
+      break;
+    }
+    case 'watermill': {
+      state.techBonuses.laborEfficiencyBonus += 0.05;
+      state.techBonuses.flourProcessing = true;
+      appliedEffects.push('劳动力效率+5%');
+      appliedEffects.push('磨粉加工体系已解锁');
+      break;
+    }
     case 'contract_law': {
       state.techBonuses.merchantSatisfactionBonus += 10;
       appliedEffects.push('商人满意度永久+10');
@@ -319,6 +453,20 @@ export function applyTechEffect(state, tech) {
     case 'weights_measures': {
       state.techBonuses.tradeEfficiency += 0.1;
       appliedEffects.push('对外贸易效率+10%');
+      break;
+    }
+    case 'moneylender': {
+      state.techBonuses.lendingSystem = true;
+      state.techBonuses.commerceGDPMultiplierBonus += 0.1;
+      appliedEffects.push('商业GDP系数+10%');
+      appliedEffects.push('借贷系统已解锁');
+      break;
+    }
+    case 'long_distance_trade': {
+      state.techBonuses.newTradePartners = true;
+      state.techBonuses.tradeEfficiency += 0.15;
+      appliedEffects.push('对外贸易效率+15%');
+      appliedEffects.push('新贸易伙伴已解锁');
       break;
     }
     case 'codified_law': {
@@ -331,6 +479,22 @@ export function applyTechEffect(state, tech) {
       appliedEffects.push('人口增长率+0.5%');
       break;
     }
+    case 'imperial_exam_proto': {
+      state.techBonuses.scholarClass = true;
+      state.techBonuses.officialSatisfactionBonus += 15;
+      state.techBonuses.stabilityBase += 5;
+      appliedEffects.push('官员满意度+15');
+      appliedEffects.push('稳定度基础值+5');
+      appliedEffects.push('士人阶层已解锁');
+      break;
+    }
+    case 'advanced_medicine': {
+      state.techBonuses.populationGrowthBonus += 0.005;
+      state.techBonuses.farmerSatisfactionBonus += 5;
+      appliedEffects.push('人口增长率+0.5%');
+      appliedEffects.push('农民满意度永久+5');
+      break;
+    }
     case 'papermaking': {
       state.techBonuses.bureaucracyUnlocked = true;
       appliedEffects.push('官僚体系已解锁（占位）');
@@ -339,6 +503,21 @@ export function applyTechEffect(state, tech) {
     case 'weapon_forging': {
       state.techBonuses.combatPower += 0.2;
       appliedEffects.push('战斗力+20%（占位）');
+      break;
+    }
+    case 'fortification': {
+      state.techBonuses.defenseRating += 0.3;
+      appliedEffects.push('防御评级+30%');
+      break;
+    }
+    case 'intelligence': {
+      state.techBonuses.espionageSystem = true;
+      const xikouRef = state.xikou ?? state.world?.xikou;
+      if (xikouRef) {
+        xikouRef.attitudeToPlayer = Number(xikouRef.attitudeToPlayer ?? 0) + 5;
+      }
+      appliedEffects.push('溪口态度+5（一次性）');
+      appliedEffects.push('情报系统已解锁');
       break;
     }
     default:
