@@ -162,6 +162,10 @@ function nextYear() {
     state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
   });
 
+  (econResult.diplomacyMessages ?? []).forEach((message) => {
+    state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
+  });
+
   render();
 }
 
@@ -243,6 +247,38 @@ function useMerchantTax() {
   render();
 }
 
+
+function sendEnvoyToXikou() {
+  const xikou = state.xikou;
+
+  if (!xikou) {
+    state.yearLog.unshift(`Year ${state.world.year}: Send Envoy failed - Xikou data unavailable.`);
+    render();
+    return;
+  }
+
+  if (xikou.diplomaticContact) {
+    state.yearLog.unshift(`Year ${state.world.year}: 外交联系已建立，无需重复派遣使者。`);
+    render();
+    return;
+  }
+
+  if ((state.world.grainTreasury ?? 0) < 5000) {
+    state.yearLog.unshift(`Year ${state.world.year}: 派遣使者失败 - 粮仓不足5000。`);
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= 5000;
+  xikou.diplomaticContact = true;
+  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 10));
+  xikou.attitudeDeltaThisYear = 10;
+  xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
+
+  state.yearLog.unshift(`Year ${state.world.year}: 派遣使者前往溪口村，初步建立外交联系`);
+  render();
+}
+
 function issueCouponsFromInput() {
   const input = document.getElementById('coupon-issue-input');
   const amount = Number(input.value);
@@ -276,7 +312,8 @@ function render() {
     useGrainRedistribution,
     useMerchantTax,
     resolveByEmergencyRecirculation,
-    resolveByEmergencyRedemption
+    resolveByEmergencyRedemption,
+    sendEnvoyToXikou
   );
 }
 

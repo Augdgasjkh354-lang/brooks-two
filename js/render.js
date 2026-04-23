@@ -171,10 +171,43 @@ function statItem(label, value) {
 }
 
 function getXikouAttitudeLabel(attitudeToPlayer) {
-  if (attitudeToPlayer <= -40) return '敌对';
-  if (attitudeToPlayer >= 60) return '依附';
-  if (attitudeToPlayer >= 20) return '友好';
-  return '中立';
+  if (attitudeToPlayer <= -50) return '敌对';
+  if (attitudeToPlayer <= -10) return '警惕';
+  if (attitudeToPlayer <= 20) return '中立';
+  if (attitudeToPlayer <= 50) return '友好';
+  return '依附';
+}
+
+function getXikouAttitudeDisplay(attitudeToPlayer) {
+  if (attitudeToPlayer <= -50) return { label: '敌对', color: '#b42318' };
+  if (attitudeToPlayer <= -10) return { label: '警惕', color: '#c2410c' };
+  if (attitudeToPlayer <= 20) return { label: '中立', color: '#6b7280' };
+  if (attitudeToPlayer <= 50) return { label: '友好', color: '#1b8a3b' };
+  return { label: '依附', color: '#2563eb' };
+}
+
+function getDiplomacyControlsHtml(world, xikou) {
+  if (!xikou) {
+    return '外交数据不可用';
+  }
+
+  if (xikou.diplomaticContact) {
+    return '<span style="color: #1b8a3b; font-weight: 700;">外交联系已建立</span>';
+  }
+
+  const envoyDisabled = (world.grainTreasury ?? 0) < 5000;
+  return `
+    <button id="send-envoy-btn" ${envoyDisabled ? 'disabled' : ''}>
+      派遣使者 (Cost: 5000 grain)
+    </button>
+  `;
+}
+
+function bindDiplomacyEvents(onSendEnvoy) {
+  const envoyBtn = document.getElementById('send-envoy-btn');
+  if (envoyBtn && typeof onSendEnvoy === 'function') {
+    envoyBtn.addEventListener('click', onSendEnvoy);
+  }
 }
 
 function getXikouVillagePanelHtml(state) {
@@ -188,6 +221,14 @@ function getXikouVillagePanelHtml(state) {
     ? '<span style="color: #1b8a3b; font-weight: 700;">已建立外交关系</span>'
     : '<span style="color: #b28704; font-weight: 700;">未建立外交关系</span>';
 
+  const attitude = xikou.attitudeToPlayer ?? 0;
+  const attitudeDisplay = getXikouAttitudeDisplay(attitude);
+  const attitudeText = `<span style="color: ${attitudeDisplay.color}; font-weight: 700;">${attitudeDisplay.label}</span> (${formatNumber(attitude)})`;
+
+  const attitudeFactors = Array.isArray(xikou.attitudeFactorsThisYear)
+    ? xikou.attitudeFactorsThisYear.join(' | ')
+    : '未建立外交关系，态度变化未生效';
+
   return [
     `状态：${contactBadge}`,
     `人口：${formatNumber(xikou.population ?? 0)}`,
@@ -196,9 +237,9 @@ function getXikouVillagePanelHtml(state) {
     `盐产量：${formatNumber(xikou.saltOutputJin ?? 0)} 斤/年`,
     `布匹产量：${formatNumber(xikou.clothOutput ?? 0)} 斤/年`,
     `稳定度：${formatNumber(xikou.stabilityIndex ?? 0)}`,
-    `对我方态度：${getXikouAttitudeLabel(xikou.attitudeToPlayer ?? 0)} (${formatNumber(
-      xikou.attitudeToPlayer ?? 0
-    )})`,
+    `对我方态度：${attitudeText}`,
+    `年度态度变化：${formatNumber(xikou.attitudeDeltaThisYear ?? 0)}`,
+    `态度影响因素：${attitudeFactors}`,
     `外交：${contactStatus}`,
   ].join('<br/>');
 }
@@ -349,7 +390,8 @@ export function renderCoreStats(
   onUseGrainRedistribution,
   onUseMerchantTax,
   onEmergencyRecirculation,
-  onEmergencyRedemption
+  onEmergencyRedemption,
+  onSendEnvoy
 ) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -439,6 +481,7 @@ export function renderCoreStats(
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('溪口村', getXikouVillagePanelHtml(state)),
+    statItem('溪口外交操作', getDiplomacyControlsHtml(world, state.xikou)),
     statItem('Credit Crisis Status', world.creditCrisis ? 'Active' : 'None'),
     statItem('Credit Crisis Controls', getCreditCrisisControlsHtml(world)),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -525,6 +568,7 @@ export function renderCoreStats(
 
   bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
+  bindDiplomacyEvents(onSendEnvoy);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -618,14 +662,16 @@ export function renderAll(
   onUseGrainRedistribution,
   onUseMerchantTax,
   onEmergencyRecirculation,
-  onEmergencyRedemption
+  onEmergencyRedemption,
+  onSendEnvoy
 ) {
   renderCoreStats(
     state,
     onUseGrainRedistribution,
     onUseMerchantTax,
     onEmergencyRecirculation,
-    onEmergencyRedemption
+    onEmergencyRedemption,
+    onSendEnvoy
   );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
