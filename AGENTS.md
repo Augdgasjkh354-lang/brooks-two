@@ -2975,3 +2975,176 @@ diplomacy/xikou.js tech/research.js
   living cost breakdown
   price pressure indicators
 - yearLog records significant lifeQuality changes
+## Phase 7B-1 Scope (Current)
+
+Phase 7B-0 complete. Now implementing 7B-1 only.
+
+**Goal:** Add government institution framework.
+Add fire leakage (火耗) system affecting tax revenue.
+Add civil servant wage system with all job grades.
+
+**Rules:**
+
+Government institution (政府):
+- Unlocks when: adminTalent >= 10
+- Once unlocked: cannot be dissolved
+- Manages all unestablished institutions by default
+
+Civil servant grades and wages:
+
+seniorOfficials (高级官员):
+- playerSets: seniorOfficialCount
+- defaultWage: gdpPerCapita * 3.0
+- playerAdjustable: yes
+
+midOfficials (中级官员):
+- playerSets: midOfficialCount
+- defaultWage: gdpPerCapita * 1.5
+- playerAdjustable: yes
+
+juniorOfficials (基层官员):
+- playerSets: juniorOfficialCount
+- defaultWage: gdpPerCapita * 0.8
+- playerAdjustable: yes
+
+professionals (专业人员):
+- count determined by institution size
+- defaultWage: gdpPerCapita * 1.2
+- playerAdjustable: yes
+
+sanitationWorkers (挑粪工):
+- requires: publicToilets >= 1
+- playerSets: sanitationWorkerCount
+- defaultWage: gdpPerCapita * 0.3
+- playerAdjustable: yes
+
+cleaningWorkers (清洁工):
+- requires: roadLength >= 1
+- playerSets: cleaningWorkerCount
+- defaultWage: gdpPerCapita * 0.35
+- playerAdjustable: yes
+
+Annual wage bill:
+- totalWageBill = sum of all grades × their wages
+- paid in grain/coupon per salaryGrainRatio
+- flows to officialIncomePool
+
+GDP per capita calculation:
+- gdpPerCapita = (agricultureGDP + commerceGDP +
+  constructionGDP) / totalPopulation
+
+Fire leakage (火耗) system:
+- baseFireLeakageRate: 0.05 (5%)
+- range: 0.02 - 0.30
+
+Factors increasing fire leakage:
+- juniorOfficialWage < gdpPerCapita * 0.8: +3%
+- officialLifeQuality < 50: +2%
+- institution efficiency < 60%: +2%
+- taxBureauEstablished = false: +3%
+- courtEstablished = false: +2%
+
+Factors decreasing fire leakage:
+- taxBureauEstablished AND efficiency > 80%: -3%
+- courtEstablished AND efficiency > 80%: -2%
+- householdRegistryActive: -2%
+- seniorOfficialWage >= gdpPerCapita * 3.0: -1%
+- adminTalent > 200: -1%
+
+Fire leakage effects:
+- actualTaxRevenue = theoreticalTax *
+  (1 - fireLeakageRate)
+- leaked amount:
+  60% → officialIncomePool
+  40% → lost permanently
+- fireLeakageRate > 15%:
+  farmerLifeQuality -= 10
+  yearLog: "火耗严重，民间怨声载道"
+- fireLeakageRate > 25%:
+  farmerLifeQuality -= 20
+  stabilityIndex -= 10
+  yearLog: "火耗失控，财政大量流失"
+
+Institution efficiency framework:
+- Each institution has efficiency 0-100%
+- efficiency = talentAdequacy(40%) *
+  paperSupply(30%) * staffing(30%)
+
+talentAdequacy:
+- required = institutionSize * 2
+- actual = adminTalentDeployed to this institution
+- ratio = actual / required
+- ratio < 0.3: efficiency *= 0
+- ratio 0.3-0.6: efficiency *= 0.5
+- ratio 0.6-0.9: efficiency *= 0.8
+- ratio >= 0.9: efficiency *= 1.0
+- ratio > 1.0: efficiency *= 1.1
+
+paperSupply:
+- each institution consumes paperOutput % per year
+- government: 10% of paperOutput
+- if paperOutput = 0: paperSupply = 0.5
+  (managing without paper, reduced efficiency)
+- supply ratio = available / required
+- floors at 0.3 (can always manage somewhat)
+
+staffing:
+- required staff = institutionSize * 5
+- actual = juniorOfficialCount + midOfficialCount
+- ratio = actual / required, capped at 1.0
+
+State additions needed in world{}:
+- governmentEstablished: false
+- seniorOfficialCount: 0
+- midOfficialCount: 0
+- juniorOfficialCount: 0
+- professionalCount: 0
+- sanitationWorkerCount: 0
+- cleaningWorkerCount: 0
+- seniorOfficialWage: 0
+- midOfficialWage: 0
+- juniorOfficialWage: 0
+- professionalWage: 0
+- sanitationWorkerWage: 0
+- cleaningWorkerWage: 0
+- totalWageBill: 0
+- gdpPerCapita: 0
+- fireLeakageRate: 0.05
+- actualTaxRevenue: 0
+- theoreticalTaxRevenue: 0
+- governmentEfficiency: 0
+- adminTalentDeployedGov: 0
+- taxBureauEstablished: false
+- courtEstablished: false
+
+**Files to modify:**
+- js/state.js
+- js/economy/agriculture.js (tax revenue with leakage)
+- js/economy/commerce.js (gdpPerCapita calculation)
+- js/society/stability.js (institution efficiency)
+- js/society/satisfaction.js (wage bill effects)
+- js/game.js (annual wage deduction)
+- js/ui/render_society.js (institution + wage panels)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/market.js economy/currency.js
+economy/labor.js diplomacy/xikou.js
+tech/research.js
+
+**Definition of Done (Phase 7B-1):**
+- Government institution appears when adminTalent >= 10
+- All civil servant grades configurable in UI
+- Wages adjustable per grade
+- totalWageBill calculated and deducted each year
+- fireLeakageRate calculated from all factors
+- actualTaxRevenue = theoreticalTax * (1-leakage)
+- Leaked tax flows correctly to officialIncomePool
+- Institution efficiency calculated from 3 dimensions
+- UI shows government panel in 社会 tab:
+  establishment status
+  staff counts and wages per grade
+  total wage bill
+  fire leakage rate and factors
+  institution efficiency breakdown
+- yearLog records fire leakage warnings
+- yearLog records government establishment
