@@ -16,6 +16,19 @@ function clampPercent(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, n));
 }
 
+
+export function calculateGdpPerCapita(world, gdpOverride = null) {
+  const totalPopulation = Math.max(1, Number(world?.totalPopulation ?? 0));
+  const sourceGdp =
+    gdpOverride == null
+      ? Number(world?.agricultureGDP ?? 0) + Number(world?.commerceGDP ?? 0) + Number(world?.constructionGDP ?? 0)
+      : Number(gdpOverride ?? 0);
+  const safeGdp = Math.max(0, Number.isFinite(sourceGdp) ? sourceGdp : 0);
+  const gdpPerCapita = safeGdp / totalPopulation;
+  if (world) world.gdpPerCapita = gdpPerCapita;
+  return gdpPerCapita;
+}
+
 export function routeShopConstructionIncome(world, totalCost) {
   const safeCost = clampMoney(totalCost);
   const farmerShare = safeCost * 0.8;
