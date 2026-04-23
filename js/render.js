@@ -478,6 +478,45 @@ function bindCouponRatioEvents(state) {
   }
 }
 
+function getSaltImportControlsHtml(world, xikou) {
+  const maxQuota = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
+  const currentQuota = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
+  const clampedQuota = Math.min(currentQuota, maxQuota);
+  const estimatedCost = Math.round(clampedQuota * (world.saltPrice ?? 4));
+  const canAfford = world.grainCouponsUnlocked
+    ? (world.couponTreasury ?? 0) >= estimatedCost
+    : (world.grainTreasury ?? 0) >= estimatedCost;
+  const currencyLabel = world.grainCouponsUnlocked ? 'coupon' : 'grain';
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div class="muted">年度进口上限（溪口可供一半）：${formatNumber(maxQuota)} 斤</div>
+      <input
+        id="salt-import-quota-input"
+        type="number"
+        min="0"
+        step="1000"
+        max="${maxQuota}"
+        value="${clampedQuota}"
+      />
+      <div class="muted">预计执行进口：${formatNumber(clampedQuota)} 斤</div>
+      <div class="muted">预计成本：${formatNumber(estimatedCost)} ${currencyLabel}</div>
+      <div class="muted">${canAfford ? '当前可支付该成本' : '⚠️ 当前资金不足，年度将无法执行该额度进口'}</div>
+    </div>
+  `;
+}
+
+function bindSaltImportQuotaEvents(state) {
+  const quotaInput = document.getElementById('salt-import-quota-input');
+  if (!quotaInput) return;
+
+  quotaInput.addEventListener('input', () => {
+    const maxQuota = Number(quotaInput.max || 0);
+    const nextValue = Math.max(0, Math.floor(Number(quotaInput.value || 0)));
+    state.world.saltImportQuota = Math.min(nextValue, Math.max(0, maxQuota));
+  });
+}
+
 export function renderCoreStats(
   state,
   onUseGrainRedistribution,
@@ -590,6 +629,11 @@ export function renderCoreStats(
     world.purchasingPower ?? 100,
     1
   )}</span> / 150 (${purchasingPowerDisplay.label})`;
+  const saltShortfallRatio = world.saltShortfallRatio ?? 0;
+  const saltShortfallWarning =
+    saltShortfallRatio > 0.1
+      ? `⚠️ 盐供应短缺：缺口比例 ${formatDecimal(saltShortfallRatio * 100, 1)}%`
+      : '盐供应充足';
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -643,6 +687,16 @@ export function renderCoreStats(
         world.saltReserve ?? 0
       )}`
     ),
+    statItem('Salt Import Quota', getSaltImportControlsHtml(world, state.xikou)),
+    statItem(
+      'Salt Supply Status',
+      `Demand ${formatNumber(world.saltAnnualDemand ?? 0)} | Imported ${formatNumber(
+        world.actualSaltImport ?? 0
+      )} | Consumed ${formatNumber(world.saltConsumed ?? 0)} | Reserve ${formatNumber(
+        world.saltReserve ?? 0
+      )} | Shortfall ${formatDecimal((world.saltShortfallRatio ?? 0) * 100, 1)}%`
+    ),
+    statItem('Salt Shortfall Warning', saltShortfallWarning),
     statItem(
       'Commodity Market - Cloth',
       `Price ${formatDecimal(world.clothPrice ?? 2, 2)} | Supply ${formatNumber(
@@ -707,6 +761,7 @@ export function renderCoreStats(
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
   bindDiplomacyEvents(onSendEnvoy);
   bindTradeEvents(onTradeSalt, onTradeCloth);
+  bindSaltImportQuotaEvents(state);
 }
 
 export function renderPolicies(state, onEnactPolicy) {

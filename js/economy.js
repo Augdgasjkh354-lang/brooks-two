@@ -191,6 +191,14 @@ function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function clampBetween(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getSaltImportCost(world, importAmount, saltPrice) {
+  return Math.max(0, Math.round(importAmount * Math.max(0, saltPrice)));
+}
+
 function calculateClassSatisfaction(world) {
   const saltAffordability = (world.saltPrice ?? 4) / 4.0;
   const clothAffordability = (world.clothPrice ?? 2) / 2.0;
@@ -474,13 +482,50 @@ export function updateEconomy(world, options = {}) {
     Number(world.previousClothReserveForMarket ?? world.clothReserve ?? 0)
   );
 
-  const saltReserve = Math.max(0, Number(world.saltReserve ?? 0));
+  const saltReserveBeforeImport = Math.max(0, Number(world.saltReserve ?? 0));
   const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
-  const saltAnnualSupply = Math.max(0, saltReserve - previousSaltReserveSnapshot);
   const clothAnnualSupply = Math.max(0, clothReserve - previousClothReserveSnapshot);
 
   const saltAnnualDemand = Math.max(0, world.totalPopulation * 15);
   const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3);
+
+  const xikou = world.xikou;
+  const maxSaltImport = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
+  const desiredSaltImport = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
+  const actualSaltImport = Math.min(desiredSaltImport, maxSaltImport);
+  const plannedSaltImportCost = getSaltImportCost(world, actualSaltImport, world.saltPrice ?? 4);
+
+  let saltImportExecuted = 0;
+  let saltImportCostPaid = 0;
+  let saltImportCurrency = 'grain';
+
+  if (actualSaltImport > 0 && xikou?.diplomaticContact) {
+    if (world.grainCouponsUnlocked) {
+      const availableCoupons = Math.max(0, Math.floor(world.couponTreasury ?? 0));
+      if (availableCoupons >= plannedSaltImportCost) {
+        world.couponTreasury = availableCoupons - plannedSaltImportCost;
+        saltImportExecuted = actualSaltImport;
+        saltImportCostPaid = plannedSaltImportCost;
+        saltImportCurrency = 'coupon';
+      }
+    } else {
+      const availableGrain = Math.max(0, Math.floor(world.grainTreasury ?? 0));
+      if (availableGrain >= plannedSaltImportCost) {
+        world.grainTreasury = availableGrain - plannedSaltImportCost;
+        saltImportExecuted = actualSaltImport;
+        saltImportCostPaid = plannedSaltImportCost;
+        saltImportCurrency = 'grain';
+      }
+    }
+  }
+
+  const saltReserveBeforeConsumption = saltReserveBeforeImport + saltImportExecuted;
+  const saltConsumed = Math.min(saltAnnualDemand, saltReserveBeforeConsumption);
+  const saltReserve = Math.max(0, saltReserveBeforeConsumption - saltConsumed);
+  const saltShortfallRatio =
+    saltAnnualDemand > 0 ? 1 - saltConsumed / saltAnnualDemand : 0;
+
+  const saltAnnualSupply = Math.max(0, saltReserveBeforeConsumption - previousSaltReserveSnapshot);
 
   const saltPricing = calculateCommodityPrice({
     previousPrice: Math.max(0.1, Number(world.saltPrice ?? 4.0)),
@@ -523,6 +568,10 @@ export function updateEconomy(world, options = {}) {
   world.clothPrice = clothPricing.nextPrice;
   world.saltAnnualSupply = clamp(saltAnnualSupply);
   world.saltAnnualDemand = clamp(saltAnnualDemand);
+  world.actualSaltImport = clamp(saltImportExecuted);
+  world.saltConsumed = clamp(saltConsumed);
+  world.saltShortfallRatio = clampBetween(saltShortfallRatio, 0, 1);
+  world.saltImportQuota = clamp(Math.max(0, desiredSaltImport));
   world.clothAnnualSupply = clamp(clothAnnualSupply);
   world.clothAnnualDemand = clamp(clothAnnualDemand);
   world.grainAnnualDemand = clamp(grainAnnualDemand);
@@ -553,6 +602,30 @@ export function updateEconomy(world, options = {}) {
 
   const activeBehaviorWarnings = [];
   const behaviorMessages = [];
+
+  if (saltImportExecuted > 0) {
+    if (xikou) {
+      xikou.grainTreasury = clamp((xikou.grainTreasury ?? 0) + saltImportCostPaid);
+      xikou.attitudeToPlayer = clampAttitude((xikou.attitudeToPlayer ?? 0) + 1);
+    }
+    behaviorMessages.push(
+      `盐进口执行：进口${clamp(saltImportExecuted)}斤，支付${clamp(
+        saltImportCostPaid
+      )}${saltImportCurrency === 'coupon' ? '粮劵' : '粮食'}`
+    );
+  } else if (actualSaltImport > 0 && xikou?.diplomaticContact) {
+    behaviorMessages.push('盐进口执行失败：储备不足，未能支付进口成本');
+  }
+
+  if (world.saltShortfallRatio > 0.3) {
+    world.farmerSatisfaction = clampPercentIndex((world.farmerSatisfaction ?? 70) - 20);
+    world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 15, 10, 150);
+    behaviorMessages.push('盐荒严重，民间怨声载道');
+  } else if (world.saltShortfallRatio > 0.1) {
+    world.farmerSatisfaction = clampPercentIndex((world.farmerSatisfaction ?? 70) - 10);
+    world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 8, 10, 150);
+    behaviorMessages.push('盐供应紧张');
+  }
 
   if (world.farmerSatisfaction < 40) {
     adjustedGrainOutput = clamp(adjustedGrainOutput * 0.8);
@@ -716,6 +789,12 @@ export function updateEconomy(world, options = {}) {
     world.clothPrice ?? 2,
     world.grainPrice ?? 1
   );
+  if (world.saltShortfallRatio > 0.3) {
+    world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 15, 10, 150);
+  } else if (world.saltShortfallRatio > 0.1) {
+    world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 8, 10, 150);
+  }
+  world.saltReserve = clamp(saltReserve);
   world.previousSaltReserveForMarket = saltReserve;
   world.previousClothReserveForMarket = clothReserve;
 
