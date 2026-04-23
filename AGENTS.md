@@ -1660,3 +1660,165 @@ js/
 - Old files emptied with migration comment
 - No logic or value changes anywhere
 - Game runs identically after refactor
+## Phase 6A-1 Scope (Current)
+
+Refactor complete. Now implementing 6A-1 only.
+
+**Goal:** Build the tech tree data structure and research
+queue system. No tech effects yet — infrastructure only.
+
+**New file:** js/tech/research.js
+
+**Tech data structure:**
+Each tech is an object:
+{
+  id: string,
+  name: string (Chinese),
+  category: string (agriculture/commerce/society/military),
+  description: string,
+  researchYears: number,
+  cost: { grain: number, cloth: number, coupon: number },
+  prerequisites: [string] (array of tech ids),
+  unlocks: [{ type: string, target: string, value: any }],
+  status: string (locked/available/researching/completed)
+}
+
+**Initial tech list (no prerequisites = available at start):**
+
+Agriculture:
+- id: "basic_farming", name: "基础农耕",
+  years: 1, cost: { grain: 2000 },
+  unlocks: [{ type: "available", target: "intensive_farming" }]
+
+- id: "intensive_farming", name: "精耕细作",
+  prerequisites: ["basic_farming"],
+  years: 2, cost: { grain: 5000 },
+  unlocks: [{ type: "bonus", target: "grainYieldPerMu",
+  value: 0.1 }]
+
+- id: "crop_rotation", name: "轮作制度",
+  prerequisites: ["intensive_farming"],
+  years: 3, cost: { grain: 8000 },
+  unlocks: [{ type: "bonus", target: "grainYieldPerMu",
+  value: 0.1 },
+  { type: "bonus", target: "droughtResistance", value: 0.2 }]
+
+- id: "irrigation", name: "水利灌溉",
+  prerequisites: ["intensive_farming"],
+  years: 3, cost: { grain: 10000, cloth: 100 },
+  unlocks: [{ type: "bonus", target: "grainYieldPerMu",
+  value: 0.15 }]
+
+Commerce:
+- id: "folk_trade", name: "民间贸易",
+  years: 1, cost: { grain: 1000 },
+  unlocks: [{ type: "available", target: "contract_law" },
+  { type: "available", target: "weights_measures" }]
+
+- id: "contract_law", name: "契约法",
+  prerequisites: ["folk_trade"],
+  years: 2, cost: { grain: 4000 },
+  unlocks: [{ type: "bonus", target: "merchantSatisfaction",
+  value: 10 }]
+
+- id: "weights_measures", name: "度量衡统一",
+  prerequisites: ["folk_trade"],
+  years: 1, cost: { grain: 3000 },
+  unlocks: [{ type: "bonus", target: "tradeEfficiency",
+  value: 0.1 }]
+
+Society:
+- id: "written_records", name: "文字记录",
+  years: 2, cost: { grain: 3000 },
+  unlocks: [{ type: "available", target: "papermaking" },
+  { type: "available", target: "codified_law" }]
+
+- id: "papermaking", name: "造纸术",
+  prerequisites: ["written_records"],
+  years: 2, cost: { grain: 5000, cloth: 50 },
+  unlocks: [{ type: "system", target: "bureaucracy_system" }]
+
+- id: "codified_law", name: "律法成文",
+  prerequisites: ["written_records"],
+  years: 2, cost: { grain: 4000 },
+  unlocks: [{ type: "bonus", target: "stabilityIndex",
+  value: 10 }]
+
+- id: "herbalism", name: "草药知识",
+  years: 2, cost: { grain: 2000 },
+  unlocks: [{ type: "available", target: "basic_medicine" }]
+
+- id: "basic_medicine", name: "初级医学",
+  prerequisites: ["herbalism"],
+  years: 3, cost: { grain: 6000 },
+  unlocks: [{ type: "bonus", target: "populationGrowthRate",
+  value: 0.005 }]
+
+Military:
+- id: "militia", name: "民兵训练",
+  years: 2, cost: { grain: 3000 },
+  unlocks: [{ type: "system", target: "military_system" },
+  { type: "available", target: "weapon_forging" }]
+
+- id: "weapon_forging", name: "武器锻造",
+  prerequisites: ["militia"],
+  years: 2, cost: { grain: 5000, cloth: 100 },
+  unlocks: [{ type: "bonus", target: "combatPower",
+  value: 0.2 }]
+
+**Research queue:**
+- Only one tech can be researching at a time
+- state.research = {
+    currentTech: null,
+    yearsRemaining: 0,
+    completed: [],
+    available: []
+  }
+- Each year-advance: yearsRemaining -= 1
+- When yearsRemaining = 0: tech completes, effects apply
+
+**Research initiation:**
+- Player clicks "研究" on an available tech
+- Cost deducted immediately from treasury
+- Cannot start if already researching
+- Cannot start if prerequisites not completed
+- Cannot start if insufficient resources
+
+**State additions:**
+- state.research = {
+    currentTech: null,
+    yearsRemaining: 0,
+    completed: [],
+    available: ["basic_farming", "folk_trade",
+    "written_records", "herbalism", "militia"]
+  }
+- state.techBonuses = {
+    grainYieldBonus: 0,
+    tradeEfficiency: 0,
+    droughtResistance: 0,
+    combatPower: 0
+  }
+
+**New file:** js/tech/research.js
+Contains: techTree array, initResearch(),
+updateResearch(), applyTechEffect(),
+getAvailableTechs()
+
+**Files to modify:** state.js, game.js, render.js
+**New files:** js/tech/research.js,
+js/ui/render_tech.js
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/ society/ diplomacy/ files
+
+**Definition of Done (Phase 6A-1):**
+- techTree data defined in research.js
+- Research queue tracked in state.research
+- Player can select and start researching a tech
+- Progress advances each year-advance
+- Completed techs apply bonuses to techBonuses state
+- UI shows tech tree panel:
+  available techs with cost and years
+  current research with progress bar
+  completed techs list
+- Cannot start research if already researching
+- index.html updated with new script tags
