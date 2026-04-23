@@ -325,6 +325,72 @@ function formatLiteracyPercent(value) {
   return `${formatDecimal((Number(value ?? 0) || 0) * 100, 1)}%`;
 }
 
+function formatTalent(value) {
+  return formatDecimal(Math.max(0, Number(value ?? 0)), 1);
+}
+
+function getTalentUnlockText(unlocked) {
+  return unlocked ? '<span style="color:#1b8a3b;font-weight:700;">已满足</span>' : '<span style="color:#b42318;font-weight:700;">未满足</span>';
+}
+
+function getTalentControlsHtml(world) {
+  const adminAvailable = Math.max(0, Number(world.adminTalent ?? 0) - Number(world.adminTalentDeployed ?? 0));
+  const commerceAvailable =
+    Math.max(0, Number(world.commerceTalent ?? 0) - Number(world.commerceTalentDeployed ?? 0));
+  const techAvailable = Math.max(0, Number(world.techTalent ?? 0) - Number(world.techTalentDeployed ?? 0));
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>文官人才部署</strong></div>
+        <div class="muted">可用 ${formatTalent(adminAvailable)} / 总量 ${formatTalent(world.adminTalent ?? 0)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button id="admin-talent-deploy-btn" ${adminAvailable <= 0 ? 'disabled' : ''}>部署 +1</button>
+          <button id="admin-talent-release-btn" ${(world.adminTalentDeployed ?? 0) <= 0 ? 'disabled' : ''}>撤回 -1</button>
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label"><strong>商业人才部署</strong></div>
+        <div class="muted">可用 ${formatTalent(commerceAvailable)} / 总量 ${formatTalent(world.commerceTalent ?? 0)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button id="commerce-talent-deploy-btn" ${commerceAvailable <= 0 ? 'disabled' : ''}>部署 +1</button>
+          <button id="commerce-talent-release-btn" ${(world.commerceTalentDeployed ?? 0) <= 0 ? 'disabled' : ''}>撤回 -1</button>
+        </div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label"><strong>技术人才部署</strong></div>
+        <div class="muted">可用 ${formatTalent(techAvailable)} / 总量 ${formatTalent(world.techTalent ?? 0)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button id="tech-talent-deploy-btn" ${techAvailable <= 0 ? 'disabled' : ''}>部署 +1</button>
+          <button id="tech-talent-release-btn" ${(world.techTalentDeployed ?? 0) <= 0 ? 'disabled' : ''}>撤回 -1</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindTalentEvents(state, rerender) {
+  const world = state.world;
+  const bindDelta = (id, key, totalKey, delta) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const current = Math.max(0, Number(world[key] ?? 0));
+      const total = Math.max(0, Number(world[totalKey] ?? 0));
+      const next = Math.max(0, Math.min(total, current + delta));
+      world[key] = next;
+      rerender();
+    });
+  };
+
+  bindDelta('admin-talent-deploy-btn', 'adminTalentDeployed', 'adminTalent', 1);
+  bindDelta('admin-talent-release-btn', 'adminTalentDeployed', 'adminTalent', -1);
+  bindDelta('commerce-talent-deploy-btn', 'commerceTalentDeployed', 'commerceTalent', 1);
+  bindDelta('commerce-talent-release-btn', 'commerceTalentDeployed', 'commerceTalent', -1);
+  bindDelta('tech-talent-deploy-btn', 'techTalentDeployed', 'techTalent', 1);
+  bindDelta('tech-talent-release-btn', 'techTalentDeployed', 'techTalent', -1);
+}
+
 function getLiteracyEffectsSummary(world) {
   const farmerBonus = Math.max(0, Number(world.farmerLiteracyEfficiencyBonus ?? 0));
   const merchantBonus = Math.max(0, Number(world.merchantLiteracyEfficiencyBonus ?? 0));
@@ -383,6 +449,21 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Higher School Unlock', world.higherSchoolUnlocked ? 'Unlocked' : 'Locked')}
     </div></section>
 
+    <section class="panel"><h2>Professional Talent Pool</h2><div class="tab-grid">
+      ${statItem('Admin Talent (Total / Deployed / Available)', `${formatTalent(world.adminTalent ?? 0)} / ${formatTalent(world.adminTalentDeployed ?? 0)} / ${formatTalent(Math.max(0, (world.adminTalent ?? 0) - (world.adminTalentDeployed ?? 0)))}`)}
+      ${statItem('Commerce Talent (Total / Deployed / Available)', `${formatTalent(world.commerceTalent ?? 0)} / ${formatTalent(world.commerceTalentDeployed ?? 0)} / ${formatTalent(Math.max(0, (world.commerceTalent ?? 0) - (world.commerceTalentDeployed ?? 0)))}`)}
+      ${statItem('Tech Talent (Total / Deployed / Available)', `${formatTalent(world.techTalent ?? 0)} / ${formatTalent(world.techTalentDeployed ?? 0)} / ${formatTalent(Math.max(0, (world.techTalent ?? 0) - (world.techTalentDeployed ?? 0)))}`)}
+      ${statItem('Admin Milestones', `≥10 基础官署 / ≥50 政策执行+10% / ≥100 警务前置 / ≥200 司法前置`)}
+      ${statItem('Commerce Milestones', `≥10 钱庄效率+5% / ≥50 商业效率+5% / ≥100 商贸署前置`)}
+      ${statItem('Tech Milestones', `≥10 研发速度+10% / ≥50 农业效率+3% / ≥100 工程署前置`)}
+      ${statItem('Institution Prereq: Basic Government', getTalentUnlockText(Boolean(world.institutionPrereqBasicGov)))}
+      ${statItem('Institution Prereq: Police', getTalentUnlockText(Boolean(world.institutionPrereqPolice)))}
+      ${statItem('Institution Prereq: Court', getTalentUnlockText(Boolean(world.institutionPrereqCourt)))}
+      ${statItem('Institution Prereq: Trade Bureau', getTalentUnlockText(Boolean(world.institutionPrereqTradeBureau)))}
+      ${statItem('Institution Prereq: Engineering Bureau', getTalentUnlockText(Boolean(world.institutionPrereqEngineeringBureau)))}
+      ${statItem('Talent Deployment Controls', getTalentControlsHtml(world))}
+    </div></section>
+
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
@@ -419,4 +500,5 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindLandRentEvents(state);
   bindMoneylenderPolicyEvents(state);
   bindSchoolEvents(state);
+  bindTalentEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
 }

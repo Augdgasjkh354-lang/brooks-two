@@ -237,11 +237,14 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
 
   const totalInterestIncome = clampMoney(civilian.civilianInterestIncome + governmentInterestIncome);
   const baseMoneylenderGDP = clampMoney((world.moneylenderShops ?? 0) * 500);
+  const moneylenderEfficiencyBonus = Math.max(0, Number(world.moneylenderEfficiencyBonus ?? 0));
+  const moneylenderEfficiencyMultiplier = 1 + moneylenderEfficiencyBonus;
   const preTaxGDP = baseMoneylenderGDP + totalInterestIncome;
+  const adjustedPreTaxGDP = preTaxGDP * moneylenderEfficiencyMultiplier;
   const taxRate = clampPercent(world.moneylenderTaxRate ?? 0.01, 0, 0.2);
-  const moneylenderTax = preTaxGDP * taxRate;
+  const moneylenderTax = adjustedPreTaxGDP * taxRate;
 
-  world.moneylenderGDP = preTaxGDP;
+  world.moneylenderGDP = adjustedPreTaxGDP;
 
   const merchantShare = totalInterestIncome * 0.5;
   const treasuryShare = totalInterestIncome * 0.5 + moneylenderTax;
@@ -257,9 +260,10 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
     ...civilian,
     totalInterestIncome,
     baseMoneylenderGDP,
-    preTaxGDP,
+    preTaxGDP: adjustedPreTaxGDP,
     moneylenderTax,
     merchantShare,
     treasuryShare,
+    moneylenderEfficiencyMultiplier,
   };
 }

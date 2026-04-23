@@ -223,6 +223,50 @@ function updateHigherSchoolUnlock(world) {
   return !alreadyUnlocked && world.higherSchoolUnlocked;
 }
 
+function clampTalent(value) {
+  return Math.max(0, Number(value ?? 0));
+}
+
+function updateTalentPools(world) {
+  const annualPrimaryGrads = Math.max(0, Number(world.annualPrimaryGrads ?? 0));
+  const annualSecondaryGrads = Math.max(0, Number(world.annualSecondaryGrads ?? 0));
+  const annualHigherGrads = Math.max(0, Number(world.annualHigherGrads ?? 0));
+
+  const adminGrowthBase = annualSecondaryGrads * 0.4 + annualHigherGrads * 0.8;
+  const commerceGrowthBase = annualPrimaryGrads * 0.2 + annualSecondaryGrads * 0.3;
+  const techGrowthBase = annualSecondaryGrads * 0.2 + annualHigherGrads * 0.5;
+
+  const merchantGrowthBoost = (world.merchantSatisfaction ?? 70) > 70 ? 0.1 : 0;
+  const officialGrowthBoost = (world.officialSatisfaction ?? 70) > 70 ? 0.1 : 0;
+  const socialUnrestPenalty = (world.farmerSatisfaction ?? 70) < 40 ? 0.1 : 0;
+
+  const adminGrowthMultiplier = Math.max(0, (1 + officialGrowthBoost) * (1 - socialUnrestPenalty));
+  const commerceGrowthMultiplier = Math.max(0, (1 + merchantGrowthBoost) * (1 - socialUnrestPenalty));
+  const techGrowthMultiplier = Math.max(0, 1 - socialUnrestPenalty);
+
+  const adminGrowth = adminGrowthBase * adminGrowthMultiplier;
+  const commerceGrowth = commerceGrowthBase * commerceGrowthMultiplier;
+  const techGrowth = techGrowthBase * techGrowthMultiplier;
+
+  const adminAfterDecay = clampTalent((world.adminTalent ?? 0) * 0.98);
+  const commerceAfterDecay = clampTalent((world.commerceTalent ?? 0) * 0.98);
+  const techAfterDecay = clampTalent((world.techTalent ?? 0) * 0.98);
+
+  world.adminTalent = adminAfterDecay + adminGrowth;
+  world.commerceTalent = commerceAfterDecay + commerceGrowth;
+  world.techTalent = techAfterDecay + techGrowth;
+
+  world.adminTalentDeployed = Math.min(clampTalent(world.adminTalentDeployed ?? 0), world.adminTalent);
+  world.commerceTalentDeployed = Math.min(clampTalent(world.commerceTalentDeployed ?? 0), world.commerceTalent);
+  world.techTalentDeployed = Math.min(clampTalent(world.techTalentDeployed ?? 0), world.techTalent);
+
+  world.institutionPrereqBasicGov = world.adminTalent >= 10;
+  world.institutionPrereqPolice = world.adminTalent >= 100;
+  world.institutionPrereqCourt = world.adminTalent >= 200;
+  world.institutionPrereqTradeBureau = world.commerceTalent >= 100;
+  world.institutionPrereqEngineeringBureau = world.techTalent >= 100;
+}
+
 export function processEducationYear(world) {
   const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 1));
   const childrenPool = Math.max(0, Math.floor(Number(world.children ?? 0) * 0.6));
@@ -306,6 +350,7 @@ export function updatePopulation(world) {
   applyLiteracyGrowth(world);
   updateOverallLiteracy(world);
   const higherSchoolUnlockedThisYear = updateHigherSchoolUnlock(world);
+  updateTalentPools(world);
 
   return {
     populationDelta: nextTotal - total,
