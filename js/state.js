@@ -88,6 +88,27 @@ export const initialState = {
     grainRedistributionUsed: false,
     merchantTaxUsed: false,
   },
+  xikou: {
+    population: 3000,
+    laborForce: 1800,
+    children: 600,
+    elderly: 600,
+    farmlandMu: 3000,
+    mulberryLandMu: 2000,
+    saltMines: 2,
+    saltMineWorkers: 20,
+    saltOutputJin: 200000,
+    grainTreasury: 500000,
+    clothOutput: 0,
+    stabilityIndex: 75,
+    attitudeToPlayer: 0,
+    diplomaticContact: false,
+    farmWorkers: 300,
+    mulberryWorkers: 200,
+    idleLabor: 1280,
+    farmEfficiency: 1,
+    grainOutput: 1500000,
+  },
   systems: {
     bankBuilt: false,
     bankClerksRecruited: false,
@@ -100,5 +121,7 @@ export const initialState = {
 };
 
 export function createGameState() {
-  return structuredClone(initialState);
+  const state = structuredClone(initialState);
+  state.world.xikou = state.xikou;
+  return state;
 }
