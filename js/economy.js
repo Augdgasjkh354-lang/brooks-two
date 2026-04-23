@@ -656,18 +656,31 @@ export function updateEconomy(world, options = {}) {
     Number(world.previousClothReserveForMarket ?? world.clothReserve ?? 0)
   );
 
+  const clothReserveAtYearStart = Math.max(0, Number(world.clothReserve ?? 0));
+  const clothTradeReceived = Math.max(0, clothReserveAtYearStart - previousClothReserveSnapshot);
+
   const coarseClothOutput = clamp((world.hempLandMu ?? 0) * 5 * hempEfficiency);
   const rawSilkOutput = clamp((world.mulberryMatureLandMu ?? 0) * 5 * mulberryEfficiency);
   const fineClothOutput = clamp(rawSilkOutput * 3);
   const totalClothOutput = clamp(coarseClothOutput + fineClothOutput);
+  const totalClothSupply = clamp(totalClothOutput + clothTradeReceived);
+
+  const blendedClothPrice =
+    totalClothOutput > 0
+      ? (coarseClothOutput * 2.0 + fineClothOutput * 6.0) / totalClothOutput
+      : Math.max(0.8, Number(world.clothPrice ?? 2.0));
+
   world.coarseClothOutput = coarseClothOutput;
   world.rawSilkOutput = rawSilkOutput;
   world.fineClothOutput = fineClothOutput;
-  world.clothReserve = clamp((world.clothReserve ?? 0) + totalClothOutput);
+  world.clothTradeReceived = clamp(clothTradeReceived);
+  world.totalClothSupply = totalClothSupply;
+  world.blendedClothPrice = blendedClothPrice;
+  world.clothReserve = clamp(clothReserveAtYearStart + totalClothOutput);
 
   const saltReserveBeforeImport = Math.max(0, Number(world.saltReserve ?? 0));
   const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
-  const clothAnnualSupply = Math.max(0, clothReserve - previousClothReserveSnapshot);
+  const clothAnnualSupply = totalClothSupply;
 
   const saltAnnualDemand = Math.max(0, world.totalPopulation * 15);
   const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3);
@@ -722,7 +735,7 @@ export function updateEconomy(world, options = {}) {
 
   const clothPricing = calculateCommodityPrice({
     previousPrice: Math.max(0.1, Number(world.clothPrice ?? 2.0)),
-    basePrice: 2.0,
+    basePrice: blendedClothPrice,
     minPrice: 0.8,
     maxPrice: 5.0,
     annualSupply: clothAnnualSupply,
@@ -731,6 +744,8 @@ export function updateEconomy(world, options = {}) {
   });
 
   const grainAnnualDemand = Math.max(0, world.totalPopulation * 360);
+  const localClothRatio =
+    clothAnnualDemand > 0 ? Math.max(0, totalClothOutput / clothAnnualDemand) : 0;
 
   let adjustedGrainOutput = grainOutput;
   let adjustedCommerceGDP = commerceGDP;
@@ -757,6 +772,10 @@ export function updateEconomy(world, options = {}) {
   world.saltImportQuota = clamp(Math.max(0, desiredSaltImport));
   world.clothAnnualSupply = clamp(clothAnnualSupply);
   world.clothAnnualDemand = clamp(clothAnnualDemand);
+  world.totalClothSupply = clamp(totalClothSupply);
+  world.localClothRatio = localClothRatio;
+  world.clothImportQuota = clamp(Math.max(0, Math.floor(world.clothImportQuota ?? 0)));
+  world.blendedClothPrice = blendedClothPrice;
   world.grainAnnualDemand = clamp(grainAnnualDemand);
   world.circulationRatio = circulationRatio;
   world.commerceActivityBonus = effectiveCommerceActivityBonus;
@@ -797,6 +816,26 @@ export function updateEconomy(world, options = {}) {
     );
   } else if (actualSaltImport > 0 && xikou?.diplomaticContact) {
     behaviorMessages.push('盐进口执行失败：储备不足，未能支付进口成本');
+  }
+
+  const previousClothImportReceived = Math.max(0, Number(world.previousClothImportReceived ?? 0));
+  const clothImportsReduced = clothTradeReceived < previousClothImportReceived;
+  world.clothImportReductionPenaltyApplied = false;
+
+  if (clothImportsReduced && localClothRatio < 0.5 && xikou?.diplomaticContact) {
+    xikou.attitudeToPlayer = clampAttitude((xikou.attitudeToPlayer ?? 0) - 5);
+    world.clothImportReductionPenaltyApplied = true;
+    behaviorMessages.push('溪口村对进口减少表示不满');
+  }
+
+  if (!world.localClothMilestone50Reached && localClothRatio >= 0.5) {
+    world.localClothMilestone50Reached = true;
+    behaviorMessages.push('本地布匹自给率达到50%里程碑');
+  }
+
+  if (!world.localClothMilestone80Reached && localClothRatio >= 0.8) {
+    world.localClothMilestone80Reached = true;
+    behaviorMessages.push('本地布匹自给率达到80%里程碑');
   }
 
   if (world.saltShortfallRatio > 0.3) {
@@ -979,6 +1018,7 @@ export function updateEconomy(world, options = {}) {
   world.saltReserve = clamp(saltReserve);
   world.previousSaltReserveForMarket = saltReserve;
   world.previousClothReserveForMarket = clothReserve;
+  world.previousClothImportReceived = clamp(clothTradeReceived);
   world.landDevelopmentFarmerIncomeBoost = 0;
   world.landDevelopmentCommerceBoost = 0;
   world.hempReclamationUsedThisYear = false;
