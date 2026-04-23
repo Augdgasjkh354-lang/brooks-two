@@ -1,6 +1,8 @@
 import { createGameState } from './state.js';
-import { updatePopulation } from './population.js';
-import { updateEconomy, issueGrainCoupons, executeOfficialSaltSale } from './economy.js';
+import { updatePopulation } from './society/population.js';
+import { updateEconomy } from './economy/agriculture.js';
+import { issueGrainCoupons } from './economy/currency.js';
+import { executeOfficialSaltSale } from './economy/market.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
