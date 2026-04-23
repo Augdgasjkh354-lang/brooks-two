@@ -23,6 +23,7 @@ import {
   executeOfficialSaltSale,
   previewOfficialSaltSale,
   clampBetween,
+  getIncomePoolDemandEffects,
 } from './market.js';
 import {
   getStabilityPenaltyFromIncomeGap,
@@ -57,6 +58,11 @@ export function updateEconomy(world, options = {}) {
 
   const behaviorMessages = [];
   const currentYear = world.year ?? 1;
+
+  const farmerIncomePool = Math.max(0, Number(world.farmerIncomePool ?? 0));
+  const merchantIncomePool = Math.max(0, Number(world.merchantIncomePool ?? 0));
+  const officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0));
+  const incomePoolEffects = getIncomePoolDemandEffects(world);
   const bureaucracyEffects = getBureaucracyEffects(world);
 
   const maturedHempLand = Math.max(0, Math.floor(world.pendingHempLandMu ?? 0));
@@ -236,8 +242,8 @@ export function updateEconomy(world, options = {}) {
   const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
   const clothAnnualSupply = totalClothSupply;
 
-  const saltAnnualDemand = Math.max(0, world.totalPopulation * 15);
-  const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3);
+  const saltAnnualDemand = Math.max(0, world.totalPopulation * 15 + incomePoolEffects.saltDemandIncrease);
+  const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3 + incomePoolEffects.clothDemandIncrease);
 
   const xikou = world.xikou;
 
@@ -420,13 +426,24 @@ export function updateEconomy(world, options = {}) {
   const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);
   const structuralFarmerBonus = structuralBonus ? 3 : 0;
 
-  world.farmerSatisfaction = clampPercentIndex(satisfaction.farmerSatisfaction + structuralFarmerBonus);
+  let farmlandRentPenalty = 0;
+  if ((world.farmlandRentRate ?? 0) > 15) {
+    farmlandRentPenalty = 25;
+  } else if ((world.farmlandRentRate ?? 0) > 10) {
+    farmlandRentPenalty = 10;
+  }
+
+  world.farmerSatisfaction = clampPercentIndex(
+    satisfaction.farmerSatisfaction + structuralFarmerBonus + incomePoolEffects.farmerSatisfactionBonus - farmlandRentPenalty
+  );
   const merchantSatisfactionTechBonus = Number(world.techBonuses?.merchantSatisfactionBonus ?? 0);
   const merchantSatisfactionPolicyBonus = bureaucracyEffects.merchantSatisfactionPermanentBonus;
   world.merchantSatisfaction = clampPercentIndex(
-    satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus + merchantSatisfactionPolicyBonus
+    satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus + merchantSatisfactionPolicyBonus + incomePoolEffects.merchantSatisfactionBonus
   );
-  world.officialSatisfaction = clampPercentIndex(satisfaction.officialSatisfaction + paperSatisfactionBonus);
+  world.officialSatisfaction = clampPercentIndex(
+    satisfaction.officialSatisfaction + paperSatisfactionBonus + incomePoolEffects.officialSatisfactionBonus
+  );
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
   const activeBehaviorWarnings = [];
@@ -614,8 +631,14 @@ export function updateEconomy(world, options = {}) {
   world.salaryGrainRatio = salaryGrainRatio;
 
   if (collectTax) {
+    const farmlandRentRate = clampBetween(Number(world.farmlandRentRate ?? 0), 0, 20);
+    world.farmlandRentRate = farmlandRentRate;
+    const farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
+
     const taxToGrain = agriculturalTax * taxGrainRatio;
     const taxToCoupon = agriculturalTax - taxToGrain;
+    const rentToGrain = farmlandRentCollected * taxGrainRatio;
+    const rentToCoupon = farmlandRentCollected - rentToGrain;
 
     const totalSalaryCost = Math.max(0, Number(world.totalSalaryCost ?? 0));
     const desiredCouponSalary = totalSalaryCost * (1 - salaryGrainRatio);
@@ -633,7 +656,7 @@ export function updateEconomy(world, options = {}) {
       actualGrainSalary = totalSalaryCost;
     }
 
-    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain - actualGrainSalary);
+    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain + rentToGrain - actualGrainSalary);
 
     const retainedByLedger = clamp((world.grainTreasury ?? 0) * bureaucracyEffects.grainRetentionRate);
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + retainedByLedger);
@@ -648,10 +671,17 @@ export function updateEconomy(world, options = {}) {
       );
     }
 
-    world.couponTreasury = clamp(couponTreasuryAfterTax - actualCouponSalary);
+    world.couponTreasury = clamp(couponTreasuryAfterTax + rentToCoupon - actualCouponSalary);
     world.lastSalaryCost = clamp(totalSalaryCost);
     world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;
+    world.lastFarmlandRentCollected = clamp(farmlandRentCollected);
     world.lastTaxCollectionYear = world.year;
+
+    if (farmlandRentCollected > 0) {
+      behaviorMessages.push(`地租征收：共${Math.round(farmlandRentCollected)}（粮${Math.round(rentToGrain)} / 粮劵${Math.round(rentToCoupon)}）`);
+    }
+  } else {
+    world.lastFarmlandRentCollected = 0;
   }
 
   world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
@@ -681,6 +711,23 @@ export function updateEconomy(world, options = {}) {
   world.landDevelopmentCommerceBoost = 0;
   world.hempReclamationUsedThisYear = false;
   world.mulberryReclamationUsedThisYear = false;
+
+
+  if (farmerIncomePool > 0 || merchantIncomePool > 0 || officialIncomePool > 0) {
+    behaviorMessages.push(
+      `收入池分配：农户${Math.round(farmerIncomePool)} / 商贸${Math.round(merchantIncomePool)} / 官员${Math.round(officialIncomePool)}`
+    );
+  }
+
+  if (incomePoolEffects.saltDemandIncrease > 0 || incomePoolEffects.clothDemandIncrease > 0) {
+    behaviorMessages.push(
+      `收入拉动需求：食盐+${incomePoolEffects.saltDemandIncrease.toFixed(2)}，布匹+${incomePoolEffects.clothDemandIncrease.toFixed(2)}`
+    );
+  }
+
+  world.farmerIncomePool = 0;
+  world.merchantIncomePool = 0;
+  world.officialIncomePool = 0;
 
   return {
     grainOutput: adjustedGrainOutput,

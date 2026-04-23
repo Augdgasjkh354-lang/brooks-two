@@ -170,6 +170,31 @@ export function bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRede
   if (redemptionBtn) redemptionBtn.addEventListener('click', onEmergencyRedemption);
 }
 
+
+
+function getLandRentControlsHtml(world) {
+  const rentRate = Math.max(0, Math.min(20, Number(world?.farmlandRentRate ?? 0)));
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label for="farmland-rent-rate-input">Farmland Rent Rate (${formatDecimal(rentRate, 1)} jin/mu/year)</label>
+      <input id="farmland-rent-rate-input" type="range" min="0" max="20" step="1" value="${Math.round(rentRate)}" />
+      <div id="farmland-rent-rate-value" class="muted">Current: ${formatDecimal(rentRate, 1)} jin/mu/year</div>
+      <div class="muted">Higher rent increases treasury revenue but can reduce farmer satisfaction above 10 jin/mu.</div>
+    </div>
+  `;
+}
+
+function bindLandRentEvents(state) {
+  const input = document.getElementById('farmland-rent-rate-input');
+  const value = document.getElementById('farmland-rent-rate-value');
+  if (!input || !value) return;
+
+  input.addEventListener('input', () => {
+    const next = Math.max(0, Math.min(20, Number(input.value ?? 0)));
+    state.world.farmlandRentRate = next;
+    value.textContent = `Current: ${formatDecimal(next, 1)} jin/mu/year`;
+  });
+}
 export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
   const world = state.world;
   const mount = document.getElementById('society-tab-content');
@@ -195,6 +220,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Policy Intervention', getStabilityPolicyControlsHtml(world))}
     </div></section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
+    <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
     <section class="panel"><h2>Class Satisfaction</h2><div class="tab-grid">
       ${statItem('Farmer Satisfaction', sat(world.farmerSatisfaction))}
       ${statItem('Farmer Factors', factors.farmer)}
@@ -209,7 +235,20 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     <section class="panel"><h2>Credit Crisis</h2>${getCreditCrisisControlsHtml(world)}</section>
   `;
 
-  bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
+  const wrappedGrainRedistribution = () => {
+    const beforeUsed = Boolean(state.world.grainRedistributionUsed);
+    onUseGrainRedistribution();
+    if (!beforeUsed && state.world.grainRedistributionUsed) {
+      state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0) + GRAIN_REDISTRIBUTION_COST);
+    }
+  };
+
+  const wrappedMerchantTax = () => {
+    onUseMerchantTax();
+  };
+
+  bindStabilityPolicyEvents(wrappedGrainRedistribution, wrappedMerchantTax);
   bindBureaucracyPolicyEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
+  bindLandRentEvents(state);
 }

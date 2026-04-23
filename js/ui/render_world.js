@@ -76,6 +76,11 @@ export function renderCoreStats(state) {
     statItem('Children', formatNumber(world.children)),
     statItem('Elderly', formatNumber(world.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
+    statItem('Income Pool - Farmer', formatNumber(world.farmerIncomePool ?? 0)),
+    statItem('Income Pool - Merchant', formatNumber(world.merchantIncomePool ?? 0)),
+    statItem('Income Pool - Official', formatNumber(world.officialIncomePool ?? 0)),
+    statItem('Farmland Rent Rate', `${formatDecimal(world.farmlandRentRate ?? 0, 1)} jin/mu`),
+    statItem('Rent Collected (Last Year)', formatNumber(world.lastFarmlandRentCollected ?? 0)),
   ].join('');
 }
 

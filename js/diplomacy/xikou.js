@@ -1,7 +1,7 @@
 // Diplomacy module: Xikou village and relations
 import { clamp, clampRatio } from '../economy/labor.js';
 
-export const SEND_ENVOY_COST_GRAIN = 500000;
+export const SEND_ENVOY_COST_GRAIN = 5000;
 
 export function updateXikouVillageEconomy(world) {
   if (!world || !world.xikou) {
@@ -139,4 +139,30 @@ export function canSendEnvoyToXikou(world) {
     return { success: false, reason: `粮仓不足（需要${SEND_ENVOY_COST_GRAIN}粮）。` };
   }
   return { success: true };
+}
+
+
+export function sendEnvoyToXikou(world) {
+  if (!world?.xikou) {
+    return { success: false, reason: '溪口数据缺失。' };
+  }
+
+  const check = canSendEnvoyToXikou(world);
+  if (!check.success) {
+    return check;
+  }
+
+  world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - SEND_ENVOY_COST_GRAIN);
+  world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + SEND_ENVOY_COST_GRAIN);
+
+  world.xikou.diplomaticContact = true;
+  world.xikou.attitudeToPlayer = clampAttitude((world.xikou.attitudeToPlayer ?? 0) + 10);
+  world.xikou.attitudeDeltaThisYear = 10;
+  world.xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
+
+  return {
+    success: true,
+    cost: SEND_ENVOY_COST_GRAIN,
+    officialIncomeRouted: SEND_ENVOY_COST_GRAIN,
+  };
 }

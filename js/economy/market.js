@@ -165,3 +165,19 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
   };
 }
 
+
+
+export function getIncomePoolDemandEffects(world) {
+  const farmerIncomePool = Math.max(0, Number(world?.farmerIncomePool ?? 0));
+  const merchantIncomePool = Math.max(0, Number(world?.merchantIncomePool ?? 0));
+  const officialIncomePool = Math.max(0, Number(world?.officialIncomePool ?? 0));
+
+  return {
+    farmerSatisfactionBonus: Math.min(farmerIncomePool / 1000000, 10),
+    merchantSatisfactionBonus: Math.min(merchantIncomePool / 1000000, 8),
+    officialSatisfactionBonus: Math.min(officialIncomePool / 500000, 10),
+    saltDemandIncrease: farmerIncomePool / 500000,
+    clothDemandIncrease:
+      farmerIncomePool / 2000000 + merchantIncomePool / 1500000 + officialIncomePool / 2000000,
+  };
+}
