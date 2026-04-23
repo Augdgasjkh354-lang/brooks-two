@@ -3252,3 +3252,122 @@ tech/research.js economy/agriculture.js
   efficiency breakdown
   active effects this year
 - yearLog records establishment and ratio warnings
+## Phase 7B-3 Scope (Current)
+
+Phase 7B-2 complete. Now implementing 7B-3 only.
+
+**Goal:** Add public toilet and road construction.
+These are prerequisites for sanitation workers
+and health bureau. Roads also affect trade and
+reclamation efficiency.
+
+**Rules:**
+
+Public toilets (公共厕所):
+- Construction cost: 50,000 grain per toilet
+- Minimum order: 1
+- Cost flows:
+  80% → farmerIncomePool (construction workers)
+  20% → merchantIncomePool (materials)
+- Built immediately (no waiting period)
+
+Toilet coverage:
+- toiletCoverage = publicToilets * 100 /
+  totalPopulation
+  (each toilet serves 100 people)
+- toiletCoverage >= 30%:
+  farmerLifeQuality += 3
+- toiletCoverage >= 50%:
+  farmerLifeQuality += 5
+  workerLifeQuality += 3
+- toiletCoverage >= 80%:
+  all lifeQuality += 3
+  yearLog: "公共卫生覆盖良好"
+- toiletCoverage < 10% AND population > 2000:
+  farmerLifeQuality -= 5
+  yearLog: "公共厕所严重不足"
+
+Sanitation worker unlock:
+- sanitationWorkerCount adjustable when
+  publicToilets >= 1
+- Each worker maintains 10 toilets effectively
+- workerToToiletRatio = sanitationWorkerCount /
+  publicToilets
+- workerToToiletRatio < 0.1:
+  toiletCoverage effects reduced by 50%
+  yearLog: "厕所维护人手不足"
+
+Roads (道路):
+- Unit: li (里, ~500 meters)
+- Construction cost: 10,000 grain per li
+- Minimum order: 1 li
+- Cost flows:
+  70% → farmerIncomePool (labor)
+  30% → merchantIncomePool (materials)
+- Built immediately
+
+Road effects:
+- tradeEfficiency += roadLength * 0.01
+  (each li = +1% trade efficiency, max +30%)
+- reclaimEfficiency += roadLength * 0.005
+  (each li = +0.5% reclaim efficiency, max +15%)
+- Every 10 li: attitudeToPlayer += 1
+  (better connectivity impresses Xikou)
+  max attitude bonus from roads: +10
+
+Cleaning worker unlock:
+- cleaningWorkerCount adjustable when
+  roadLength >= 1
+- Each worker maintains 5 li effectively
+- workerToRoadRatio = cleaningWorkerCount /
+  roadLength
+- workerToRoadRatio < 0.2:
+  road trade efficiency bonus reduced by 30%
+  yearLog: "道路维护人手不足"
+
+Health bureau prerequisite tracking:
+- healthBureauPrereqMet = (publicToilets >= 50 AND
+  sanitationWorkerCount >= 5 AND
+  cleaningWorkerCount >= 5)
+- When first met:
+  yearLog: "卫生局建立条件已满足"
+
+State additions needed in world{}:
+- publicToilets: 0
+- roadLength: 0
+- toiletCoverage: 0
+- workerToToiletRatio: 0
+- workerToRoadRatio: 0
+- healthBureauPrereqMet: false
+
+**Files to modify:**
+- js/state.js
+- js/economy/agriculture.js (reclaim efficiency bonus)
+- js/diplomacy/xikou.js (road attitude bonus)
+- js/economy/market.js (trade efficiency bonus)
+- js/society/satisfaction.js (coverage life quality)
+- js/game.js (construction buttons)
+- js/ui/render_world.js (infrastructure panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/currency.js economy/labor.js
+economy/commerce.js tech/research.js
+society/stability.js
+
+**Definition of Done (Phase 7B-3):**
+- Build toilet button in UI with cost preview
+- Build road button with li amount input
+- Both costs deducted immediately on build
+- Cost flows correctly to income pools
+- toiletCoverage calculated each year
+- Coverage effects applied to lifeQuality
+- Road effects applied to trade and reclaim
+- Xikou attitude bonus from roads
+- healthBureauPrereqMet tracked each year
+- sanitationWorker and cleaningWorker counts
+  become adjustable when prerequisites met
+- UI shows infrastructure panel in 总览 tab:
+  toilets: count / coverage % / worker ratio
+  roads: length / trade bonus / reclaim bonus
+  health bureau prereq status
+- yearLog records construction and milestone events
