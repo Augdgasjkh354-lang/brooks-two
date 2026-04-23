@@ -230,6 +230,72 @@ function updateXikouVillageEconomy(world) {
   xikou.grainTreasury = nextGrainTreasury;
 }
 
+
+function clampAttitude(value) {
+  return Math.max(-100, Math.min(100, Math.round(value)));
+}
+
+function updateXikouDiplomacy(world) {
+  if (!world || !world.xikou) {
+    return [];
+  }
+
+  const xikou = world.xikou;
+  const factors = [];
+  let delta = 0;
+
+  if (!xikou.diplomaticContact) {
+    xikou.attitudeDeltaThisYear = 0;
+    xikou.attitudeFactorsThisYear = ['未建立外交关系，态度变化未生效'];
+    return [];
+  }
+
+  if ((world.grainTreasury ?? 0) > 500000) {
+    delta += 2;
+    factors.push('我方粮仓充足（>500000）：+2');
+  }
+
+  if ((world.stabilityIndex ?? 80) < 50) {
+    delta -= 3;
+    factors.push('我方稳定度偏低（<50）：-3');
+  }
+
+  if ((world.inflationRate ?? 0) >= 0.15) {
+    delta -= 5;
+    factors.push('我方通胀较高（>=15%）：-5');
+  }
+
+  if (world.creditCrisis) {
+    delta -= 10;
+    factors.push('我方发生信用危机：-10');
+  }
+
+  if ((xikou.grainTreasury ?? 0) < 100000) {
+    delta += 5;
+    factors.push('溪口村粮储紧张（<100000）：+5');
+  }
+
+  if (factors.length === 0) {
+    factors.push('无年度态度修正因素');
+  }
+
+  const previous = xikou.attitudeToPlayer ?? 0;
+  const next = clampAttitude(previous + delta);
+  xikou.attitudeToPlayer = next;
+  xikou.attitudeDeltaThisYear = delta;
+  xikou.attitudeFactorsThisYear = factors;
+
+  if (delta === 0) {
+    return [];
+  }
+
+  const direction = delta > 0 ? '上升' : '下降';
+  const absoluteDelta = Math.abs(delta);
+  return [
+    `溪口村对我方态度${direction}${absoluteDelta}点（${factors.join('；')}）`,
+  ];
+}
+
 function getCouponDenominationBreakdown(issueAmount) {
   const units = [
     { label: '100斤', value: 10000 },
@@ -265,6 +331,7 @@ function getCouponDenominationBreakdown(issueAmount) {
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
   updateXikouVillageEconomy(world);
+  const diplomacyMessages = updateXikouDiplomacy(world);
 
   const farmEfficiency = calculateLaborAllocation(world);
 
@@ -529,6 +596,7 @@ export function updateEconomy(world, options = {}) {
     grainBalance,
     grainCoverageRatio,
     behaviorMessages,
+    diplomacyMessages,
     creditCrisisTriggered,
   };
 }
