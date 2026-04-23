@@ -2273,3 +2273,108 @@ ui/render_economy.js ui/render_society.js files
 - New techBonuses fields initialized in state
 - yearLog records completion of each new tech
 - Tech panel organizes by tier visually
+## Phase 6B-1 Scope (Current)
+
+Phase 6A-3 complete. Now implementing 6B-1 only.
+
+**Goal:** Every grain/coupon expenditure has a defined
+destination. Add land rent system. Add income pools
+that drive consumption demand.
+
+**Rules:**
+
+Income pools (new state fields):
+- farmerIncomePool: 0 (accumulated this year)
+- merchantIncomePool: 0
+- officialIncomePool: 0
+
+Reset to 0 each year-advance after effects applied.
+
+Expenditure flow routing:
+
+Tech research cost:
+- 60% → merchantIncomePool (craftsmen)
+- 40% → officialIncomePool (scholars)
+
+Shop construction cost:
+- 80% → farmerIncomePool (construction workers)
+- 20% → merchantIncomePool (merchants)
+
+Send envoy cost:
+- 100% → officialIncomePool
+
+Grain redistribution policy:
+- 100% → farmerIncomePool
+
+Bureaucracy policy costs (one-time):
+- 100% → officialIncomePool
+
+Bureaucracy policy annual maintenance:
+- 100% → officialIncomePool
+
+Land reclamation (farmland):
+- Already implemented, maintain existing logic
+
+Income pool effects (applied each year):
+farmerIncomePool effects:
+- farmerSatisfaction += min(farmerIncomePool /
+  1000000, 10)
+- saltAnnualDemand += farmerIncomePool / 500000
+- clothAnnualDemand += farmerIncomePool / 2000000
+
+merchantIncomePool effects:
+- merchantSatisfaction += min(merchantIncomePool /
+  1000000, 8)
+- clothAnnualDemand += merchantIncomePool / 1500000
+
+officialIncomePool effects:
+- officialSatisfaction += min(officialIncomePool /
+  500000, 10)
+- clothAnnualDemand += officialIncomePool / 2000000
+
+Land rent system:
+- farmlandRentRate: 0 (default, jin per mu per year)
+- adjustable range: 0-20 jin/mu/year
+- collection method follows taxGrainRatio
+  (same grain/coupon split as tax)
+- rent revenue added to grainTreasury/couponTreasury
+- rent too high penalty:
+  farmlandRentRate > 10: farmerSatisfaction -= 10
+  farmlandRentRate > 15: farmerSatisfaction -= 25
+- rent flows:
+  100% → government treasury (landlord is government)
+
+Year log entries:
+- Record total income distributed to each pool
+- Record rent collected
+- Record demand increases from income
+
+State additions needed in world{}:
+- farmerIncomePool: 0
+- merchantIncomePool: 0
+- officialIncomePool: 0
+- farmlandRentRate: 0
+
+**Files to modify:**
+- js/state.js
+- js/economy/agriculture.js (reclamation flow)
+- js/economy/commerce.js (shop construction flow)
+- js/diplomacy/xikou.js (envoy cost flow)
+- js/society/stability.js (policy cost flow)
+- js/tech/research.js (research cost flow)
+- js/economy/market.js (demand updates from income)
+- js/ui/render_society.js (rent rate control)
+- js/ui/render_world.js (income pool display)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/currency.js, economy/labor.js
+
+**Definition of Done (Phase 6B-1):**
+- All expenditures route to correct income pools
+- Income pools affect satisfaction and demand
+- Land rent collected each year-advance
+- Rent rate slider in 社会 tab (0-20 jin/mu)
+- UI shows annual income distribution panel:
+  farmer pool / merchant pool / official pool
+- UI shows rent collected this year
+- yearLog records all flows
