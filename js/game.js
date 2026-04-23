@@ -1,9 +1,9 @@
 import { createGameState } from './state.js';
-import { updatePopulation } from './society/population.js';
+import { updatePopulation, processEducationYear } from './society/population.js';
 import { updateEconomy } from './economy/agriculture.js';
 import { issueGrainCoupons, borrowGovernmentDebt, processGovernmentDebtYear } from './economy/currency.js';
 import { executeOfficialSaltSale } from './economy/market.js';
-import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem } from './economy/commerce.js';
+import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem, approveCommercialSchoolLicenses } from './economy/commerce.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
@@ -134,6 +134,79 @@ function resolveByEmergencyRedemption() {
 
 
 
+
+function applyCommercialSchoolLicense(type, target) {
+  const result = approveCommercialSchoolLicenses(state.world, type, target);
+  const name = type === 'primary' ? '商办蒙学' : '商办私塾';
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.world.year}: ${name}牌照设置失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  if (result.removed) {
+    state.yearLog.unshift(`Year ${state.world.year}: ${name}牌照下调至 ${result.totalApproved} 所。`);
+  } else if ((result.added ?? 0) > 0) {
+    state.yearLog.unshift(`Year ${state.world.year}: 新增${result.added}所${name}牌照，支付${Math.round(result.totalCost)}${result.paidCurrency === 'coupon' ? '粮劵' : '粮食'}。`);
+  } else {
+    state.yearLog.unshift(`Year ${state.world.year}: ${name}牌照数量保持 ${result.totalApproved} 所（无变化）。`);
+  }
+
+  render();
+}
+
+function setStudentsDownToVillage(target) {
+  if ((state.world.secondaryGraduates ?? 0) < 100) {
+    state.yearLog.unshift(`Year ${state.world.year}: 学子下乡未解锁（需要二级毕业生>=100）。`);
+    render();
+    return;
+  }
+
+  const safeTarget = Math.max(0, Math.floor(Number(target ?? 0)));
+  state.world.studentsDownToVillage = safeTarget;
+  state.yearLog.unshift(`Year ${state.world.year}: 学子下乡人数设置为 ${safeTarget}。`);
+  render();
+}
+
+function settleEducationYear() {
+  const edu = processEducationYear(state.world);
+  const gdpPerCapita = Math.max(1, edu.gdpPerCapita);
+
+  const commercialTuition =
+    (edu.commercialPrimaryEnrolled + edu.commercialSecondaryEnrolled) *
+    gdpPerCapita * 0.15;
+  state.world.merchantIncomePool = (state.world.merchantIncomePool ?? 0) + commercialTuition;
+
+  const govEnrolled =
+    Math.max(0, (edu.primaryEnrolled ?? 0) - (edu.commercialPrimaryEnrolled ?? 0)) +
+    Math.max(0, (edu.secondaryEnrolled ?? 0) - (edu.commercialSecondaryEnrolled ?? 0)) +
+    (edu.higherEnrolled ?? 0);
+  const govCost = govEnrolled * gdpPerCapita * 0.2;
+
+  if (state.world.grainCouponsUnlocked) {
+    const fromCoupon = Math.min(state.world.couponTreasury ?? 0, govCost);
+    state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
+    const remaining = govCost - fromCoupon;
+    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - remaining);
+  } else {
+    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - govCost);
+  }
+
+  const downStudents = Math.max(0, Math.floor(Number(state.world.studentsDownToVillage ?? 0)));
+  const downCost = downStudents * gdpPerCapita * 1.5;
+  if (state.world.grainCouponsUnlocked) {
+    const fromCoupon = Math.min(state.world.couponTreasury ?? 0, downCost);
+    state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
+    const remaining = downCost - fromCoupon;
+    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - remaining);
+  } else {
+    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - downCost);
+  }
+  state.world.farmerIncomePool = (state.world.farmerIncomePool ?? 0) + downCost;
+
+  return { commercialTuition, govCost, downCost, edu };
+}
+
 function applyMoneylenderApproval(target) {
   const result = approveMoneylenderLicenses(state.world, target);
   if (!result.success) {
@@ -179,6 +252,7 @@ function nextYear() {
   state.world.mulberryReclamationUsedThisYear = false;
 
   state.world.year += 1;
+  const schoolSettlement = settleEducationYear();
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
   const completedTech = updateResearch(state);
@@ -200,6 +274,9 @@ function nextYear() {
     potentialGrainOutput: econResult.potentialGrainOutput,
     lostGrainOutput: econResult.lostGrainOutput,
   });
+
+  state.yearLog.unshift(`Year ${state.world.year}: 学校结算：在校生 P/S/H = ${schoolSettlement.edu.primaryEnrolled}/${schoolSettlement.edu.secondaryEnrolled}/${schoolSettlement.edu.higherEnrolled}；毕业生 +${schoolSettlement.edu.annualPrimaryGrads}/+${schoolSettlement.edu.annualSecondaryGrads}/+${schoolSettlement.edu.annualHigherGrads}。`);
+  state.yearLog.unshift(`Year ${state.world.year}: 教育财政：官办教育支出 ${Math.round(schoolSettlement.govCost)}，商办学费流入商人收入池 ${Math.round(schoolSettlement.commercialTuition)}，学子下乡支出 ${Math.round(schoolSettlement.downCost)}。`);
 
   if (econResult.creditCrisisTriggered) {
     state.yearLog.unshift(`Year ${state.world.year}: 粮劵信用崩塌，市场发生挤兑`);
@@ -696,6 +773,17 @@ function bindEvents() {
   document.addEventListener('moneylender:borrow', (event) => {
     const amount = Number(event?.detail?.amount ?? 0);
     borrowFromMoneylenderPool(amount);
+  });
+
+  document.addEventListener('school:commercial-license', (event) => {
+    const type = event?.detail?.type === 'secondary' ? 'secondary' : 'primary';
+    const target = Number(event?.detail?.target ?? 0);
+    applyCommercialSchoolLicense(type, target);
+  });
+
+  document.addEventListener('school:students-down', (event) => {
+    const target = Number(event?.detail?.target ?? 0);
+    setStudentsDownToVillage(target);
   });
 }
 
