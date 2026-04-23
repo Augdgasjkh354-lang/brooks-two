@@ -1,14 +1,27 @@
-// Commerce module: commerce and demand saturation
+// Commerce module: commerce, demand saturation, and moneylender system
 
 export const SHOP_BUILD_COST_GRAIN = 1500000;
+export const DEFAULT_MONEYLENDER_LICENSE_FEE = 5000000;
+
+function clampMoney(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, n);
+}
+
+function clampPercent(value, min = 0, max = 1) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
 
 export function routeShopConstructionIncome(world, totalCost) {
-  const safeCost = Math.max(0, Number(totalCost ?? 0));
+  const safeCost = clampMoney(totalCost);
   const farmerShare = safeCost * 0.8;
   const merchantShare = safeCost - farmerShare;
 
-  world.farmerIncomePool = Math.max(0, Number(world.farmerIncomePool ?? 0) + farmerShare);
-  world.merchantIncomePool = Math.max(0, Number(world.merchantIncomePool ?? 0) + merchantShare);
+  world.farmerIncomePool = clampMoney(world.farmerIncomePool) + farmerShare;
+  world.merchantIncomePool = clampMoney(world.merchantIncomePool) + merchantShare;
 
   return {
     farmerShare,
@@ -34,4 +47,146 @@ export function getCommerceActivityBonus(world) {
   }
 
   return { circulationRatio, commerceActivityBonus: 0.7 };
+}
+
+export function isMoneylenderSystemUnlocked(world) {
+  return Boolean(world?.techBonuses?.lendingSystem);
+}
+
+export function canUseMoneylenderSystem(world) {
+  return (
+    isMoneylenderSystemUnlocked(world) &&
+    Boolean(world?.techBonuses?.bureaucracyUnlocked) &&
+    Number(world?.shopCount ?? 0) >= 10
+  );
+}
+
+export function syncMoneylenderCaps(world) {
+  world.licenseFee = Math.max(0, Math.floor(Number(world.licenseFee ?? DEFAULT_MONEYLENDER_LICENSE_FEE)));
+  world.moneylenderTaxRate = clampPercent(world.moneylenderTaxRate ?? 0.01, 0, 0.2);
+
+  const maxAllowed = Math.max(0, Math.floor(Number(world.shopCount ?? 0)));
+  const approved = Math.max(0, Math.floor(Number(world.approvedMoneylenders ?? 0)));
+  world.approvedMoneylenders = Math.min(approved, maxAllowed);
+  world.moneylenderShops = world.approvedMoneylenders;
+  world.lendingPoolSize = clampMoney(world.moneylenderShops * 10000000);
+
+  return {
+    maxAllowed,
+    approved: world.approvedMoneylenders,
+    lendingPoolSize: world.lendingPoolSize,
+  };
+}
+
+export function approveMoneylenderLicenses(world, targetApproved) {
+  if (!canUseMoneylenderSystem(world)) {
+    return { success: false, reason: 'Moneylender system is not available yet.' };
+  }
+
+  const capInfo = syncMoneylenderCaps(world);
+  const target = Math.max(0, Math.min(capInfo.maxAllowed, Math.floor(Number(targetApproved ?? 0))));
+  if (target === world.approvedMoneylenders) {
+    return { success: true, added: 0, totalApproved: world.approvedMoneylenders, totalCost: 0 };
+  }
+
+  if (target < world.approvedMoneylenders) {
+    world.approvedMoneylenders = target;
+    world.moneylenderShops = target;
+    world.lendingPoolSize = clampMoney(target * 10000000);
+    return {
+      success: true,
+      added: 0,
+      removed: true,
+      totalApproved: target,
+      totalCost: 0,
+    };
+  }
+
+  const toAdd = target - world.approvedMoneylenders;
+  const totalCost = toAdd * clampMoney(world.licenseFee);
+
+  if (world.grainCouponsUnlocked) {
+    if (clampMoney(world.couponTreasury) < totalCost) {
+      return { success: false, reason: `Not enough coupon treasury (need ${totalCost}).` };
+    }
+    world.couponTreasury = clampMoney(world.couponTreasury) - totalCost;
+  } else {
+    if (clampMoney(world.grainTreasury) < totalCost) {
+      return { success: false, reason: `Not enough grain treasury (need ${totalCost}).` };
+    }
+    world.grainTreasury = clampMoney(world.grainTreasury) - totalCost;
+  }
+
+  world.approvedMoneylenders = target;
+  world.moneylenderShops = target;
+  world.lendingPoolSize = clampMoney(target * 10000000);
+
+  return {
+    success: true,
+    added: toAdd,
+    totalApproved: target,
+    totalCost,
+    paidCurrency: world.grainCouponsUnlocked ? 'coupon' : 'grain',
+  };
+}
+
+export function processCivilianLending(world) {
+  syncMoneylenderCaps(world);
+  if ((world.moneylenderShops ?? 0) <= 0) {
+    world.moneylenderGDP = 0;
+    return { civilianLending: 0, civilianInterestIncome: 0, openedShops: 0 };
+  }
+
+  const lendingPoolSize = clampMoney(world.lendingPoolSize);
+  const civilianLending = lendingPoolSize * 0.3;
+  const civilianInterestIncome = civilianLending * 0.08;
+
+  world.civilianLendingAccumulator =
+    clampMoney(world.civilianLendingAccumulator) + civilianLending;
+
+  let openedShops = 0;
+  while (world.civilianLendingAccumulator >= 50000000) {
+    world.civilianLendingAccumulator -= 50000000;
+    world.shopCount = Math.max(0, Math.floor(Number(world.shopCount ?? 0)) + 1);
+    openedShops += 1;
+  }
+
+  return {
+    civilianLending,
+    civilianInterestIncome,
+    openedShops,
+  };
+}
+
+export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
+  syncMoneylenderCaps(world);
+  const civilian = processCivilianLending(world);
+
+  const totalInterestIncome = clampMoney(civilian.civilianInterestIncome + governmentInterestIncome);
+  const baseMoneylenderGDP = clampMoney((world.moneylenderShops ?? 0) * 500);
+  const preTaxGDP = baseMoneylenderGDP + totalInterestIncome;
+  const taxRate = clampPercent(world.moneylenderTaxRate ?? 0.01, 0, 0.2);
+  const moneylenderTax = preTaxGDP * taxRate;
+
+  world.moneylenderGDP = preTaxGDP;
+
+  const merchantShare = totalInterestIncome * 0.5;
+  const treasuryShare = totalInterestIncome * 0.5 + moneylenderTax;
+  world.merchantIncomePool = clampMoney(world.merchantIncomePool) + merchantShare;
+
+  if (world.grainCouponsUnlocked) {
+    world.couponTreasury = clampMoney(world.couponTreasury) + treasuryShare;
+  } else {
+    world.grainTreasury = clampMoney(world.grainTreasury) + treasuryShare;
+  }
+
+  return {
+    ...civilian,
+    totalInterestIncome,
+    baseMoneylenderGDP,
+    preTaxGDP,
+    moneylenderTax,
+    merchantShare,
+    treasuryShare,
+  };
 }

@@ -1,5 +1,6 @@
 import { formatNumber, formatDecimal, statItem, getPopulationGrowthDisplayDetails } from './render_world.js';
 import { BUREAUCRACY_POLICY_DEFS, activateBureaucracyPolicy } from '../society/stability.js';
+import { canUseMoneylenderSystem } from '../economy/commerce.js';
 
 const GRAIN_REDISTRIBUTION_COST = 3000000;
 
@@ -172,6 +173,49 @@ export function bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRede
 
 
 
+
+
+function getMoneylenderPolicyControlsHtml(world) {
+  if (!canUseMoneylenderSystem(world)) {
+    return '<div class="muted">钱庄政策未开放（需满足解锁条件）。</div>';
+  }
+
+  const fee = Math.max(0, Math.floor(Number(world.licenseFee ?? 5000000)));
+  const taxRate = Math.max(0, Math.min(0.2, Number(world.moneylenderTaxRate ?? 0.01)));
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label for="moneylender-license-fee-input">License Fee (per moneylender)</label>
+      <input id="moneylender-license-fee-input" type="number" min="0" step="100000" value="${fee}" />
+      <div class="muted">许可证费用进入${world.grainCouponsUnlocked ? 'coupon' : 'grain'}财政体系。</div>
+      <label for="moneylender-tax-rate-input">Moneylender Tax Rate: ${formatDecimal(taxRate * 100, 1)}%</label>
+      <input id="moneylender-tax-rate-input" type="range" min="0" max="0.2" step="0.01" value="${taxRate}" />
+      <div id="moneylender-tax-rate-value" class="muted">Current: ${formatDecimal(taxRate * 100, 1)}%</div>
+    </div>
+  `;
+}
+
+function bindMoneylenderPolicyEvents(state) {
+  const feeInput = document.getElementById('moneylender-license-fee-input');
+  const taxInput = document.getElementById('moneylender-tax-rate-input');
+  const taxValue = document.getElementById('moneylender-tax-rate-value');
+
+  if (feeInput) {
+    feeInput.addEventListener('input', () => {
+      const next = Math.max(0, Math.floor(Number(feeInput.value || 0)));
+      state.world.licenseFee = next;
+    });
+  }
+
+  if (taxInput) {
+    taxInput.addEventListener('input', () => {
+      const next = Math.max(0, Math.min(0.2, Number(taxInput.value || 0)));
+      state.world.moneylenderTaxRate = next;
+      if (taxValue) taxValue.textContent = `Current: ${formatDecimal(next * 100, 1)}%`;
+    });
+  }
+}
+
 function getLandRentControlsHtml(world) {
   const rentRate = Math.max(0, Math.min(20, Number(world?.farmlandRentRate ?? 0)));
   return `
@@ -221,6 +265,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     </div></section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
+    <section class="panel"><h2>Moneylender Policy</h2>${getMoneylenderPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Class Satisfaction</h2><div class="tab-grid">
       ${statItem('Farmer Satisfaction', sat(world.farmerSatisfaction))}
       ${statItem('Farmer Factors', factors.farmer)}
@@ -251,4 +296,5 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindBureaucracyPolicyEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
   bindLandRentEvents(state);
+  bindMoneylenderPolicyEvents(state);
 }

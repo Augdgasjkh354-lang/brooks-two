@@ -1,8 +1,9 @@
 import { createGameState } from './state.js';
 import { updatePopulation } from './society/population.js';
 import { updateEconomy } from './economy/agriculture.js';
-import { issueGrainCoupons } from './economy/currency.js';
+import { issueGrainCoupons, borrowGovernmentDebt, processGovernmentDebtYear } from './economy/currency.js';
 import { executeOfficialSaltSale } from './economy/market.js';
+import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem } from './economy/commerce.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
@@ -131,6 +132,43 @@ function resolveByEmergencyRedemption() {
   render();
 }
 
+
+
+function applyMoneylenderApproval(target) {
+  const result = approveMoneylenderLicenses(state.world, target);
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.world.year}: 钱庄许可失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  if (result.removed) {
+    state.yearLog.unshift(`Year ${state.world.year}: 下调钱庄牌照数量至 ${result.totalApproved} 家。`);
+  } else if ((result.added ?? 0) > 0) {
+    state.yearLog.unshift(
+      `Year ${state.world.year}: 新增${result.added}家钱庄牌照，支付${Math.round(result.totalCost)}${result.paidCurrency === 'coupon' ? '粮劵' : '粮食'}。`
+    );
+  } else {
+    state.yearLog.unshift(`Year ${state.world.year}: 钱庄牌照数量保持 ${result.totalApproved} 家（无变化）。`);
+  }
+
+  render();
+}
+
+function borrowFromMoneylenderPool(amount) {
+  const result = borrowGovernmentDebt(state.world, amount);
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.world.year}: 政府借贷失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 政府从钱庄借入 ${Math.round(result.amount)}${result.currency === 'coupon' ? '粮劵' : '粮食'}，当前债务 ${Math.round(result.totalDebt)}。`
+  );
+  render();
+}
+
 function nextYear() {
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
@@ -177,6 +215,36 @@ function nextYear() {
 
   if (completedTech) {
     state.yearLog.unshift(`Year ${state.world.year}: 技术研究完成 - ${completedTech.name}。`);
+  }
+
+  syncMoneylenderCaps(state.world);
+  if (canUseMoneylenderSystem(state.world)) {
+    const debtResult = processGovernmentDebtYear(state.world);
+    const moneylenderResult = finalizeMoneylenderYear(state.world, debtResult.interestDue);
+
+    state.yearLog.unshift(
+      `Year ${state.world.year}: 债务结算：利息${Math.round(debtResult.interestDue)}（${Math.round(
+        debtResult.interestRate * 100
+      )}%），偿还${Math.round(debtResult.repaymentPaid)}，剩余债务${Math.round(debtResult.remainingDebt)}。`
+    );
+
+    if ((moneylenderResult.openedShops ?? 0) > 0) {
+      state.yearLog.unshift(
+        `Year ${state.world.year}: 民间放贷带动新增商铺 ${moneylenderResult.openedShops} 家。`
+      );
+    }
+
+    state.yearLog.unshift(
+      `Year ${state.world.year}: 钱庄经营：放贷池${Math.round(
+        state.world.lendingPoolSize ?? 0
+      )}，民间放贷${Math.round(moneylenderResult.civilianLending)}，税收${Math.round(
+        moneylenderResult.moneylenderTax
+      )}。`
+    );
+
+    (debtResult.penaltyMessages ?? []).forEach((msg) => {
+      state.yearLog.unshift(`Year ${state.world.year}: ${msg}`);
+    });
   }
 
   render();
@@ -619,6 +687,16 @@ function issueCouponsFromInput() {
 function bindEvents() {
   document.getElementById('next-year-btn').addEventListener('click', nextYear);
   document.getElementById('issue-coupon-btn').addEventListener('click', issueCouponsFromInput);
+
+  document.addEventListener('moneylender:approve', (event) => {
+    const target = Number(event?.detail?.target ?? 0);
+    applyMoneylenderApproval(target);
+  });
+
+  document.addEventListener('moneylender:borrow', (event) => {
+    const amount = Number(event?.detail?.amount ?? 0);
+    borrowFromMoneylenderPool(amount);
+  });
 }
 
 function render() {

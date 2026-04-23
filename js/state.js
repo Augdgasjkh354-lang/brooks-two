@@ -127,6 +127,18 @@ export const initialState = {
     farmlandRentRate: 0,
     lastFarmlandRentCollected: 0,
 
+    moneylenderShops: 0,
+    approvedMoneylenders: 0,
+    licenseFee: 5000000,
+    moneylenderTaxRate: 0.01,
+    lendingPoolSize: 0,
+    governmentDebt: 0,
+    governmentDebtInterest: 0,
+    governmentDebtCurrency: 'coupon',
+    annualRepayment: 0,
+    civilianLendingAccumulator: 0,
+    moneylenderGDP: 0,
+
     creditCrisis: false,
     creditCrisisResolved: false,
 
