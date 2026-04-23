@@ -2735,3 +2735,104 @@ economy/labor.js diplomacy/xikou.js
   literacy caps per class
   下乡 policy controls
 - yearLog records graduations and 下乡 deployments
+## Phase 7A-3 Scope (Current)
+
+Phase 7A-2 complete. Now implementing 7A-3 only.
+
+**Goal:** Literate graduates form a professional talent
+pool. Talent pool is the prerequisite for all future
+government institutions (police, courts, tax bureau etc).
+Talent divided into three types based on education path.
+
+**Rules:**
+
+Talent pool calculation:
+- Total literate population per class:
+  literatePopulation = classPopulation * classLiteracy
+
+- Talent pool draws from graduates:
+  adminTalent (文官人才):
+    source: secondaryGraduates + higherGraduates
+    growth: += annualSecondaryGrads * 0.4
+            += annualHigherGrads * 0.8
+    (not all graduates become talent immediately)
+    decay: -= adminTalent * 0.02 per year
+    (2% retire/leave each year)
+
+  commerceTalent (商业人才):
+    source: primaryGraduates + secondaryGraduates
+    growth: += annualPrimaryGrads * 0.2
+            += annualSecondaryGrads * 0.3
+    decay: -= commerceTalent * 0.02 per year
+
+  techTalent (技术人才):
+    source: secondaryGraduates + higherGraduates
+    growth: += annualSecondaryGrads * 0.2
+            += annualHigherGrads * 0.5
+    decay: -= techTalent * 0.02 per year
+
+Talent pool effects:
+- adminTalent:
+  >= 10: can establish basic government offices
+  >= 50: policy execution efficiency += 10%
+  >= 100: unlock police system (prerequisite met)
+  >= 200: unlock court system (prerequisite met)
+
+- commerceTalent:
+  >= 10: moneylender efficiency += 5%
+  >= 50: commerceGDP multiplier += 5%
+  >= 100: unlock trade bureau (prerequisite met)
+
+- techTalent:
+  >= 10: tech research speed += 10%
+  >= 50: agricultural efficiency += 3%
+  >= 100: unlock engineering bureau (prerequisite met)
+
+Talent deployment:
+- Player can assign talent to roles
+- Assigned talent is removed from pool
+- Unassigned talent contributes passive bonuses only
+- If institution needs talent but pool empty:
+  institution efficiency drops 50%
+
+Talent attraction:
+- High merchantSatisfaction (>70):
+  commerceTalent growth += 10%
+- High officialSatisfaction (>70):
+  adminTalent growth += 10%
+- Low farmerSatisfaction (<40):
+  all talent growth -= 10%
+  (social unrest discourages education)
+
+State additions needed in world{}:
+- adminTalent: 0
+- commerceTalent: 0
+- techTalent: 0
+- adminTalentDeployed: 0
+- commerceTalentDeployed: 0
+- techTalentDeployed: 0
+
+**Files to modify:**
+- js/state.js
+- js/society/population.js (talent calculation)
+- js/society/satisfaction.js (talent effects)
+- js/economy/commerce.js (commerce talent bonus)
+- js/economy/agriculture.js (tech talent bonus)
+- js/tech/research.js (tech talent speed bonus)
+- js/ui/render_society.js (talent pool panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/market.js economy/currency.js
+economy/labor.js diplomacy/xikou.js
+
+**Definition of Done (Phase 7A-3):**
+- Three talent pools calculated each year
+- Talent grows from graduates, decays annually
+- Talent effects applied to relevant systems
+- Institution unlock prerequisites tracked
+- UI shows talent panel in 社会 tab:
+  adminTalent / commerceTalent / techTalent
+  deployed vs available per type
+  unlock status for future institutions
+- yearLog records when institution prerequisites met
+- yearLog records talent milestones (10/50/100/200)
