@@ -12,7 +12,7 @@ import {
   clampPercentIndex,
   applyLiteracyEffectsToWorld,
 } from '../society/satisfaction.js';
-import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita } from './commerce.js';
+import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita, applyTradePolicySettings } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
 import {
   updateXikouVillageEconomy,
@@ -187,7 +187,11 @@ export function updateEconomy(world, options = {}) {
   const landDevelopmentCommerceBoost = Math.max(0, Number(world.landDevelopmentCommerceBoost ?? 0));
   const merchantLiteracyMultiplier = getMerchantLiteracyMultiplier(world);
 
-  const tradeEfficiencyMultiplier = 1 + Math.max(0, Number(roadEffects.effectiveTradeBonus ?? 0));
+  world.constructionCostReductionBase = constructionCostReduction;
+  constructionCostReduction += Math.max(0, Number(world.engineeringConstructionReduction ?? 0));
+  world.constructionCostReduction = constructionCostReduction;
+
+  const tradeEfficiencyMultiplier = 1 + Math.max(0, Number(roadEffects.totalTradeBonus ?? roadEffects.effectiveTradeBonus ?? 0));
 
   const preStabilityCommerceGDP = clamp(
     operatingShops *
@@ -339,7 +343,8 @@ export function updateEconomy(world, options = {}) {
   world.structuralBonus = structuralBonus;
   world.laborEfficiency = laborEfficiency;
 
-  const maxSaltImport = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
+  const quotaBonusMultiplier = 1 + Math.max(0, Number(world.tradeQuotaBonus ?? 0));
+  const maxSaltImport = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5 * quotaBonusMultiplier));
   const desiredSaltImport = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
   const actualSaltImport = Math.min(desiredSaltImport, maxSaltImport);
   const plannedSaltImportCost = getSaltImportCost(world, actualSaltImport, world.saltPrice ?? 4);
@@ -422,12 +427,14 @@ export function updateEconomy(world, options = {}) {
   world.actualSaltImport = clamp(saltImportExecuted);
   world.saltConsumed = clamp(saltConsumed);
   world.saltShortfallRatio = clampBetween(saltShortfallRatio, 0, 1);
-  world.saltImportQuota = clamp(Math.max(0, desiredSaltImport));
+  world.saltImportQuota = clamp(Math.max(0, Math.min(desiredSaltImport, maxSaltImport)));
   world.clothAnnualSupply = clamp(clothAnnualSupply);
   world.clothAnnualDemand = clamp(clothAnnualDemand);
   world.totalClothSupply = clamp(totalClothSupply);
   world.localClothRatio = localClothRatio;
-  world.clothImportQuota = clamp(Math.max(0, Math.floor(world.clothImportQuota ?? 0)));
+  const localClothCap = Math.max(0, Math.floor(totalClothOutput * Math.max(0, Number(world.tradeProtectionQuotaCapRatio ?? 1))));
+  const requestedClothQuota = Math.max(0, Math.floor(world.clothImportQuota ?? 0));
+  world.clothImportQuota = clamp(Math.min(requestedClothQuota, localClothCap > 0 ? localClothCap : requestedClothQuota));
   world.blendedClothPrice = blendedClothPrice;
   world.grainAnnualDemand = clamp(grainAnnualDemand);
   world.circulationRatio = circulationRatio;
@@ -451,7 +458,11 @@ export function updateEconomy(world, options = {}) {
   world.policyExecutionEfficiency = literacyEffects.policyExecutionEfficiency;
   world.stabilityPenaltyLiteracyReduction = literacyEffects.stabilityPenaltyReduction;
   world.textileOutputLiteracyBonus = literacyEffects.textileOutputBonus;
-  world.landReclaimEfficiency = 1 + (literacyEffects.landReclaimEfficiencyBonus ?? 0) + Math.max(0, Number(roadEffects.reclaimEfficiencyBonus ?? 0));
+  world.landReclaimEfficiency =
+    1 +
+    (literacyEffects.landReclaimEfficiencyBonus ?? 0) +
+    Math.max(0, Number(roadEffects.reclaimEfficiencyBonus ?? 0)) +
+    Math.max(0, Number(world.engineeringReclaimBonus ?? 0));
   world.farmerLiteracyEfficiencyBonus = literacyEffects.farmerEfficiencyBonus;
   world.merchantLiteracyEfficiencyBonus = literacyEffects.merchantGDPMultiplierBonus;
 
@@ -718,6 +729,7 @@ export function updateEconomy(world, options = {}) {
   world.landTaxRate = clampBetween(Number(world.landTaxRate ?? 0), 0, 5);
 
   if (collectTax) {
+    const tradePolicyResult = applyTradePolicySettings(world);
     const farmlandRentRate = clampBetween(Number(world.farmlandRentRate ?? 0), 0, 20);
     world.farmlandRentRate = farmlandRentRate;
     const farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
@@ -802,12 +814,21 @@ export function updateEconomy(world, options = {}) {
     if (landTaxCollected > 0) {
       behaviorMessages.push(`土地税征收：共${Math.round(landTaxCollected)}（粮${Math.round(landTaxToGrain)} / 粮劵${Math.round(landTaxToCoupon)}）`);
     }
+    if ((tradePolicyResult.subsidyCost ?? 0) > 0) {
+      behaviorMessages.push(`贸易补贴支出：${Math.round(tradePolicyResult.subsidyCost)}（补贴率${Math.round((tradePolicyResult.subsidyRate ?? 0) * 100)}%）`);
+    }
   } else {
     world.lastFarmlandRentCollected = 0;
     world.theoreticalTaxRevenue = 0;
     world.actualTaxRevenue = 0;
     world.landTaxRevenue = 0;
     world.commerceTaxRevenue = 0;
+  }
+
+  const grainStorageCapacity = Math.max(0, Number(world.grainStorageCapacity ?? 50000000));
+  if ((world.grainTreasury ?? 0) > grainStorageCapacity) {
+    world.grainTreasury = grainStorageCapacity;
+    behaviorMessages.push(`粮仓容量上限生效：当前容量${Math.round(grainStorageCapacity)}`);
   }
 
   world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);

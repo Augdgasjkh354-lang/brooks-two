@@ -210,15 +210,19 @@ export function applyRoadMarketEffects(world) {
 
   const effectiveTradeBonus = baseTradeBonus * maintenancePenalty;
   const reclaimEfficiencyBonus = Math.min(0.15, roadLength * 0.005);
+  const bureauTradeBonus = Math.max(0, Number(world?.tradeBureauTradeBonus ?? 0));
+  const totalTradeBonus = effectiveTradeBonus + bureauTradeBonus;
 
   world.workerToRoadRatio = roadLength > 0 ? workerToRoadRatio : 0;
-  world.tradeEfficiency = effectiveTradeBonus;
+  world.tradeEfficiency = totalTradeBonus;
   world.reclaimEfficiency = reclaimEfficiencyBonus;
 
   return {
     roadLength,
     baseTradeBonus,
     effectiveTradeBonus,
+    bureauTradeBonus,
+    totalTradeBonus,
     reclaimEfficiencyBonus,
     workerToRoadRatio: world.workerToRoadRatio,
     maintenanceInsufficient: roadLength > 0 && workerToRoadRatio < 0.2,

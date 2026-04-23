@@ -311,3 +311,72 @@ export function applyCommerceTax(world) {
 
   return { revenue, taxRate, taxableGdp };
 }
+
+export function applyTradeBureauCommerceEffects(world, tradeEffects) {
+  if (!world || !tradeEffects) return;
+
+  let commerce = clampMoney(world.commerceGDP ?? 0);
+
+  if (world.tradeMonopolyGranted) {
+    commerce *= 1.2;
+  }
+
+  if ((tradeEffects.efficiency ?? 0) < 30) {
+    commerce *= 0.95;
+  }
+
+  world.commerceGDP = clampMoney(commerce);
+}
+
+export function applyTradePolicySettings(world) {
+  if (!world) {
+    return {
+      subsidyRate: 0,
+      subsidyCost: 0,
+      clothQuotaCapRatio: 1,
+      merchantLifeQualityDelta: 0,
+    };
+  }
+
+  const subsidyRate = clampPercent(Number(world.subsidyRate ?? 0), 0, 0.2);
+  world.subsidyRate = subsidyRate;
+
+  const protectLocalCloth = Boolean(world.protectLocalCloth);
+  world.protectLocalCloth = protectLocalCloth;
+  const clothQuotaCapRatio = protectLocalCloth ? 0.3 : 1;
+  world.tradeProtectionQuotaCapRatio = clothQuotaCapRatio;
+
+  const subsidyBase = Math.max(0, Number(world.actualSaltImport ?? 0) * Number(world.saltPrice ?? 0)) +
+    Math.max(0, Number(world.previousClothImportReceived ?? 0) * Number(world.clothPrice ?? 0));
+  const subsidyCost = subsidyBase * subsidyRate;
+  world.tradeSubsidyCost = subsidyCost;
+
+  let merchantLifeQualityDelta = 0;
+  if (protectLocalCloth) merchantLifeQualityDelta += 5;
+  if (subsidyRate > 0) merchantLifeQualityDelta += 5;
+  if (world.tradeMonopolyGranted) merchantLifeQualityDelta -= 10;
+
+  if (merchantLifeQualityDelta !== 0) {
+    const next = Math.max(0, Math.min(100, Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50) + merchantLifeQualityDelta));
+    world.merchantLifeQuality = next;
+    world.merchantSatisfaction = next;
+  }
+
+  if (subsidyCost > 0) {
+    if (world.grainCouponsUnlocked) {
+      const couponAvailable = clampMoney(world.couponTreasury ?? 0);
+      const fromCoupon = Math.min(couponAvailable, subsidyCost);
+      world.couponTreasury = couponAvailable - fromCoupon;
+      world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - (subsidyCost - fromCoupon));
+    } else {
+      world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - subsidyCost);
+    }
+  }
+
+  return {
+    subsidyRate,
+    subsidyCost,
+    clothQuotaCapRatio,
+    merchantLifeQualityDelta,
+  };
+}
