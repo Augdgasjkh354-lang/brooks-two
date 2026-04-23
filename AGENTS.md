@@ -1429,3 +1429,63 @@ game.js
   hemp land / mulberry land / pending
 - UI shows annual cloth production breakdown
 - yearLog records reclamation and first harvest events
+## Phase 5C-2 Scope (Current)
+
+Phase 5C-1 is complete. Now implementing Phase 5C-2 only.
+
+**Goal:** Player's own cloth production now enters the
+market. Reduces dependence on Xikou imports.
+Cloth supply now comes from both local production
+and Xikou trade.
+
+**Rules:**
+
+Cloth supply calculation:
+- totalClothSupply = coarseClothOutput + fineClothOutput
+  + clothTradeReceived (from Xikou this year)
+- clothReserve += totalClothSupply each year
+- clothAnnualSupply = totalClothSupply (for price calc)
+
+Cloth price differentiation:
+- coarse cloth (hemp): base price 2.0 grain/bolt
+- fine cloth (silk): base price 6.0 grain/bolt
+- Market tracks blended average price:
+  blendedClothPrice = (coarseClothOutput * 2.0 +
+  fineClothOutput * 6.0) / totalClothOutput
+  (if totalClothOutput = 0: use clothPrice as is)
+
+Import substitution effect:
+- If localClothRatio >= 0.5 (local covers 50%+ of demand):
+  attitudeToPlayer unchanged from trade reduction
+- If localClothRatio >= 0.8:
+  clothImportQuota can be reduced to 0 without
+  attitude penalty from Xikou
+- localClothRatio = totalClothOutput / clothAnnualDemand
+
+Xikou attitude adjustment:
+- If player reduces cloth imports while
+  localClothRatio < 0.5:
+  attitudeToPlayer -= 5 per year
+  yearLog: "溪口村对进口减少表示不满"
+
+State additions needed in world{}:
+- totalClothSupply: 0
+- localClothRatio: 0
+- blendedClothPrice: 2.0
+- clothImportQuota: 0
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 5C-2):**
+- totalClothSupply includes both local and imported
+- blendedClothPrice calculated from production mix
+- localClothRatio calculated each year
+- UI shows cloth supply breakdown:
+  local coarse / local fine / imported / total
+- UI shows local self-sufficiency ratio
+- Xikou attitude penalty shown when reducing imports
+  prematurely
+- yearLog records when player achieves 50% and 80%
+  cloth self-sufficiency milestones
