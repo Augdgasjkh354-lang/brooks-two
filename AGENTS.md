@@ -941,3 +941,57 @@ game.js
 - Attitude shown as: 敌对/中立/友好/依附
 - Panel visible but marked as "未建立外交关系"
   when diplomaticContact = false
+## Phase 4A-2 Scope (Current)
+
+Phase 4A-1 is complete. Now implementing Phase 4A-2 only.
+
+**Goal:** Player can initiate diplomatic contact with Xikou
+Village. Contact unlocks further interaction options and
+starts attitude tracking.
+
+**Rules:**
+
+Send Envoy (派遣使者):
+- Only available if diplomaticContact = false
+- Cost: 5000 grain from player grainTreasury
+- Effect: diplomaticContact = true
+- Effect: attitudeToPlayer += 10
+- yearLog: "派遣使者前往溪口村，初步建立外交联系"
+
+Attitude change triggers (checked each year-advance):
+- Player grainTreasury > 500000: attitudeToPlayer += 2
+  (prosperous neighbor is reassuring)
+- Player stabilityIndex < 50: attitudeToPlayer -= 3
+  (unstable neighbor is threatening)
+- Player inflationRate >= 15%: attitudeToPlayer -= 5
+  (economic chaos is concerning)
+- creditCrisis = true: attitudeToPlayer -= 10
+  (financial crisis alarms Xikou)
+- Xikou grainTreasury < 100000: attitudeToPlayer += 5
+  (food insecurity makes them more open)
+
+Attitude thresholds display:
+- -100 to -50: 敌对 (red)
+- -49 to -10: 警惕 (orange)
+- -9 to +20: 中立 (grey)
+- +21 to +50: 友好 (green)
+- +51 to +100: 依附 (blue)
+
+Diplomatic actions only available if
+diplomaticContact = true.
+
+No new state fields needed beyond diplomaticContact
+already in Phase 4A-1.
+
+**Files to modify:** economy.js, render.js, game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+state.js
+
+**Definition of Done (Phase 4A-2):**
+- Send Envoy button visible when no contact established
+- Button disabled if player grainTreasury < 5000
+- After contact: attitude tracking begins
+- Attitude updates each year-advance
+- UI shows current attitude value and label
+- UI shows factors affecting attitude this year
+- yearLog records attitude-changing events
