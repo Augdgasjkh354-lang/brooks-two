@@ -1,4 +1,6 @@
-// Society satisfaction module
+// Society life quality module
+
+import { calculateLivingCost } from '../economy/market.js';
 
 export function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -6,6 +8,52 @@ export function clampPercentIndex(value) {
 
 function clampRatio(value) {
   return Math.max(0, Math.min(1, Number(value ?? 0)));
+}
+
+function toNonNegative(value) {
+  return Math.max(0, Number(value ?? 0));
+}
+
+function applySavingsRateEffect(score, savingsRate) {
+  if (savingsRate >= 0.1) return score + 15;
+  if (savingsRate >= 0.05) return score + 5;
+  if (savingsRate < 0) return score - 15;
+  return score;
+}
+
+function getPopulationByClass(world) {
+  return {
+    farmer: Math.max(0, Number(world.farmerPopulation ?? 0)),
+    merchant: Math.max(0, Number(world.merchantPopulation ?? world.merchantCount ?? 0)),
+    official: Math.max(0, Number(world.officialPopulation ?? 0)),
+    landlord: Math.max(0, Number(world.landlordPopulation ?? 0)),
+  };
+}
+
+function getClassIncomePerHead(world) {
+  const farmerIncomePerHead = Math.max(0, Number(world.farmerIncomePerHead ?? 0));
+  const merchantIncomePerHead = Math.max(0, Number(world.merchantIncomePerHead ?? 0));
+
+  const annualWageBill = Math.max(
+    0,
+    Number(world.annualWageBill ?? world.lastSalaryCost ?? world.totalSalaryCost ?? 0)
+  );
+  const totalOfficials = Math.max(0, Number(world.totalOfficials ?? world.officialPopulation ?? 0));
+  const officialIncomePerHead = totalOfficials > 0 ? annualWageBill / totalOfficials : farmerIncomePerHead;
+
+  const farmlandRentRate = Math.max(0, Number(world.farmlandRentRate ?? 0));
+  const farmlandAreaMu = Math.max(0, Number(world.farmlandAreaMu ?? 0));
+  const landlordPopulation = Math.max(1, Number(world.landlordPopulation ?? 0));
+  const landlordIncomePerHead =
+    (farmlandRentRate * farmlandAreaMu + Math.max(0, Number(world.landlordSatisfaction ?? 0)) * 100) /
+    landlordPopulation;
+
+  return {
+    farmerIncomePerHead,
+    merchantIncomePerHead,
+    officialIncomePerHead,
+    landlordIncomePerHead,
+  };
 }
 
 export function updateLiteracyCaps(world) {
@@ -96,59 +144,204 @@ export function applyLiteracyEffectsToWorld(world) {
 }
 
 export function calculateClassSatisfaction(world) {
-  const saltAffordability = (world.saltPrice ?? 4) / 4.0;
-  const clothAffordability = (world.clothPrice ?? 2) / 2.0;
-  const grainSurplus = world.grainSurplus ?? 0;
-  const purchasingPower = world.purchasingPower ?? 100;
+  const previousValues = {
+    farmer: Number(world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50),
+    merchant: Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50),
+    official: Number(world.officialLifeQuality ?? world.officialSatisfaction ?? 50),
+    landlord: Number(world.landlordLifeQuality ?? world.landlordSatisfaction ?? 50),
+  };
 
-  let farmerSatisfaction = 70;
-  if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerSatisfaction -= 15;
-  if ((world.inflationRate ?? 0) >= 0.15) farmerSatisfaction -= 10;
-  if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1) farmerSatisfaction -= 20;
-  if ((world.taxGrainRatio ?? 1) < 0.5) farmerSatisfaction -= 10;
+  const cost = calculateLivingCost(world);
+  const totalLivingCost = Math.max(1, Number(cost.totalLivingCost ?? 1));
+  const classIncome = getClassIncomePerHead(world);
+  const classPop = getPopulationByClass(world);
 
-  if (saltAffordability > 2.0) {
-    farmerSatisfaction -= 25;
-  } else if (saltAffordability > 1.5) {
-    farmerSatisfaction -= 15;
+  world.giniRatio = classIncome.merchantIncomePerHead / Math.max(classIncome.farmerIncomePerHead, 1);
+
+  let farmerLifeQuality = 50;
+  let merchantLifeQuality = 50;
+  let officialLifeQuality = 50;
+  let landlordLifeQuality = 50;
+
+  const factors = {
+    farmer: [],
+    merchant: [],
+    official: [],
+    landlord: [],
+  };
+
+  const applyIncomeDimension = (classKey, incomePerHead) => {
+    const ratio = incomePerHead / totalLivingCost;
+    if (ratio < 0.8) {
+      factors[classKey].push('收入不足（<0.8x生活成本）');
+      return -20;
+    }
+    if (ratio < 1.0) {
+      factors[classKey].push('收入偏紧（0.8x-1.0x）');
+      return -10;
+    }
+    if (ratio <= 1.5) {
+      factors[classKey].push('收入基本覆盖（1.0x-1.5x）');
+      return 0;
+    }
+    if (ratio <= 2.0) {
+      factors[classKey].push('收入充裕（1.5x-2.0x）');
+      return 10;
+    }
+    factors[classKey].push('收入显著充裕（>2.0x）');
+    return 20;
+  };
+
+  farmerLifeQuality += applyIncomeDimension('farmer', classIncome.farmerIncomePerHead);
+  merchantLifeQuality += applyIncomeDimension('merchant', classIncome.merchantIncomePerHead);
+  officialLifeQuality += applyIncomeDimension('official', classIncome.officialIncomePerHead);
+  landlordLifeQuality += applyIncomeDimension('landlord', classIncome.landlordIncomePerHead);
+
+  if (world.giniRatio < 2) {
+    farmerLifeQuality += 5;
+    merchantLifeQuality += 5;
+    officialLifeQuality += 5;
+    landlordLifeQuality += 5;
+    factors.farmer.push('贫富差距较低（<2）');
+    factors.merchant.push('贫富差距较低（<2）');
+    factors.official.push('贫富差距较低（<2）');
+    factors.landlord.push('贫富差距较低（<2）');
+  } else if (world.giniRatio > 10) {
+    farmerLifeQuality -= 20;
+    merchantLifeQuality += 5;
+    officialLifeQuality -= 5;
+    factors.farmer.push('贫富差距极高（>10）');
+    factors.merchant.push('贫富差距极高，商人受益');
+    factors.official.push('贫富差距极高，社会紧张');
+    factors.landlord.push('贫富差距极高');
+  } else if (world.giniRatio > 5) {
+    farmerLifeQuality -= 10;
+    factors.farmer.push('贫富差距偏高（5-10）');
   }
-  if (clothAffordability > 1.5) farmerSatisfaction -= 10;
-  if (grainSurplus < 0) farmerSatisfaction -= 20;
 
-  let merchantSatisfaction = 70;
-  if ((world.inflationRate ?? 0) >= 0.15) merchantSatisfaction -= 20;
-  if ((world.inflationRate ?? 0) >= 0.3) merchantSatisfaction -= 20;
-  if ((world.demandSaturation ?? 0) > 1.5) merchantSatisfaction -= 10;
-  if ((world.stabilityIndex ?? 80) < 50) merchantSatisfaction -= 15;
-  if ((world.commerceActivityBonus ?? 1) > 1.0) merchantSatisfaction += 10;
+  if (cost.saltAffordability > 2.0) {
+    farmerLifeQuality -= 25;
+    merchantLifeQuality -= 25;
+    officialLifeQuality -= 25;
+    landlordLifeQuality -= 25;
+  } else if (cost.saltAffordability > 1.5) {
+    farmerLifeQuality -= 15;
+    merchantLifeQuality -= 15;
+    officialLifeQuality -= 15;
+    landlordLifeQuality -= 15;
+  } else if (cost.saltAffordability <= 1.0) {
+    farmerLifeQuality += 5;
+    merchantLifeQuality += 5;
+    officialLifeQuality += 5;
+    landlordLifeQuality += 5;
+  }
 
-  if ((world.saltPrice ?? 4) > 5.0) merchantSatisfaction += 10;
-  if ((world.clothPrice ?? 2) > 3.0) merchantSatisfaction += 10;
-  if (purchasingPower < 50) merchantSatisfaction -= 15;
+  if (cost.clothAffordability > 1.5) {
+    farmerLifeQuality -= 10;
+    merchantLifeQuality -= 10;
+    officialLifeQuality -= 10;
+    landlordLifeQuality -= 10;
+  } else if (cost.clothAffordability <= 1.0) {
+    farmerLifeQuality += 3;
+    merchantLifeQuality += 3;
+    officialLifeQuality += 3;
+    landlordLifeQuality += 3;
+  }
 
-  let officialSatisfaction = 70;
-  if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15)
-    officialSatisfaction -= 20;
-  if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05)
-    officialSatisfaction -= 15;
-  if ((world.stabilityIndex ?? 80) < 50) officialSatisfaction -= 10;
+  if ((world.grainSurplus ?? 0) < 0) {
+    farmerLifeQuality -= 20;
+    merchantLifeQuality -= 20;
+    officialLifeQuality -= 20;
+    landlordLifeQuality -= 20;
+    factors.farmer.push('粮食赤字');
+    factors.merchant.push('粮食赤字');
+    factors.official.push('粮食赤字');
+    factors.landlord.push('粮食赤字');
+  }
 
-  if (purchasingPower < 50) officialSatisfaction -= 10;
-  if (grainSurplus < 0) officialSatisfaction -= 15;
+  const computeSavings = (classKey, incomePerHead, population, currentSavings) => {
+    const classIncomeTotal = incomePerHead * population;
+    const classExpenditureTotal = totalLivingCost * population;
+    const delta = classIncomeTotal - classExpenditureTotal;
+    const nextSavings = Number(currentSavings ?? 0) + delta;
+    const savingsRate = delta / Math.max(classIncomeTotal, 1);
 
-  let landlordSatisfaction = 70;
-  if ((world.inflationRate ?? 0) >= 0.15) landlordSatisfaction -= 15;
-  if ((world.grainPrice ?? 1) < 0.8) landlordSatisfaction -= 10;
-  if ((world.stabilityIndex ?? 80) < 50) landlordSatisfaction -= 10;
-  if ((world.farmlandAreaMu ?? 0) > 40000) landlordSatisfaction += 10;
+    factors[classKey].push(`储蓄率 ${(savingsRate * 100).toFixed(1)}%`);
+    return { nextSavings, savingsRate };
+  };
 
-  if (grainSurplus < 0) landlordSatisfaction += 10;
-  if (saltAffordability > 2.0) landlordSatisfaction -= 5;
+  const farmerSavings = computeSavings('farmer', classIncome.farmerIncomePerHead, classPop.farmer, world.farmerSavings);
+  const merchantSavings = computeSavings(
+    'merchant',
+    classIncome.merchantIncomePerHead,
+    classPop.merchant,
+    world.merchantSavings
+  );
+  const officialSavings = computeSavings('official', classIncome.officialIncomePerHead, classPop.official, world.officialSavings);
+  const landlordSavings = computeSavings('landlord', classIncome.landlordIncomePerHead, classPop.landlord, world.landlordSavings);
+
+  farmerLifeQuality = applySavingsRateEffect(farmerLifeQuality, farmerSavings.savingsRate);
+  merchantLifeQuality = applySavingsRateEffect(merchantLifeQuality, merchantSavings.savingsRate);
+  officialLifeQuality = applySavingsRateEffect(officialLifeQuality, officialSavings.savingsRate);
+  landlordLifeQuality = applySavingsRateEffect(landlordLifeQuality, landlordSavings.savingsRate);
+
+  if (farmerSavings.nextSavings > toNonNegative(world.totalPopulation) * 100) {
+    farmerLifeQuality += 5;
+    factors.farmer.push('农户储蓄池充足');
+  } else if (farmerSavings.nextSavings < 0) {
+    farmerLifeQuality -= 10;
+    factors.farmer.push('农户储蓄池为负');
+  }
+
+  world.farmerSavings = farmerSavings.nextSavings;
+  world.merchantSavings = merchantSavings.nextSavings;
+  world.officialSavings = officialSavings.nextSavings;
+  world.landlordSavings = landlordSavings.nextSavings;
+
+  world.farmerSavingsRate = farmerSavings.savingsRate;
+  world.merchantSavingsRate = merchantSavings.savingsRate;
+  world.officialSavingsRate = officialSavings.savingsRate;
+  world.landlordSavingsRate = landlordSavings.savingsRate;
+
+  world.farmerLifeQuality = clampPercentIndex(farmerLifeQuality);
+  world.merchantLifeQuality = clampPercentIndex(merchantLifeQuality);
+  world.officialLifeQuality = clampPercentIndex(officialLifeQuality);
+  world.landlordLifeQuality = clampPercentIndex(landlordLifeQuality);
+
+  // Backward compatibility for existing triggers.
+  world.farmerSatisfaction = world.farmerLifeQuality;
+  world.merchantSatisfaction = world.merchantLifeQuality;
+  world.officialSatisfaction = world.officialLifeQuality;
+  world.landlordSatisfaction = world.landlordLifeQuality;
+
+  world.lifeQualityFactors = {
+    farmer: factors.farmer.join(' | ') || '无显著因素',
+    merchant: factors.merchant.join(' | ') || '无显著因素',
+    official: factors.official.join(' | ') || '无显著因素',
+    landlord: factors.landlord.join(' | ') || '无显著因素',
+  };
+
+  const changeNotes = [];
+  const changes = {
+    farmer: world.farmerLifeQuality - previousValues.farmer,
+    merchant: world.merchantLifeQuality - previousValues.merchant,
+    official: world.officialLifeQuality - previousValues.official,
+    landlord: world.landlordLifeQuality - previousValues.landlord,
+  };
+  if (Math.abs(changes.farmer) >= 10) changeNotes.push(`农民生活质量${changes.farmer > 0 ? '上升' : '下降'}${Math.abs(changes.farmer)}点`);
+  if (Math.abs(changes.merchant) >= 10) changeNotes.push(`商人生活质量${changes.merchant > 0 ? '上升' : '下降'}${Math.abs(changes.merchant)}点`);
+  if (Math.abs(changes.official) >= 10) changeNotes.push(`官员生活质量${changes.official > 0 ? '上升' : '下降'}${Math.abs(changes.official)}点`);
+  if (Math.abs(changes.landlord) >= 10) changeNotes.push(`地主生活质量${changes.landlord > 0 ? '上升' : '下降'}${Math.abs(changes.landlord)}点`);
+  world.lifeQualityChangeNotes = changeNotes;
 
   return {
-    farmerSatisfaction: clampPercentIndex(farmerSatisfaction),
-    merchantSatisfaction: clampPercentIndex(merchantSatisfaction),
-    officialSatisfaction: clampPercentIndex(officialSatisfaction),
-    landlordSatisfaction: clampPercentIndex(landlordSatisfaction),
+    farmerSatisfaction: world.farmerLifeQuality,
+    merchantSatisfaction: world.merchantLifeQuality,
+    officialSatisfaction: world.officialLifeQuality,
+    landlordSatisfaction: world.landlordLifeQuality,
+    farmerLifeQuality: world.farmerLifeQuality,
+    merchantLifeQuality: world.merchantLifeQuality,
+    officialLifeQuality: world.officialLifeQuality,
+    landlordLifeQuality: world.landlordLifeQuality,
   };
 }
