@@ -3668,3 +3668,207 @@ ui/render_diplomacy.js ui/render_tech.js
     commerce tax rate / land tax rate /
     total tax revenue breakdown
 - yearLog records establishment and efficiency warnings
+## Phase 7D: Trade Bureau + Engineering Bureau (Current)
+
+Phase 7C complete. Implementing trade bureau and
+engineering bureau together.
+
+**TRADE BUREAU (贸易管理局):**
+
+Unlock conditions:
+- commerceTalent >= 100
+- governmentEstablished = true
+- longDistanceTradeCompleted = true (远途贸易 tech)
+
+Trade bureau setup:
+- playerSets: tradeOfficerCount
+- tradeOfficerWage: playerAdjustable
+  default: gdpPerCapita * 1.3
+- Annual cost → officialIncomePool
+- Paper consumption: paperOutput * 12% per year
+
+Trade bureau efficiency:
+- Same 3-dimension framework
+- commerceTalent deployed here counts double
+  toward talent dimension
+
+Trade bureau effects:
+- tradeBureauEstablished = true:
+  tradeEfficiency += 0.10 (base bonus)
+
+- tradeBureauEfficiency >= 80%:
+  tradeEfficiency += 0.15 additional
+  saltImportQuota max += 20%
+  clothImportQuota max += 20%
+  attitudeToPlayer += 2 per year
+  yearLog: "贸易局运作高效，对外贸易繁荣"
+
+- tradeBureauEfficiency 50-79%:
+  tradeEfficiency += 0.05
+  no import quota bonus
+
+- tradeBureauEfficiency < 30%:
+  tradeEfficiency -= 0.05
+  yearLog: "贸易局效率低下，贸易受阻"
+
+New trade policies (requires tradeBureauEstablished):
+
+1. 贸易保护 (Trade Protection):
+- protectLocalCloth: boolean (default false)
+- If true: cloth import quota capped at 30%
+  of local production
+- localClothProducers benefit:
+  merchantLifeQuality += 5
+- Xikou attitude penalty:
+  attitudeToPlayer -= 5 per year
+  yearLog: "贸易保护政策影响溪口村关系"
+
+2. 贸易补贴 (Trade Subsidy):
+- subsidyRate: 0 (playerAdjustable 0-20%)
+- Government pays subsidyRate% of import costs
+- Cost → grainTreasury/couponTreasury
+- Effect: attitudeToPlayer += 3 per year
+- merchantLifeQuality += 5
+
+3. 专营权 (Trade Monopoly):
+- playerCanGrantMonopoly: boolean
+- One merchant family controls specific trade
+- Revenue += 20% for that trade type
+- Other merchantLifeQuality -= 10
+  (monopoly hurts competition)
+
+New trade partners (远途贸易 unlocks):
+- After tradeBureauEstablished:
+  newTradePartnerUnlocked = true
+- New partner: 北方商队 (Northern Traders)
+  Available goods: horses, iron, furs
+  Payment: grain or coupons
+  Attitude not tracked (anonymous traders)
+  Each trade: random price variation ±20%
+
+**ENGINEERING BUREAU (工程局):**
+
+Unlock conditions:
+- techTalent >= 100
+- governmentEstablished = true
+- watermillCompleted = true (水车磨坊 tech)
+
+Engineering bureau setup:
+- playerSets: engineerCount
+- engineerWage: playerAdjustable
+  default: gdpPerCapita * 1.5
+- Annual cost → officialIncomePool
+- Paper consumption: paperOutput * 8% per year
+
+Engineering bureau efficiency:
+- Same 3-dimension framework
+- techTalent deployed here counts double
+  toward talent dimension
+
+Engineering bureau effects:
+- engineeringBureauEstablished = true:
+  constructionCostReduction += 0.05
+
+- engineeringBureauEfficiency >= 80%:
+  constructionCostReduction += 0.10 additional
+  reclaimEfficiency += 0.10
+  roadConstructionCost *= 0.8
+  toiletConstructionCost *= 0.8
+  yearLog: "工程局运作高效，建设成本大幅降低"
+
+- engineeringBureauEfficiency 50-79%:
+  constructionCostReduction += 0.05
+  reclaimEfficiency += 0.05
+
+- engineeringBureauEfficiency < 30%:
+  constructionCostReduction = 0
+  yearLog: "工程局效率低下，建设无法提速"
+
+Engineering projects (requires engineeringBureauEstablished):
+
+1. 水渠工程 (Irrigation Canal):
+- cost: 5,000,000 grain per canal
+- builds: irrigationCanalCount += 1
+- effect: each canal irrigates 5000 mu
+  irrigated farmland: grainYieldPerMu += 50
+  max canals: farmlandAreaMu / 5000
+- construction time: 2 years
+- cost flows:
+  70% → farmerIncomePool
+  30% → merchantIncomePool
+
+2. 城墙加固 (Wall Reinforcement):
+- cost: 8,000,000 grain
+- one-time construction
+- effect: defenseRating += 0.3
+  stabilityIndex += 5
+  yearLog: "城墙加固完成，防御力大幅提升"
+- cost flows:
+  60% → farmerIncomePool
+  40% → merchantIncomePool
+
+3. 粮仓扩建 (Granary Expansion):
+- cost: 2,000,000 grain per expansion
+- effect: grainStorageCapacity += 10,000,000
+  (grain treasury cap raised)
+- default grainStorageCapacity: 50,000,000
+- without expansion: grainTreasury capped
+- cost flows:
+  80% → farmerIncomePool
+  20% → merchantIncomePool
+
+State additions needed in world{}:
+- tradeBureauEstablished: false
+- tradeOfficerCount: 0
+- tradeOfficerWage: 0
+- tradeBureauEfficiency: 0
+- commerceTalentDeployedTrade: 0
+- protectLocalCloth: false
+- subsidyRate: 0
+- tradeMonopolyGranted: false
+- newTradePartnerUnlocked: false
+- engineeringBureauEstablished: false
+- engineerCount: 0
+- engineerWage: 0
+- engineeringBureauEfficiency: 0
+- techTalentDeployedEngineering: 0
+- irrigationCanalCount: 0
+- pendingIrrigationCanals: 0
+- irrigationCanalYear: 0
+- wallReinforced: false
+- grainStorageCapacity: 50000000
+- grainStorageExpansions: 0
+
+**Files to modify:**
+- js/state.js
+- js/economy/commerce.js (trade bureau effects)
+- js/economy/agriculture.js (engineering effects)
+- js/economy/market.js (trade efficiency bonus)
+- js/diplomacy/xikou.js (trade policy effects)
+- js/society/stability.js (wall + engineering)
+- js/game.js (annual costs + canal construction)
+- js/ui/render_society.js (bureau panels)
+- js/ui/render_economy.js (trade policies)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/currency.js economy/labor.js
+tech/research.js ui/render_world.js
+ui/render_diplomacy.js ui/render_tech.js
+
+**Definition of Done (Phase 7D):**
+- Trade bureau panel appears when conditions met
+- Engineering bureau panel appears when conditions met
+- Both efficiency systems working correctly
+- Trade policies visible when bureau established
+- Northern traders available after unlock
+- Engineering projects available when bureau established
+- Irrigation canal takes 2 years to complete
+- Grain storage capacity enforced as hard cap
+- Wall reinforcement one-time construction
+- Annual costs deducted for both bureaus
+- UI shows both panels in 社会 tab:
+  trade bureau: officer count / efficiency /
+    trade policies / northern traders
+  engineering bureau: engineer count / efficiency /
+    active projects / construction cost reduction
+- yearLog records all major events
