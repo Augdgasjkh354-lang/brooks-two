@@ -31,9 +31,16 @@ export function updateXikouVillageEconomy(world) {
 
   const farmEfficiency = farmWorkersRequired > 0 ? clampRatio(farmWorkers / farmWorkersRequired) : 1;
 
+  const tradeEfficiency = Math.max(0, Number(world.techBonuses?.tradeEfficiency ?? 0));
+  const tradeMultiplier = 1 + tradeEfficiency;
+
   const grainOutput = clamp((xikou.farmlandMu ?? 0) * 500 * farmEfficiency);
-  const clothOutput = clamp((xikou.mulberryLandMu ?? 0) * 50);
-  const saltOutputJin = saltWorkers >= saltWorkersRequired ? 200000 : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * 200000);
+  const clothOutput = clamp((xikou.mulberryLandMu ?? 0) * 50 * tradeMultiplier);
+  const baseSaltOutput =
+    saltWorkers >= saltWorkersRequired
+      ? 200000
+      : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * 200000);
+  const saltOutputJin = clamp(baseSaltOutput * tradeMultiplier);
 
   const annualConsumption = clamp((xikou.population ?? 0) * 2);
   const nextGrainTreasury = Math.max(0, Math.round((xikou.grainTreasury ?? 0) + grainOutput - annualConsumption));

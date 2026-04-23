@@ -1,7 +1,7 @@
 // Agriculture module: grain output and food security
 
 import { clamp, clampRatio, calculateLaborAllocation } from './labor.js';
-import { getEfficiencyMultiplier } from '../society/stability.js';
+import { getEfficiencyMultiplier, getStabilityBase } from '../society/stability.js';
 import { calculateClassSatisfaction, clampPercentIndex } from '../society/satisfaction.js';
 import { getCommerceActivityBonus } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
@@ -86,7 +86,10 @@ export function updateEconomy(world, options = {}) {
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
   world.baseGrainYieldPerMu = clamp(baseYield);
 
-  const potentialGrainOutput = clamp(world.farmlandAreaMu * world.baseGrainYieldPerMu);
+  const techYieldBonus = Math.max(0, Number(world.techBonuses?.grainYieldBonus ?? 0));
+  const effectiveYieldPerMu = Math.min(800, Math.max(0, world.baseGrainYieldPerMu + techYieldBonus));
+
+  const potentialGrainOutput = clamp(world.farmlandAreaMu * effectiveYieldPerMu);
   const preStabilityGrainOutput = clamp(potentialGrainOutput * farmEfficiency);
   const agriculturalTax = clamp(preStabilityGrainOutput * world.agriculturalTaxRate);
 
@@ -135,7 +138,8 @@ export function updateEconomy(world, options = {}) {
   const { penalty: incomeGapPenalty, reason: stabilityPenaltyReason } =
     getStabilityPenaltyFromIncomeGap(preStabilityIncomeGap);
   const stabilityPenalty = incomeGapPenalty + inflationStabilityPenalty;
-  const stabilityIndex = Math.max(0, 80 - stabilityPenalty);
+  const stabilityBase = getStabilityBase(world);
+  const stabilityIndex = Math.max(0, stabilityBase - stabilityPenalty);
   const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
 
   const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
@@ -311,7 +315,7 @@ export function updateEconomy(world, options = {}) {
   let additionalStabilityPenalty = 0;
   const demandShortfall = demandSaturation < 0.5;
 
-  world.grainYieldPerMu = clamp(world.baseGrainYieldPerMu * farmEfficiency * efficiencyMultiplier);
+  world.grainYieldPerMu = clamp(effectiveYieldPerMu * farmEfficiency * efficiencyMultiplier);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
 
@@ -357,7 +361,8 @@ export function updateEconomy(world, options = {}) {
 
   const satisfaction = calculateClassSatisfaction(world);
   world.farmerSatisfaction = satisfaction.farmerSatisfaction;
-  world.merchantSatisfaction = satisfaction.merchantSatisfaction;
+  const merchantSatisfactionTechBonus = Number(world.techBonuses?.merchantSatisfactionBonus ?? 0);
+  world.merchantSatisfaction = clampPercentIndex(satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus);
   world.officialSatisfaction = satisfaction.officialSatisfaction;
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
@@ -484,7 +489,7 @@ export function updateEconomy(world, options = {}) {
   }
 
   adjustedGrainOutput = clamp(adjustedGrainOutput * (world.fertilizerBonus ?? 1));
-  const cappedMaxYieldOutput = clamp((world.farmlandAreaMu ?? 0) * 600);
+  const cappedMaxYieldOutput = clamp((world.farmlandAreaMu ?? 0) * effectiveYieldPerMu);
   adjustedGrainOutput = Math.min(adjustedGrainOutput, cappedMaxYieldOutput);
 
   if ((world.fertilizerBonus ?? 1) > 1) {
@@ -518,6 +523,7 @@ export function updateEconomy(world, options = {}) {
   world.actualGrainOutput = adjustedGrainOutput;
   world.grainYieldPerMu =
     (world.farmlandAreaMu ?? 0) > 0 ? clamp(adjustedGrainOutput / world.farmlandAreaMu) : 0;
+  world.effectiveGrainYieldPerMu = effectiveYieldPerMu;
   world.lostGrainOutput = lostGrainOutput;
   world.agricultureGDP = agricultureGDP;
   world.commerceGDP = clamp(adjustedCommerceGDP);

@@ -34,3 +34,7 @@ export function getEfficiencyMultiplier(stabilityIndex) {
   return 0.65;
 }
 
+
+export function getStabilityBase(world) {
+  return Number(world?.techBonuses?.stabilityBase ?? 80);
+}

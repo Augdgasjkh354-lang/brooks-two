@@ -177,9 +177,13 @@ export const initialState = {
   },
   techBonuses: {
     grainYieldBonus: 0,
+    stabilityBase: 80,
+    populationGrowthBonus: 0,
     tradeEfficiency: 0,
-    droughtResistance: 0,
     combatPower: 0,
+    bureaucracyUnlocked: false,
+    merchantSatisfactionBonus: 0,
+    droughtResistance: false,
   },
   policyHistory: [],
   yearLog: [],
@@ -189,5 +193,6 @@ export const initialState = {
 export function createGameState() {
   const state = structuredClone(initialState);
   state.world.xikou = state.xikou;
+  state.world.techBonuses = state.techBonuses;
   return state;
 }
