@@ -2836,3 +2836,142 @@ economy/labor.js diplomacy/xikou.js
   unlock status for future institutions
 - yearLog records when institution prerequisites met
 - yearLog records talent milestones (10/50/100/200)
+## Phase 7B-0 Scope (Current)
+
+Phase 7A-3 complete. Now implementing 7B-0 only.
+
+**Goal:** Replace event-driven satisfaction with
+economic life quality system. Each class has its own
+lifeQuality index driven by income, inequality,
+prices, and savings rate.
+
+**Rules:**
+
+Life quality index per class (0-100):
+- farmerLifeQuality: 0
+- merchantLifeQuality: 0
+- officialLifeQuality: 0
+- landlordLifeQuality: 0
+
+Each replaces corresponding satisfaction index.
+farmerSatisfaction = farmerLifeQuality (and so on).
+
+Basic living cost calculation (per person per year):
+- grainCost = 360 jin (fixed)
+- saltCost = 15 * saltPrice
+- clothCost = 0.3 * clothPrice
+- totalLivingCost = grainCost + saltCost + clothCost
+  (all in grain equivalent)
+
+Per-class income (per person per year):
+- farmerIncomePerHead: existing field
+- merchantIncomePerHead: existing field
+- officialIncomePerHead:
+  = annualWageBill / totalOfficials
+  (if totalOfficials = 0: use farmerIncomePerHead)
+- landlordIncomePerHead:
+  = (farmlandRentRate * farmlandAreaMu +
+    landlordSatisfaction * 100) / max(landlordPop, 1)
+
+Dimension 1: Income adequacy (30% weight)
+- incomeRatio = classIncomePerHead / totalLivingCost
+- incomeRatio < 0.8: lifeQuality -= 20
+- incomeRatio 0.8-1.0: lifeQuality -= 10
+- incomeRatio 1.0-1.5: no change
+- incomeRatio 1.5-2.0: lifeQuality += 10
+- incomeRatio > 2.0: lifeQuality += 20
+
+Dimension 2: Wealth inequality (25% weight)
+- giniRatio = merchantIncomePerHead /
+  max(farmerIncomePerHead, 1)
+- giniRatio < 2: lifeQuality += 5 (all classes)
+- giniRatio 2-5: no change
+- giniRatio 5-10:
+  farmerLifeQuality -= 10
+  merchantLifeQuality += 0 (no bonus)
+- giniRatio > 10:
+  farmerLifeQuality -= 20
+  merchantLifeQuality += 5
+  officialLifeQuality -= 5 (social tension)
+
+Dimension 3: Essential goods prices (25% weight)
+- saltAffordability = saltPrice / 4.0
+- clothAffordability = clothPrice / 2.0
+- saltAffordability > 2.0: all lifeQuality -= 25
+- saltAffordability > 1.5: all lifeQuality -= 15
+- saltAffordability <= 1.0: all lifeQuality += 5
+- clothAffordability > 1.5: all lifeQuality -= 10
+- clothAffordability <= 1.0: all lifeQuality += 3
+- grainSurplus < 0: all lifeQuality -= 20
+
+Dimension 4: Savings rate (20% weight)
+Per class savings calculation:
+- classIncome = classIncomePerHead * classPopulation
+- classExpenditure = totalLivingCost * classPopulation
+- classSavings += classIncome - classExpenditure
+  (accumulated, can go negative)
+- classSavingsRate = (classIncome - classExpenditure)
+  / max(classIncome, 1)
+
+Savings rate effects:
+- savingsRate >= 0.10: lifeQuality += 15
+- savingsRate 0.05-0.10: lifeQuality += 5
+- savingsRate 0.00-0.05: no change
+- savingsRate < 0: lifeQuality -= 15
+
+Savings pool effects:
+- farmerSavings > totalPopulation * 100:
+  farmerLifeQuality += 5
+- farmerSavings < 0:
+  farmerLifeQuality -= 10
+
+Base lifeQuality before dimensions: 50
+All dimension adjustments applied on top of base 50.
+lifeQuality floored at 0, capped at 100.
+
+lifeQuality replaces satisfaction:
+- farmerSatisfaction = farmerLifeQuality
+- merchantSatisfaction = merchantLifeQuality
+- officialSatisfaction = officialLifeQuality
+- landlordSatisfaction = landlordLifeQuality
+
+State additions needed in world{}:
+- farmerLifeQuality: 50
+- merchantLifeQuality: 50
+- officialLifeQuality: 50
+- landlordLifeQuality: 50
+- farmerSavings: 0
+- merchantSavings: 0
+- officialSavings: 0
+- landlordSavings: 0
+- farmerSavingsRate: 0
+- merchantSavingsRate: 0
+- officialSavingsRate: 0
+- landlordSavingsRate: 0
+- totalLivingCost: 0
+- giniRatio: 0
+
+**Files to modify:**
+- js/state.js
+- js/society/satisfaction.js (full rewrite of logic)
+- js/economy/market.js (living cost calculation)
+- js/ui/render_society.js (life quality panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/agriculture.js economy/commerce.js
+economy/currency.js economy/labor.js
+diplomacy/xikou.js tech/research.js
+
+**Definition of Done (Phase 7B-0):**
+- lifeQuality calculated each year for all classes
+- All four dimensions applied correctly
+- Savings pools accumulate/deplete each year
+- lifeQuality replaces satisfaction indices
+- Existing behavior triggers still use satisfaction
+  (now driven by lifeQuality values)
+- UI shows life quality panel in 社会 tab:
+  per class: lifeQuality / savingsRate / savings pool
+  giniRatio display
+  living cost breakdown
+  price pressure indicators
+- yearLog records significant lifeQuality changes
