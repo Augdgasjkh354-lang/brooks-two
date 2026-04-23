@@ -2606,3 +2606,132 @@ economy/labor.js, diplomacy/xikou.js
   literacy effects active
 - yearLog records when new class literacy appears
 - yearLog records higherSchoolUnlocked when triggered
+## Phase 7A-2 Scope (Current)
+
+Phase 7A-1 complete. Now implementing 7A-2 only.
+
+**Goal:** Add school construction system. Commercial
+schools serve wealthy classes. Government schools
+serve all. Schools raise literacy caps and generate
+graduates.
+
+**Rules:**
+
+School types and unlock conditions:
+
+Commercial schools (商办，shop upgrade):
+- 商办蒙学 (Primary): requires bureaucracyUnlocked
+- 商办私塾 (Secondary): requires scholarClass
+- Both require government license (like moneylenders)
+- License fee: 2,000,000 grain/coupon per school
+- Annual tuition per student = GDP per capita * 15%
+- Tuition → merchantIncomePool
+- Serves: merchant + landlord children only
+
+Government schools (官办):
+- 官办蒙学 (Primary): requires bureaucracyUnlocked
+- 官办县学 (Secondary): requires scholarClass
+- 官办书院 (Higher): requires higherSchoolUnlocked
+- Player sets capacity (number of students)
+- Annual cost per student = GDP per capita * 20%
+  deducted from grainTreasury/couponTreasury
+- Serves: all classes
+
+School capacity and enrollment:
+
+Commercial primary (蒙学):
+- Each licensed school: 50 students max
+- Students drawn from merchant + landlord children
+- If merchant/landlord children < capacity: unfilled
+
+Commercial secondary (私塾):
+- Each licensed school: 30 students max
+- Requires primary graduation first
+
+Government schools:
+- Player sets total capacity directly
+- Students drawn from all classes proportionally
+- Priority: poorest classes first (unless player changes)
+
+Graduation system:
+- Primary school: 3 year program
+- Secondary school: 4 year program  
+- Higher school: 3 year program
+- Each year: graduates = enrolled / program length
+- primaryGraduates += primary graduates this year
+- secondaryGraduates += secondary graduates this year
+- higherGraduates += higher graduates this year
+
+Literacy cap increases from schools:
+- Each primary school (any type):
+  farmerLiteracy cap += 5%
+  workerLiteracy cap += 3%
+- Each secondary school:
+  merchantLiteracy cap += 10%
+  officialLiteracy cap += 10%
+  landlordLiteracy cap += 8%
+- Each higher school:
+  all literacy caps += 15%
+
+Literacy growth boost from schools:
+- Primary schools: farmerLiteracy += 0.5%/year extra
+- Secondary schools: merchantLiteracy += 0.8%/year
+  officialLiteracy += 1%/year
+- Higher schools: all classes += 1.5%/year
+
+学子下乡 policy:
+- Requires: secondaryGraduates >= 100
+- Player sets 下乡人数 (number of students sent)
+- Annual cost = GDP per capita * 150% * 人数
+- Cost → farmerIncomePool (local teachers paid)
+- Effect per 100 students sent:
+  farmerLiteracy += 1%/year extra
+  farmerLiteracy cap += 3%
+- Students sent cannot work other jobs
+  (deducted from scholarPool)
+
+State additions needed in world{}:
+- commercialPrimarySchools: 0
+- commercialSecondarySchools: 0
+- govPrimaryCapacity: 0
+- govSecondaryCapacity: 0
+- govHigherCapacity: 0
+- primaryEnrolled: 0
+- secondaryEnrolled: 0
+- higherEnrolled: 0
+- schoolLicenseFee: 2000000
+- studentsDownToVillage: 0
+- annualPrimaryGrads: 0
+- annualSecondaryGrads: 0
+- annualHigherGrads: 0
+
+**Files to modify:**
+- js/state.js
+- js/economy/commerce.js (commercial school licensing)
+- js/society/population.js (graduation calculation)
+- js/society/satisfaction.js (literacy cap updates)
+- js/ui/render_society.js (school panels)
+- js/game.js (annual school costs + graduation)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/market.js economy/currency.js
+economy/labor.js diplomacy/xikou.js
+
+**Definition of Done (Phase 7A-2):**
+- Commercial school licensing panel appears when
+  bureaucracyUnlocked = true
+- Government school capacity input always visible
+  after bureaucracyUnlocked
+- Higher school panel appears when
+  higherSchoolUnlocked = true
+- Annual graduates calculated and added to totals
+- Literacy caps raised correctly by school count
+- 学子下乡 policy visible when
+  secondaryGraduates >= 100
+- School costs deducted each year-advance
+- Tuition income flows to merchantIncomePool
+- UI shows school panel in 社会 tab:
+  each school type: count / enrolled / annual grads
+  literacy caps per class
+  下乡 policy controls
+- yearLog records graduations and 下乡 deployments
