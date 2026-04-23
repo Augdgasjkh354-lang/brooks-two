@@ -2158,3 +2158,64 @@ economy/currency.js, economy/labor.js
   when bureaucracyUnlocked = true
 - Tech costs updated in research panel
 - yearLog records policy activation and costs
+## Phase 6B: Tier 3 Tech Tree (Current)
+
+Tier 2 complete and wired. Now adding Tier 3 techs.
+No changes to existing Tier 1 or Tier 2 entries.
+No changes to any game logic outside of tech data.
+
+**Goal:** Add 8 Tier 3 techs to js/tech/techTree.js,
+and wire their effects in js/tech/techEffects.js.
+
+Tier 3 tech definitions:
+
+Agriculture:
+- id: "selective_breeding", name: "育种改良"
+  prerequisites: ["crop_rotation"]
+  years: 3, cost: { grain: 8000 }
+  unlocks: bonus grainYieldPerMu +10% (multiplicative)
+
+- id: "watermill", name: "水车磨坊"
+  prerequisites: ["irrigation"]
+  years: 3, cost: { grain: 10000 }
+  unlocks: bonus grainProcessingEfficiency +0.15
+  (grain loss on storage reduced by 15%, placeholder
+  if storage not yet implemented)
+
+Commerce:
+- id: "banking", name: "钱庄系统"
+  prerequisites: ["contract_law"]
+  years: 3, cost: { grain: 12000 }
+  unlocks: system loanSystem = true
+
+- id: "long_distance_trade", name: "远途贸易"
+  prerequisites: ["weights_measures"]
+  years: 3, cost: { grain: 10000 }
+  unlocks: system newTradePartners = true
+
+Society:
+- id: "imperial_exam_proto", name: "科举雏形"
+  prerequisites: ["papermaking", "codified_law"]
+  years: 4, cost: { grain: 15000 }
+  unlocks: system scholarClass = true
+
+- id: "advanced_medicine", name: "高级医学"
+  prerequisites: ["basic_medicine"]
+  years: 3, cost: { grain: 10000 }
+  unlocks: bonus populationGrowthRate +0.005
+
+Military:
+- id: "fortification", name: "城防工事"
+  prerequisites: ["weapon_forging"]
+  years: 3, cost: { grain: 12000 }
+  unlocks: bonus defenseRating +30
+  AND system invasionDefense = true
+
+- id: "intelligence_network", name: "情报系统"
+  prerequisites: ["weapon_forging"]
+  years: 3, cost: { grain: 10000 }
+  unlocks: system diplomacyExpanded = true
+
+All system flags default false in state.js.
+Add them under state.systems if that object exists,
+or create it.
