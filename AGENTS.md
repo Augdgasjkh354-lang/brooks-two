@@ -3148,3 +3148,107 @@ tech/research.js
   institution efficiency breakdown
 - yearLog records fire leakage warnings
 - yearLog records government establishment
+## Phase 7B-2 Scope (Current)
+
+Phase 7B-1 complete. Now implementing 7B-2 only.
+
+**Goal:** Add police bureau as first specialized
+government institution. Police affect social stability
+through officer-to-population ratio.
+
+**Rules:**
+
+Unlock condition:
+- adminTalent >= 100
+- governmentEstablished = true
+
+Police bureau setup:
+- playerSets: policeOfficerCount
+- Each officer drawn from adminTalent pool
+  (adminTalentDeployed += policeOfficerCount)
+- officerWage: playerAdjustable
+  default: gdpPerCapita * 1.2
+- Annual cost = policeOfficerCount * officerWage
+  flows to officialIncomePool
+
+Police-to-population ratio:
+- policeRatio = policeOfficerCount / totalPopulation
+
+Ratio effects:
+- policeRatio < 1/1000 (extreme shortage):
+  stabilityIndex -= 20
+  commerceGDP *= 0.9
+  yearLog: "治安崩溃，盗贼横行"
+
+- policeRatio 1/1000 - 1/500 (shortage):
+  stabilityIndex -= 10
+  yearLog: "治安较差，民间纠纷频发"
+
+- policeRatio 1/500 - 1/200 (adequate):
+  no penalty or bonus
+
+- policeRatio 1/200 - 1/100 (good):
+  stabilityIndex += 5
+  merchantLifeQuality += 5
+  commerceGDP *= 1.05
+  yearLog: "治安良好，商业繁荣"
+
+- policeRatio < 1/100 (excessive):
+  stabilityIndex += 3
+  farmerLifeQuality -= 10
+  yearLog: "警力过剩，民间压迫感强"
+
+Police efficiency:
+- policeEfficiency calculated same as government
+  talentAdequacy(40%) * paperSupply(30%) *
+  staffing(30%)
+- Low efficiency reduces all ratio bonuses by 50%
+- policeEfficiency < 30%:
+  ratio effects reversed (police cause problems)
+  yearLog: "警察系统效率低下，执法混乱"
+
+Police paper consumption:
+- consumes paperOutput * 8% per year
+- if insufficient: policeEfficiency -= 20%
+
+Admin talent deployment:
+- policeOfficerCount drawn from adminTalent
+- if adminTalent < policeOfficerCount:
+  policeEfficiency *= 0.5
+  yearLog: "警力人才不足"
+
+State additions needed in world{}:
+- policeEstablished: false
+- policeOfficerCount: 0
+- officerWage: 0
+- policeRatio: 0
+- policeEfficiency: 0
+- adminTalentDeployedPolice: 0
+
+**Files to modify:**
+- js/state.js
+- js/society/stability.js (police ratio effects)
+- js/society/satisfaction.js (life quality effects)
+- js/economy/commerce.js (commerce effects)
+- js/game.js (annual police costs)
+- js/ui/render_society.js (police bureau panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/market.js economy/currency.js
+economy/labor.js diplomacy/xikou.js
+tech/research.js economy/agriculture.js
+
+**Definition of Done (Phase 7B-2):**
+- Police bureau panel appears when conditions met
+- Player sets officer count and wage
+- policeRatio calculated each year
+- All ratio effects applied correctly
+- policeEfficiency calculated from 3 dimensions
+- Annual costs deducted and flow to officialIncomePool
+- adminTalent correctly depleted by police officers
+- UI shows police panel in 社会 tab:
+  establishment status / officer count / wage
+  police ratio with status label
+  efficiency breakdown
+  active effects this year
+- yearLog records establishment and ratio warnings
