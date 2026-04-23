@@ -1065,3 +1065,90 @@ game.js
 - UI shows Xikou available salt and cloth for trade
 - Attitude updates after each trade
 - yearLog records trade details including amounts
+## Phase 5A-1 Scope (Current)
+
+Phase 4A-3 is complete. Now implementing Phase 5A-1 only.
+
+**Goal:** Establish commodity market for salt and cloth only.
+Grain has no price before grainCouponsUnlocked.
+After unlock, grain gets a coupon-denominated price.
+Salt and cloth prices are measured in grain (pre-unlock)
+or coupons (post-unlock, 1:1 so values unchanged).
+
+**Rules:**
+
+Grain:
+- annualDemand = totalPopulation * 360
+- No price field before grainCouponsUnlocked
+- After unlock: grainPrice enters market (existing field)
+- grainSurplus = grainTreasury - annualDemand
+  (positive = surplus, negative = shortage)
+
+Salt:
+- annualSupply = salt received from Xikou trade this year
+- annualDemand = totalPopulation * 15
+- basePrice = 4.0 (4 jin grain per jin salt)
+- range: 1.0 - 10.0
+- reserve = saltReserve (existing)
+
+Cloth:
+- annualSupply = cloth received from Xikou trade this year
+- annualDemand = totalPopulation * 0.3
+- basePrice = 2.0 (2 jin grain per bolt)
+- range: 0.8 - 5.0
+- reserve = clothReserve (existing)
+
+Price calculation for salt and cloth:
+- supplyDemandRatio = (annualSupply + reserve * 0.1) /
+  annualDemand
+- ratio >= 1.5: price *= 0.85
+- ratio 1.0-1.49: price unchanged
+- ratio 0.7-0.99: price *= 1.2
+- ratio 0.4-0.69: price *= 1.5
+- ratio < 0.4: price *= 2.0
+- Price change capped at 30% per year
+- Price floored/capped within range
+
+Purchasing power index:
+- Based on salt and cloth prices only (pre-unlock)
+- saltAffordability = saltPrice / 4.0
+  (1.0 = normal, >1.0 = expensive)
+- clothAffordability = clothPrice / 2.0
+- purchasingPower = 100 / ((saltAffordability * 0.6) +
+  (clothAffordability * 0.4))
+  (salt weighted more as daily necessity)
+- purchasingPower floored at 10, capped at 150
+- After grainCouponsUnlocked: grain price also factors in
+
+Grain shortage warning:
+- grainSurplus < 0: show famine risk warning in UI
+- grainSurplus < totalPopulation * -100:
+  stabilityIndex -= 10 (severe shortage)
+
+State additions needed in world{}:
+- saltPrice: 4.0
+- clothPrice: 2.0
+- saltAnnualSupply: 0
+- saltAnnualDemand: 0
+- clothAnnualSupply: 0
+- clothAnnualDemand: 0
+- grainAnnualDemand: 0
+- grainSurplus: 0
+- purchasingPower: 100
+
+**Files to modify:** state.js, economy.js, render.js
+**Do NOT touch:** unlocks.js, policies.js, population.js,
+game.js
+
+**Definition of Done (Phase 5A-1):**
+- Salt and cloth prices calculated each year via
+  supply/demand ratio
+- grainAnnualDemand and grainSurplus calculated each year
+- purchasingPower calculated from salt and cloth prices
+- UI shows commodity market panel:
+  grain: demand / surplus / shortage warning
+  salt: price / supply / demand / reserve
+  cloth: price / supply / demand / reserve
+- UI shows purchasingPower with color coding:
+  80-150: green, 50-79: yellow, 10-49: red
+- Famine risk warning shown when grainSurplus < 0
