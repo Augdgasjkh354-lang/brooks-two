@@ -38,7 +38,7 @@ function logYearSummary({
   const utilization = Math.round(state.world.landUtilizationPercent);
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), and the grain treasury ${treasuryDirection} by ${agriculturalTax}.`
+    `Year ${state.world.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), grain treasury ${treasuryDirection} by ${agriculturalTax}, salt import ${state.world.actualSaltImport ?? 0}, salt consumed ${state.world.saltConsumed ?? 0}, shortfall ${Math.round((state.world.saltShortfallRatio ?? 0) * 100)}%.`
   );
 }
 
