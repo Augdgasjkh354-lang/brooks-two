@@ -2490,3 +2490,119 @@ economy/labor.js, any society/ diplomacy/ files
 - Civilian lending auto-generates shops over time
 - yearLog records borrowing, repayment, interest
 - Warning shown when debt levels are high
+## Phase 7A-1 Scope (Current)
+
+Phase 6B-2 complete. Now implementing 7A-1 only.
+
+**Goal:** Add literacy system with class-based tracking.
+Initial state has only farmers. Other classes appear
+as game progresses. Literacy affects efficiency of
+each class.
+
+**Rules:**
+
+Initial state:
+- Only farmers exist at game start
+- Overall literacy = farmer literacy only
+- No merchants/officials/workers/landlords initially
+
+Literacy tracking per class:
+- farmerLiteracy: 5% (exists from start)
+- merchantLiteracy: 0% (appears when shopCount > 0,
+  default 25% on first appearance)
+- officialLiteracy: 0% (appears when bureaucracyUnlocked,
+  default 50% on first appearance)
+- workerLiteracy: 0% (appears when hempLandMu > 0 or
+  mulberryLandMu > 0, default 8%)
+- landlordLiteracy: 0% (appears when farmlandRentRate > 0,
+  default 20%)
+
+Overall literacy:
+- overallLiteracy = weighted average of all active classes
+  weighted by their population share
+
+Literacy growth per year (per active class):
+- Base growth: +0.1%/year for all active classes
+- bureaucracyUnlocked: farmerLiteracy += 0.3%/year
+- scholarClass (科举雏形): all classes += 0.5%/year
+- commerceGDP > 1,000,000: merchantLiteracy += 0.2%/year
+- grainSurplus > 0: farmerLiteracy += 0.1%/year
+- moneylenderShops > 0: merchantLiteracy += 0.1%/year
+
+Literacy caps without schools:
+- farmerLiteracy max: 15%
+- merchantLiteracy max: 40%
+- officialLiteracy max: 70%
+- workerLiteracy max: 20%
+- landlordLiteracy max: 35%
+(schools will raise these caps in 7A-2)
+
+Literacy effects:
+- farmerLiteracy:
+  every 5%: farmEfficiency += 0.01 (1% boost)
+  max bonus: +5% at 25% literacy
+- merchantLiteracy:
+  every 10%: commerceGDP multiplier += 0.02
+  max bonus: +10% at 50% literacy
+- officialLiteracy:
+  every 10%: policy execution efficiency += 0.02
+  stability penalty reduced by 2% per 10%
+- workerLiteracy:
+  every 10%: textile output += 2%
+- landlordLiteracy:
+  every 10%: landReclaimEfficiency += 0.01
+
+Class population tracking:
+- farmerPopulation: laborAssignedFarming
+- merchantPopulation: merchantCount
+- officialPopulation: 0 (defined in later phase)
+- workerPopulation: hempLaborRequired +
+  mulberryLaborRequired
+- landlordPopulation: 0 (defined in later phase)
+
+Education graduate tracking:
+- primaryGraduates: 0 (蒙学 cumulative)
+- secondaryGraduates: 0 (私塾/县学 cumulative)
+- higherGraduates: 0 (书院 cumulative)
+
+Higher school unlock check each year:
+- higherSchoolUnlocked = true when:
+  secondaryGraduates >= 2000 AND world.year >= 100
+
+State additions needed in world{}:
+- farmerLiteracy: 0.05
+- merchantLiteracy: 0
+- officialLiteracy: 0
+- workerLiteracy: 0
+- landlordLiteracy: 0
+- overallLiteracy: 0.05
+- primaryGraduates: 0
+- secondaryGraduates: 0
+- higherGraduates: 0
+- higherSchoolUnlocked: false
+
+**Files to modify:**
+- js/state.js
+- js/society/population.js (class appearance triggers)
+- js/society/satisfaction.js (literacy effects)
+- js/economy/agriculture.js (farmer literacy bonus)
+- js/economy/commerce.js (merchant literacy bonus)
+- js/ui/render_society.js (literacy panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/market.js, economy/currency.js,
+economy/labor.js, diplomacy/xikou.js
+
+**Definition of Done (Phase 7A-1):**
+- farmerLiteracy starts at 5% from year 1
+- Other class literacy appears when class unlocks
+- All literacy rates grow each year per rules
+- Literacy caps enforced without schools
+- Literacy effects applied to relevant calculations
+- overallLiteracy calculated as weighted average
+- higherSchoolUnlocked checks each year
+- UI shows literacy panel in 社会 tab:
+  each class literacy % / overall literacy %
+  literacy effects active
+- yearLog records when new class literacy appears
+- yearLog records higherSchoolUnlocked when triggered
