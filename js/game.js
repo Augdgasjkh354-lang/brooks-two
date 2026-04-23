@@ -3,13 +3,13 @@ import { updatePopulation, processEducationYear } from './society/population.js'
 import { updateEconomy } from './economy/agriculture.js';
 import { issueGrainCoupons, borrowGovernmentDebt, processGovernmentDebtYear } from './economy/currency.js';
 import { executeOfficialSaltSale } from './economy/market.js';
-import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem, approveCommercialSchoolLicenses, applyPoliceCommerceEffects } from './economy/commerce.js';
+import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem, approveCommercialSchoolLicenses, applyPoliceCommerceEffects, applyCourtCommerceEffects } from './economy/commerce.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
-import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects } from './society/stability.js';
-import { applyPoliceLifeQualityEffects } from './society/satisfaction.js';
+import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects } from './society/stability.js';
+import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects } from './society/satisfaction.js';
 
 const state = createGameState();
 
@@ -265,10 +265,14 @@ function syncPoliceInstitutionSettings() {
 
   const adminTalent = Math.max(0, Number(state.world.adminTalent ?? 0));
   state.world.adminTalentDeployedPolice = Math.min(adminTalent, state.world.policeOfficerCount);
-  const mandatoryDeployed = Number(state.world.adminTalentDeployedGov ?? 0) + Number(state.world.adminTalentDeployedPolice ?? 0);
+  const mandatoryDeployed =
+    Number(state.world.adminTalentDeployedGov ?? 0) +
+    Number(state.world.adminTalentDeployedPolice ?? 0) +
+    Number(state.world.adminTalentDeployedCourt ?? 0) +
+    Number(state.world.adminTalentDeployedTax ?? 0);
   const currentDeployed = Math.max(0, Number(state.world.adminTalentDeployed ?? 0));
   state.world.adminTalentDeployed = Math.max(0, Math.min(adminTalent, Math.max(currentDeployed, mandatoryDeployed)));
-
+}
 
 function syncHealthInstitutionSettings() {
   state.world.healthOfficerCount = Math.max(0, Math.floor(Number(state.world.healthOfficerCount ?? 0)));
@@ -280,10 +284,24 @@ function syncHealthInstitutionSettings() {
   const mandatoryDeployed =
     Number(state.world.adminTalentDeployedGov ?? 0) +
     Number(state.world.adminTalentDeployedPolice ?? 0) +
-    Number(state.world.adminTalentDeployedHealth ?? 0);
+    Number(state.world.adminTalentDeployedHealth ?? 0) +
+    Number(state.world.adminTalentDeployedCourt ?? 0) +
+    Number(state.world.adminTalentDeployedTax ?? 0);
   const currentDeployed = Math.max(0, Number(state.world.adminTalentDeployed ?? 0));
   state.world.adminTalentDeployed = Math.max(0, Math.min(adminTalent, Math.max(currentDeployed, mandatoryDeployed)));
 }
+
+function syncCourtTaxInstitutionSettings() {
+  state.world.judgeCount = Math.max(0, Math.floor(Number(state.world.judgeCount ?? 0)));
+  state.world.taxOfficerCount = Math.max(0, Math.floor(Number(state.world.taxOfficerCount ?? 0)));
+  state.world.techTalentDeployedTax = Math.max(0, Math.floor(Number(state.world.techTalentDeployedTax ?? 0)));
+  state.world.judgeWage = Math.max(0, Number(state.world.judgeWage ?? 0));
+  state.world.taxOfficerWage = Math.max(0, Number(state.world.taxOfficerWage ?? 0));
+  state.world.commerceTaxRate = Math.max(0, Math.min(0.3, Number(state.world.commerceTaxRate ?? 0)));
+  state.world.landTaxRate = Math.max(0, Math.min(5, Number(state.world.landTaxRate ?? 0)));
+  state.world.creditRating = ['A', 'B', 'C', 'D'].includes(String(state.world.creditRating ?? 'B').toUpperCase())
+    ? String(state.world.creditRating).toUpperCase()
+    : 'B';
 }
 
 function nextYear() {
@@ -299,15 +317,22 @@ function nextYear() {
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);
+  ensureCourtInstitution(state.world, state.yearLog);
+  ensureTaxBureauInstitution(state.world, state.yearLog);
   syncGovernmentInstitutionSettings();
   syncPoliceInstitutionSettings();
   syncHealthInstitutionSettings();
+  syncCourtTaxInstitutionSettings();
   const annualWageBill = calculateGovernmentWageBill(state.world);
   const prePoliceEffects = calculatePoliceEffects(state.world);
   const preHealthEffects = calculateHealthEffects(state.world);
+  const preCourtEffects = calculateCourtEffects(state.world);
+  const preTaxBureauEffects = calculateTaxBureauEffects(state.world);
   state.world.policeAnnualCost = Math.max(0, Number(prePoliceEffects.annualPoliceCost ?? 0));
   state.world.healthAnnualCost = Math.max(0, Number(preHealthEffects.annualHealthCost ?? 0));
-  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost;
+  state.world.courtAnnualCost = Math.max(0, Number(preCourtEffects.annualCourtCost ?? 0));
+  state.world.taxBureauAnnualCost = Math.max(0, Number(preTaxBureauEffects.annualTaxCost ?? 0));
+  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost;
 
   const schoolSettlement = settleEducationYear();
   const popResult = updatePopulation(state.world);
@@ -336,6 +361,28 @@ function nextYear() {
   if (healthEffects.message) {
     state.yearLog.unshift(`Year ${state.world.year}: ${healthEffects.message}`);
   }
+
+  const courtEffects = calculateCourtEffects(state.world);
+  applyCourtCommerceEffects(state.world, courtEffects);
+  applyCourtTaxLifeQualityEffects(state.world, courtEffects);
+  state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
+
+  const taxBureauEffects = calculateTaxBureauEffects(state.world);
+  state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
+  if (courtEffects.merchantSatisfactionDelta) {
+    state.world.merchantSatisfaction = Math.max(0, Math.min(100, Number(state.world.merchantSatisfaction ?? 50) + Number(courtEffects.merchantSatisfactionDelta)));
+    state.world.merchantLifeQuality = state.world.merchantSatisfaction;
+  }
+
+
+  const cap = String(courtEffects.creditRatingCap ?? 'D');
+  const rank = { A: 4, B: 3, C: 2, D: 1 };
+  if ((rank[state.world.creditRating] ?? 3) > (rank[cap] ?? 1)) {
+    state.world.creditRating = cap;
+  }
+
+  if (courtEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${courtEffects.message}`);
+  if (taxBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${taxBureauEffects.message}`);
 
   if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
     const currentPop = Math.max(0, Number(state.world.totalPopulation ?? 0));
@@ -951,9 +998,11 @@ function bindEvents() {
     const key = String(event?.detail?.key ?? '');
     const value = Number(event?.detail?.value ?? 0);
     if (!key) return;
-    const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov', 'policeOfficerCount', 'healthOfficerCount']);
-    const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage', 'officerWage', 'healthOfficerWage']);
+    const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov', 'policeOfficerCount', 'healthOfficerCount', 'judgeCount', 'taxOfficerCount', 'techTalentDeployedTax']);
+    const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage', 'officerWage', 'healthOfficerWage', 'judgeWage', 'taxOfficerWage']);
     const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished']);
+    const ratingKeys = new Set(['creditRating']);
+    const rateKeys = new Set(['commerceTaxRate', 'landTaxRate']);
 
     if (intKeys.has(key)) state.world[key] = Math.max(0, Math.floor(value));
 
@@ -967,6 +1016,8 @@ function bindEvents() {
     }
     if (wageKeys.has(key)) state.world[key] = Math.max(0, value);
     if (boolKeys.has(key)) state.world[key] = Boolean(event?.detail?.checked);
+    if (ratingKeys.has(key)) state.world[key] = String(event?.detail?.valueText ?? 'B').toUpperCase();
+    if (rateKeys.has(key)) state.world[key] = Number(value ?? 0);
 
     if (key === 'adminTalentDeployedGov') {
       state.world.adminTalentDeployedGov = Math.max(0, Math.floor(value));
@@ -975,11 +1026,16 @@ function bindEvents() {
     syncGovernmentInstitutionSettings();
     syncPoliceInstitutionSettings();
     syncHealthInstitutionSettings();
+    syncCourtTaxInstitutionSettings();
     calculateGovernmentWageBill(state.world);
     const policeEffects = calculatePoliceEffects(state.world);
     const healthEffects = calculateHealthEffects(state.world);
+    const courtEffects = calculateCourtEffects(state.world);
+    const taxBureauEffects = calculateTaxBureauEffects(state.world);
     state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
     state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
+    state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
+    state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
     render();
   });
 }
@@ -1009,13 +1065,20 @@ function init() {
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);
+  ensureCourtInstitution(state.world, state.yearLog);
+  ensureTaxBureauInstitution(state.world, state.yearLog);
   syncPoliceInstitutionSettings();
   syncHealthInstitutionSettings();
+  syncCourtTaxInstitutionSettings();
   calculateGovernmentWageBill(state.world);
   const policeEffects = calculatePoliceEffects(state.world);
   const healthEffects = calculateHealthEffects(state.world);
+  const courtEffects = calculateCourtEffects(state.world);
+  const taxBureauEffects = calculateTaxBureauEffects(state.world);
   state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
   state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
+  state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
+  state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
   bindEvents();
