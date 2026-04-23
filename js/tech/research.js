@@ -18,7 +18,7 @@ export const techTree = [
     researchYears: 2,
     cost: { grain: 5000, cloth: 0, coupon: 0 },
     prerequisites: ['basic_farming'],
-    unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 0.1 }],
+    unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 50 }],
     status: 'locked',
   },
   {
@@ -30,8 +30,8 @@ export const techTree = [
     cost: { grain: 8000, cloth: 0, coupon: 0 },
     prerequisites: ['intensive_farming'],
     unlocks: [
-      { type: 'bonus', target: 'grainYieldPerMu', value: 0.1 },
-      { type: 'bonus', target: 'droughtResistance', value: 0.2 },
+      { type: 'bonus', target: 'grainYieldPerMu', value: 50 },
+      { type: 'bonus', target: 'droughtResistance', value: true },
     ],
     status: 'locked',
   },
@@ -43,7 +43,7 @@ export const techTree = [
     researchYears: 3,
     cost: { grain: 10000, cloth: 100, coupon: 0 },
     prerequisites: ['intensive_farming'],
-    unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 0.15 }],
+    unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 75 }],
     status: 'locked',
   },
   {
@@ -104,7 +104,7 @@ export const techTree = [
     researchYears: 2,
     cost: { grain: 5000, cloth: 50, coupon: 0 },
     prerequisites: ['written_records'],
-    unlocks: [{ type: 'system', target: 'bureaucracy_system' }],
+    unlocks: [{ type: 'bonus', target: 'bureaucracyUnlocked', value: true }],
     status: 'locked',
   },
   {
@@ -167,6 +167,22 @@ export const techTree = [
   },
 ];
 
+
+function ensureTechBonusesShape(state) {
+  if (!state.techBonuses) {
+    state.techBonuses = {};
+  }
+
+  state.techBonuses.grainYieldBonus = Number(state.techBonuses.grainYieldBonus ?? 0);
+  state.techBonuses.stabilityBase = Number(state.techBonuses.stabilityBase ?? 80);
+  state.techBonuses.populationGrowthBonus = Number(state.techBonuses.populationGrowthBonus ?? 0);
+  state.techBonuses.tradeEfficiency = Number(state.techBonuses.tradeEfficiency ?? 0);
+  state.techBonuses.combatPower = Number(state.techBonuses.combatPower ?? 0);
+  state.techBonuses.bureaucracyUnlocked = Boolean(state.techBonuses.bureaucracyUnlocked ?? false);
+  state.techBonuses.merchantSatisfactionBonus = Number(state.techBonuses.merchantSatisfactionBonus ?? 0);
+  state.techBonuses.droughtResistance = Boolean(state.techBonuses.droughtResistance ?? false);
+}
+
 export function initResearch(state) {
   if (!state.research) {
     state.research = {
@@ -177,13 +193,9 @@ export function initResearch(state) {
     };
   }
 
-  if (!state.techBonuses) {
-    state.techBonuses = {
-      grainYieldBonus: 0,
-      tradeEfficiency: 0,
-      droughtResistance: 0,
-      combatPower: 0,
-    };
+  ensureTechBonusesShape(state);
+  if (state.world) {
+    state.world.techBonuses = state.techBonuses;
   }
 
   const completedSet = new Set(state.research.completed ?? []);
@@ -275,29 +287,74 @@ export function startResearch(state, techId) {
 }
 
 export function applyTechEffect(state, tech) {
+  ensureTechBonusesShape(state);
+
+  const appliedEffects = [];
+
+  switch (tech.id) {
+    case 'intensive_farming': {
+      state.techBonuses.grainYieldBonus += 50;
+      appliedEffects.push('亩产+50');
+      break;
+    }
+    case 'crop_rotation': {
+      state.techBonuses.grainYieldBonus += 50;
+      state.techBonuses.droughtResistance = true;
+      appliedEffects.push('亩产+50');
+      appliedEffects.push('抗旱能力已启用');
+      break;
+    }
+    case 'irrigation': {
+      state.techBonuses.grainYieldBonus += 75;
+      const maxBonus = 300;
+      state.techBonuses.grainYieldBonus = Math.min(maxBonus, state.techBonuses.grainYieldBonus);
+      appliedEffects.push('亩产+75（总亩产上限800）');
+      break;
+    }
+    case 'contract_law': {
+      state.techBonuses.merchantSatisfactionBonus += 10;
+      appliedEffects.push('商人满意度永久+10');
+      break;
+    }
+    case 'weights_measures': {
+      state.techBonuses.tradeEfficiency += 0.1;
+      appliedEffects.push('对外贸易效率+10%');
+      break;
+    }
+    case 'codified_law': {
+      state.techBonuses.stabilityBase += 10;
+      appliedEffects.push('稳定度基础值+10');
+      break;
+    }
+    case 'basic_medicine': {
+      state.techBonuses.populationGrowthBonus += 0.005;
+      appliedEffects.push('人口增长率+0.5%');
+      break;
+    }
+    case 'papermaking': {
+      state.techBonuses.bureaucracyUnlocked = true;
+      appliedEffects.push('官僚体系已解锁（占位）');
+      break;
+    }
+    case 'weapon_forging': {
+      state.techBonuses.combatPower += 0.2;
+      appliedEffects.push('战斗力+20%（占位）');
+      break;
+    }
+    default:
+      break;
+  }
+
   (tech.unlocks ?? []).forEach((unlock) => {
     if (unlock.type === 'available') {
       const targetTech = techTree.find((item) => item.id === unlock.target);
       if (targetTech && !(state.research.completed ?? []).includes(targetTech.id)) {
         targetTech.status = 'available';
       }
-      return;
-    }
-
-    if (unlock.type !== 'bonus') {
-      return;
-    }
-
-    if (unlock.target === 'grainYieldPerMu') {
-      state.techBonuses.grainYieldBonus += unlock.value ?? 0;
-    } else if (unlock.target === 'tradeEfficiency') {
-      state.techBonuses.tradeEfficiency += unlock.value ?? 0;
-    } else if (unlock.target === 'droughtResistance') {
-      state.techBonuses.droughtResistance += unlock.value ?? 0;
-    } else if (unlock.target === 'combatPower') {
-      state.techBonuses.combatPower += unlock.value ?? 0;
     }
   });
+
+  return appliedEffects;
 }
 
 export function updateResearch(state) {
@@ -321,11 +378,15 @@ export function updateResearch(state) {
 
   tech.status = 'completed';
   state.research.completed = [...(state.research.completed ?? []), tech.id];
-  applyTechEffect(state, tech);
+  const appliedEffects = applyTechEffect(state, tech);
+
+  if (Array.isArray(state.yearLog) && appliedEffects.length > 0) {
+    state.yearLog.unshift(`Year ${state.world?.year ?? 0}: 技术效果生效 - ${tech.name}：${appliedEffects.join('，')}。`);
+  }
 
   state.research.currentTech = null;
   state.research.yearsRemaining = 0;
   state.research.available = getAvailableTechs(state);
 
-  return tech;
+  return { ...tech, appliedEffects };
 }
