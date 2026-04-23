@@ -1,4 +1,7 @@
 import { formatNumber, formatDecimal, statItem, getPopulationGrowthDisplayDetails } from './render_world.js';
+import { BUREAUCRACY_POLICY_DEFS, activateBureaucracyPolicy } from '../society/stability.js';
+
+const GRAIN_REDISTRIBUTION_COST = 3000000;
 
 export function getStabilityDisplay(stabilityIndex) {
   if (stabilityIndex >= 80) return { label: 'Stable', color: '#1b8a3b' };
@@ -69,17 +72,47 @@ export function getPurchasingPowerDisplay(purchasingPower) {
 }
 
 export function getStabilityPolicyControlsHtml(world) {
-  const grainRedistributionDisabled = world.grainRedistributionUsed || (world.grainTreasury ?? 0) < 5000;
+  const grainRedistributionDisabled = world.grainRedistributionUsed || (world.grainTreasury ?? 0) < GRAIN_REDISTRIBUTION_COST;
   const merchantTaxDisabled = world.merchantTaxUsed || (world.merchantCount ?? 0) <= 0;
 
   return `
     <div>
       <button id="grain-redistribution-btn" ${grainRedistributionDisabled ? 'disabled' : ''}>
-        Grain Redistribution (${world.grainRedistributionUsed ? 'Used this year' : 'Cost: 5000 grain'})
+        Grain Redistribution (${world.grainRedistributionUsed ? 'Used this year' : `Cost: ${formatNumber(GRAIN_REDISTRIBUTION_COST)} grain`})
       </button>
       <button id="merchant-tax-btn" ${merchantTaxDisabled ? 'disabled' : ''}>
         Merchant Tax (${world.merchantTaxUsed ? 'Used this year' : '+10 stability, +200 grain per merchant'})
       </button>
+    </div>
+  `;
+}
+
+function getBureaucracyPolicyControlsHtml(world) {
+  if (!world?.techBonuses?.bureaucracyUnlocked) {
+    return '<div class="muted">造纸术完成后可启用官僚政策。</div>';
+  }
+
+  const rows = Object.values(BUREAUCRACY_POLICY_DEFS).map((policy) => {
+    const active = Boolean(world[`${policy.key}Active`]);
+    const cannotAfford = (world.grainTreasury ?? 0) < policy.oneTimeCost;
+    const disabled = active || cannotAfford;
+
+    return `
+      <div class="stat-item" style="border: 1px solid #e5e7eb; padding: 8px; border-radius: 6px;">
+        <div class="stat-label"><strong>${policy.name}</strong></div>
+        <div class="stat-value">${policy.description}</div>
+        <div class="muted">一次性：${formatNumber(policy.oneTimeCost)} 粮 / 年维护：${formatNumber(policy.annualMaintenance)} 粮</div>
+        <button class="bureau-policy-btn" data-policy-key="${policy.key}" ${disabled ? 'disabled' : ''}>
+          ${active ? '已生效' : '启用政策'}
+        </button>
+      </div>
+    `;
+  });
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${rows.join('')}
+      <div class="muted">本年维护：实付 ${formatNumber(world.bureaucracyMaintenancePaid ?? 0)} / 欠付 ${formatNumber(world.bureaucracyMaintenanceMissing ?? 0)}</div>
     </div>
   `;
 }
@@ -89,6 +122,22 @@ export function bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchan
   const merchantBtn = document.getElementById('merchant-tax-btn');
   if (grainBtn) grainBtn.addEventListener('click', onUseGrainRedistribution);
   if (merchantBtn) merchantBtn.addEventListener('click', onUseMerchantTax);
+}
+
+function bindBureaucracyPolicyEvents(state, rerender) {
+  document.querySelectorAll('.bureau-policy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-policy-key');
+      if (!key) return;
+      const result = activateBureaucracyPolicy(state.world, key);
+      if (result.success) {
+        state.yearLog.unshift(`Year ${state.world.year}: 启用官僚政策「${result.policy.name}」，支付${formatNumber(result.costPaid)}粮。`);
+      } else {
+        state.yearLog.unshift(`Year ${state.world.year}: 启用官僚政策失败 - ${result.reason}`);
+      }
+      rerender();
+    });
+  });
 }
 
 export function getCreditCrisisControlsHtml(world) {
@@ -145,6 +194,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Growth Modifiers', growth.modifiersText)}
       ${statItem('Policy Intervention', getStabilityPolicyControlsHtml(world))}
     </div></section>
+    <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Class Satisfaction</h2><div class="tab-grid">
       ${statItem('Farmer Satisfaction', sat(world.farmerSatisfaction))}
       ${statItem('Farmer Factors', factors.farmer)}
@@ -160,5 +210,6 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   `;
 
   bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
+  bindBureaucracyPolicyEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
 }

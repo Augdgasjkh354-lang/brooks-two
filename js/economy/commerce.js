@@ -1,5 +1,7 @@
 // Commerce module: commerce and demand saturation
 
+export const SHOP_BUILD_COST_GRAIN = 1500000;
+
 export function getCommerceActivityBonus(world) {
   if (!world?.grainCouponsUnlocked) return { circulationRatio: 0, commerceActivityBonus: 1.0 };
 
@@ -18,4 +20,3 @@ export function getCommerceActivityBonus(world) {
 
   return { circulationRatio, commerceActivityBonus: 0.7 };
 }
-

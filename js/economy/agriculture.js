@@ -1,7 +1,12 @@
 // Agriculture module: grain output and food security
 
 import { clamp, clampRatio, calculateLaborAllocation } from './labor.js';
-import { getEfficiencyMultiplier, getStabilityBase } from '../society/stability.js';
+import {
+  getEfficiencyMultiplier,
+  getStabilityBase,
+  getBureaucracyEffects,
+  applyBureaucracyAnnualMaintenance,
+} from '../society/stability.js';
 import { calculateClassSatisfaction, clampPercentIndex } from '../society/satisfaction.js';
 import { getCommerceActivityBonus } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
@@ -23,6 +28,13 @@ import {
   getStabilityPenaltyFromIncomeGap,
 } from '../society/stability.js';
 
+
+
+export const AGRICULTURE_RECLAMATION_COSTS = {
+  farmlandPerMu: 500,
+  hempPerMu: 800,
+  mulberryPerMu: 1500,
+};
 export function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
   if (grainCoverageRatio >= 0.85) return 'Strained';
@@ -45,6 +57,7 @@ export function updateEconomy(world, options = {}) {
 
   const behaviorMessages = [];
   const currentYear = world.year ?? 1;
+  const bureaucracyEffects = getBureaucracyEffects(world);
 
   const maturedHempLand = Math.max(0, Math.floor(world.pendingHempLandMu ?? 0));
   if (maturedHempLand > 0) {
@@ -123,7 +136,9 @@ export function updateEconomy(world, options = {}) {
 
   const potentialGrainOutput = clamp(world.farmlandAreaMu * effectiveYieldPerMu);
   const preStabilityGrainOutput = clamp(potentialGrainOutput * effectiveFarmEfficiency);
-  const agriculturalTax = clamp(preStabilityGrainOutput * world.agriculturalTaxRate);
+  const agriculturalTax = clamp(
+    preStabilityGrainOutput * world.agriculturalTaxRate * (1 + bureaucracyEffects.taxEfficiencyBonus)
+  );
 
   const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
   const idleShops = Math.max(0, (world.shopCount ?? 0) - operatingShops);
@@ -169,7 +184,8 @@ export function updateEconomy(world, options = {}) {
 
   const { penalty: incomeGapPenalty, reason: stabilityPenaltyReason } =
     getStabilityPenaltyFromIncomeGap(preStabilityIncomeGap);
-  const stabilityPenalty = incomeGapPenalty + inflationStabilityPenalty;
+  const rawStabilityPenalty = incomeGapPenalty + inflationStabilityPenalty;
+  const stabilityPenalty = rawStabilityPenalty * (1 - bureaucracyEffects.stabilityPenaltyReduction);
   const stabilityBase = getStabilityBase(world);
   const stabilityIndex = Math.max(0, stabilityBase - stabilityPenalty);
   const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
@@ -406,7 +422,10 @@ export function updateEconomy(world, options = {}) {
 
   world.farmerSatisfaction = clampPercentIndex(satisfaction.farmerSatisfaction + structuralFarmerBonus);
   const merchantSatisfactionTechBonus = Number(world.techBonuses?.merchantSatisfactionBonus ?? 0);
-  world.merchantSatisfaction = clampPercentIndex(satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus);
+  const merchantSatisfactionPolicyBonus = bureaucracyEffects.merchantSatisfactionPermanentBonus;
+  world.merchantSatisfaction = clampPercentIndex(
+    satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus + merchantSatisfactionPolicyBonus
+  );
   world.officialSatisfaction = clampPercentIndex(satisfaction.officialSatisfaction + paperSatisfactionBonus);
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
@@ -615,6 +634,20 @@ export function updateEconomy(world, options = {}) {
     }
 
     world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain - actualGrainSalary);
+
+    const retainedByLedger = clamp((world.grainTreasury ?? 0) * bureaucracyEffects.grainRetentionRate);
+    world.grainTreasury = clamp((world.grainTreasury ?? 0) + retainedByLedger);
+
+    const maintenance = applyBureaucracyAnnualMaintenance(world);
+
+    if (maintenance.expected > 0) {
+      behaviorMessages.push(
+        `官僚体系年维护支出：应付${maintenance.expected}粮，实付${maintenance.paid}粮${
+          maintenance.missing > 0 ? `，短缺${maintenance.missing}粮` : ''
+        }`
+      );
+    }
+
     world.couponTreasury = clamp(couponTreasuryAfterTax - actualCouponSalary);
     world.lastSalaryCost = clamp(totalSalaryCost);
     world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;

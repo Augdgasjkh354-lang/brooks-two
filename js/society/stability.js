@@ -1,5 +1,122 @@
 // Society stability module
 
+export const BUREAUCRACY_POLICY_DEFS = {
+  householdRegistry: {
+    key: 'householdRegistry',
+    name: '户籍制度',
+    oneTimeCost: 1500000,
+    annualMaintenance: 300000,
+    description: '税收效率 +10%',
+  },
+  granaryLedger: {
+    key: 'granaryLedger',
+    name: '粮仓台账',
+    oneTimeCost: 800000,
+    annualMaintenance: 0,
+    description: '每年粮仓额外留存 3%',
+  },
+  officialProclamation: {
+    key: 'officialProclamation',
+    name: '官府布告',
+    oneTimeCost: 0,
+    annualMaintenance: 600000,
+    description: '稳定度惩罚 -15%',
+  },
+  contractSystem: {
+    key: 'contractSystem',
+    name: '契约制度',
+    oneTimeCost: 2000000,
+    annualMaintenance: 0,
+    description: '商人满意度永久 +10',
+  },
+  codifiedLawPolicy: {
+    key: 'codifiedLawPolicy',
+    name: '律法成文',
+    oneTimeCost: 4000000,
+    annualMaintenance: 0,
+    description: '稳定度基础值 +10',
+  },
+};
+
+export function ensureBureaucracyPolicyState(world) {
+  if (!world) return;
+
+  world.householdRegistryActive = Boolean(world.householdRegistryActive ?? false);
+  world.granaryLedgerActive = Boolean(world.granaryLedgerActive ?? false);
+  world.officialProclamationActive = Boolean(world.officialProclamationActive ?? false);
+  world.contractSystemActive = Boolean(world.contractSystemActive ?? false);
+  world.codifiedLawPolicyActive = Boolean(world.codifiedLawPolicyActive ?? false);
+
+  world.bureaucracyMaintenancePaid = Number(world.bureaucracyMaintenancePaid ?? 0);
+  world.bureaucracyMaintenanceMissing = Number(world.bureaucracyMaintenanceMissing ?? 0);
+}
+
+export function getBureaucracyEffects(world) {
+  ensureBureaucracyPolicyState(world);
+
+  return {
+    taxEfficiencyBonus: world.householdRegistryActive ? 0.1 : 0,
+    grainRetentionRate: world.granaryLedgerActive ? 0.03 : 0,
+    stabilityPenaltyReduction: world.officialProclamationActive ? 0.15 : 0,
+    merchantSatisfactionPermanentBonus: world.contractSystemActive ? 10 : 0,
+    stabilityBaseBonus: world.codifiedLawPolicyActive ? 10 : 0,
+  };
+}
+
+export function activateBureaucracyPolicy(world, policyKey) {
+  ensureBureaucracyPolicyState(world);
+
+  if (!world?.techBonuses?.bureaucracyUnlocked) {
+    return { success: false, reason: '官僚体系未解锁。' };
+  }
+
+  const def = BUREAUCRACY_POLICY_DEFS[policyKey];
+  if (!def) {
+    return { success: false, reason: '政策不存在。' };
+  }
+
+  const activeField = `${policyKey}Active`;
+  if (world[activeField]) {
+    return { success: false, reason: '该政策已生效。' };
+  }
+
+  if ((world.grainTreasury ?? 0) < def.oneTimeCost) {
+    return { success: false, reason: `粮仓不足（需要${def.oneTimeCost}粮）。` };
+  }
+
+  world.grainTreasury = Math.max(0, (world.grainTreasury ?? 0) - def.oneTimeCost);
+  world[activeField] = true;
+
+  return {
+    success: true,
+    policy: def,
+    costPaid: def.oneTimeCost,
+  };
+}
+
+export function applyBureaucracyAnnualMaintenance(world) {
+  ensureBureaucracyPolicyState(world);
+
+  const activePolicies = Object.values(BUREAUCRACY_POLICY_DEFS).filter(
+    (policy) => world[`${policy.key}Active`]
+  );
+
+  const expected = activePolicies.reduce((sum, policy) => sum + policy.annualMaintenance, 0);
+  const available = Math.max(0, Number(world.grainTreasury ?? 0));
+  const paid = Math.min(available, expected);
+
+  world.grainTreasury = available - paid;
+  world.bureaucracyMaintenancePaid = paid;
+  world.bureaucracyMaintenanceMissing = Math.max(0, expected - paid);
+
+  return {
+    expected,
+    paid,
+    missing: world.bureaucracyMaintenanceMissing,
+    activePolicies,
+  };
+}
+
 export function getStabilityPenaltyFromIncomeGap(incomeGap) {
   if (incomeGap > 2000) {
     return {
@@ -36,5 +153,7 @@ export function getEfficiencyMultiplier(stabilityIndex) {
 
 
 export function getStabilityBase(world) {
-  return Number(world?.techBonuses?.stabilityBase ?? 80);
+  const base = Number(world?.techBonuses?.stabilityBase ?? 80);
+  const policyBonus = world?.codifiedLawPolicyActive ? 10 : 0;
+  return base + policyBonus;
 }

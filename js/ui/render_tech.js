@@ -1,10 +1,14 @@
 import { techTree } from '../tech/research.js';
 
+function formatAmount(value) {
+  return Number(value ?? 0).toLocaleString('en-US');
+}
+
 function formatCost(cost = {}) {
   const grain = cost.grain ?? 0;
   const cloth = cost.cloth ?? 0;
   const coupon = cost.coupon ?? 0;
-  return `粮食 ${grain} / 布匹 ${cloth} / 粮劵 ${coupon}`;
+  return `粮食 ${formatAmount(grain)} / 布匹 ${formatAmount(cloth)} / 粮劵 ${formatAmount(coupon)}`;
 }
 
 function formatUnlocks(unlocks = []) {

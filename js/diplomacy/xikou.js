@@ -1,6 +1,8 @@
 // Diplomacy module: Xikou village and relations
 import { clamp, clampRatio } from '../economy/labor.js';
 
+export const SEND_ENVOY_COST_GRAIN = 500000;
+
 export function updateXikouVillageEconomy(world) {
   if (!world || !world.xikou) {
     return;
@@ -126,4 +128,15 @@ export function updateXikouDiplomacy(world) {
   return [
     `溪口村对我方态度${direction}${absoluteDelta}点（${factors.join('；')}）`,
   ];
+}
+
+
+export function canSendEnvoyToXikou(world) {
+  const hasXikou = Boolean(world?.xikou);
+  if (!hasXikou) return { success: false, reason: '溪口数据缺失。' };
+  if (world.xikou.diplomaticContact) return { success: false, reason: '已建立外交联系。' };
+  if ((world.grainTreasury ?? 0) < SEND_ENVOY_COST_GRAIN) {
+    return { success: false, reason: `粮仓不足（需要${SEND_ENVOY_COST_GRAIN}粮）。` };
+  }
+  return { success: true };
 }

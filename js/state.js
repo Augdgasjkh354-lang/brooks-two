@@ -144,6 +144,15 @@ export const initialState = {
 
     grainRedistributionUsed: false,
     merchantTaxUsed: false,
+
+    householdRegistryActive: false,
+    granaryLedgerActive: false,
+    officialProclamationActive: false,
+    contractSystemActive: false,
+    codifiedLawPolicyActive: false,
+    bureaucracyMaintenancePaid: 0,
+    bureaucracyMaintenanceMissing: 0,
+
     saltTradeUsed: false,
     clothTradeUsed: false,
   },
