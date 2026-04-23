@@ -215,6 +215,15 @@ function getInflationState(world) {
 function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
+function getFertilizerBonus(dungCoverage) {
+  const coverage = Math.max(0, dungCoverage ?? 0);
+
+  if (coverage <= 0) return 1.0;
+  if (coverage < 0.15) return 1.05;
+  if (coverage <= 0.4) return 1.12;
+  return 1.2;
+}
+
 
 function clampBetween(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -436,6 +445,12 @@ function updateXikouVillageEconomy(world) {
   xikou.saltOutputJin = clamp(saltOutputJin);
   xikou.saltReserve = clamp((xikou.saltReserve ?? 0) + saltOutputJin);
   xikou.grainTreasury = nextGrainTreasury;
+
+  const mulberryLandMu = Math.max(0, Math.floor(xikou.mulberryLandMu ?? 1200));
+  const dungOutput = clamp(mulberryLandMu * 600);
+  const xikouOwnDemand = Math.max(0, Math.floor((xikou.farmlandMu ?? 0) * 600 * 0.3));
+  xikou.silkwormDungOutput = dungOutput;
+  xikou.silkwormDungAvailable = Math.max(0, dungOutput - xikouOwnDemand);
 }
 
 
@@ -686,6 +701,63 @@ export function updateEconomy(world, options = {}) {
   const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3);
 
   const xikou = world.xikou;
+
+  const playerSilkwormDung = clamp((world.mulberryMatureLandMu ?? 0) * 600);
+  const dungImportQuota = Math.max(0, Math.floor(world.dungImportQuota ?? 0));
+  const maxDungImport = Math.max(0, Math.floor(xikou?.silkwormDungAvailable ?? 0));
+  const requestedDungImport = Math.min(dungImportQuota, maxDungImport);
+  const dungImportCost = Math.ceil(requestedDungImport / 100);
+
+  let importedDung = 0;
+  let dungImportCostPaid = 0;
+  let dungImportCurrency = 'grain';
+
+  if (requestedDungImport > 0 && xikou?.diplomaticContact) {
+    if (world.grainCouponsUnlocked) {
+      const availableCoupons = Math.max(0, Math.floor(world.couponTreasury ?? 0));
+      if (availableCoupons >= dungImportCost) {
+        world.couponTreasury = availableCoupons - dungImportCost;
+        importedDung = requestedDungImport;
+        dungImportCostPaid = dungImportCost;
+        dungImportCurrency = 'coupon';
+      }
+    } else {
+      const availableGrain = Math.max(0, Math.floor(world.grainTreasury ?? 0));
+      if (availableGrain >= dungImportCost) {
+        world.grainTreasury = availableGrain - dungImportCost;
+        importedDung = requestedDungImport;
+        dungImportCostPaid = dungImportCost;
+        dungImportCurrency = 'grain';
+      }
+    }
+  }
+
+  if (importedDung > 0) {
+    if (xikou) {
+      xikou.attitudeToPlayer = clampAttitude((xikou.attitudeToPlayer ?? 0) + 1);
+    }
+    behaviorMessages.push(
+      `蚕沙进口执行：进口${clamp(importedDung)}斤，支付${clamp(dungImportCostPaid)}${
+        dungImportCurrency === 'coupon' ? '粮劵' : '粮食'
+      }`
+    );
+  } else if (requestedDungImport > 0) {
+    behaviorMessages.push('蚕沙进口执行失败：未建立外交联系或储备不足');
+  }
+
+  const totalDung = clamp(playerSilkwormDung + importedDung);
+  const dungCoverageRaw =
+    (world.farmlandAreaMu ?? 0) > 0 ? totalDung / ((world.farmlandAreaMu ?? 0) * 600) : 0;
+  const dungCoverage = clampRatio(dungCoverageRaw);
+  const fertilizerBonus = getFertilizerBonus(dungCoverage);
+
+  world.playerSilkwormDung = playerSilkwormDung;
+  world.importedDung = importedDung;
+  world.totalDung = totalDung;
+  world.dungCoverage = dungCoverage;
+  world.fertilizerBonus = fertilizerBonus;
+  world.dungImportQuota = dungImportQuota;
+
   const maxSaltImport = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
   const desiredSaltImport = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
   const actualSaltImport = Math.min(desiredSaltImport, maxSaltImport);
@@ -922,6 +994,16 @@ export function updateEconomy(world, options = {}) {
     world.creditCrisis = false;
     world.creditCrisisResolved = true;
     world.backingRatio = 1;
+  }
+
+  adjustedGrainOutput = clamp(adjustedGrainOutput * (world.fertilizerBonus ?? 1));
+  const cappedMaxYieldOutput = clamp((world.farmlandAreaMu ?? 0) * 600);
+  adjustedGrainOutput = Math.min(adjustedGrainOutput, cappedMaxYieldOutput);
+
+  if ((world.fertilizerBonus ?? 1) > 1) {
+    behaviorMessages.push(
+      `蚕沙肥覆盖率${Math.round((world.dungCoverage ?? 0) * 100)}%，粮食产出加成${Math.round(((world.fertilizerBonus ?? 1) - 1) * 100)}%`
+    );
   }
 
   const lostGrainOutput = clamp(potentialGrainOutput - adjustedGrainOutput);
