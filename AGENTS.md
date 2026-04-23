@@ -995,3 +995,73 @@ state.js
 - UI shows current attitude value and label
 - UI shows factors affecting attitude this year
 - yearLog records attitude-changing events
+## Phase 4A-3 Scope (Current)
+
+Phase 4A-2 is complete. Now implementing Phase 4A-3 only.
+
+**Goal:** Player can establish trade agreements with Xikou
+Village. Trade affects both economies and attitude.
+
+**Rules:**
+
+Trade only available if:
+- diplomaticContact = true
+- attitudeToPlayer >= -9 (neutral or better)
+
+Two trade options:
+
+1. 粮食换盐 (Grain for Salt)
+- Player offers: grainAmount (player sets amount)
+- Xikou gives: grainAmount * 0.5 jin of salt
+  (2 jin grain = 1 jin salt, salt is valuable)
+- Minimum order: 10000 grain
+- Maximum order: xikou.saltOutputJin * 0.5 per year
+  (Xikou keeps half their salt)
+- Cannot trade if xikou.saltOutputJin = 0
+- Cannot trade if player grainTreasury < grainAmount
+- Effect: player grainTreasury -= grainAmount
+- Effect: player saltReserve += salt received
+- Effect: xikou.grainTreasury += grainAmount
+- Effect: attitudeToPlayer += 3
+- yearLog: "与溪口村完成粮盐交易"
+
+2. 粮食换布匹 (Grain for Cloth)
+- Player offers: grainAmount
+- Xikou gives: grainAmount * 0.3 jin of cloth
+- Minimum order: 5000 grain
+- Cannot trade if xikou.clothOutput = 0
+- Effect: player grainTreasury -= grainAmount
+- Effect: player clothReserve += cloth received
+- Effect: xikou.grainTreasury += grainAmount
+- Effect: attitudeToPlayer += 2
+- yearLog: "与溪口村完成粮布交易"
+
+Both trades can happen once per year each.
+Trade resets on year-advance.
+
+Attitude bonus from trade:
+- If player trades both in same year: attitudeToPlayer += 3
+  additional bonus
+
+State additions needed in world{}:
+- saltReserve: 0
+- clothReserve: 0
+- saltTradeUsed: false
+- clothTradeUsed: false
+
+State additions needed in xikou{}:
+- saltReserve: 0 (accumulated unsold salt)
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 4A-3):**
+- Trade buttons visible when conditions met
+- Player inputs grain amount before confirming
+- Both resources update correctly after trade
+- Trade buttons disabled after use until next year
+- UI shows player salt and cloth reserves
+- UI shows Xikou available salt and cloth for trade
+- Attitude updates after each trade
+- yearLog records trade details including amounts
