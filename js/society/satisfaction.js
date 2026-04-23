@@ -345,3 +345,21 @@ export function calculateClassSatisfaction(world) {
     landlordLifeQuality: world.landlordLifeQuality,
   };
 }
+
+
+export function applyPoliceLifeQualityEffects(world, policeEffects) {
+  if (!world || !policeEffects) return;
+
+  const merchantDelta = Number(policeEffects.merchantLifeQualityDelta ?? 0);
+  const farmerDelta = Number(policeEffects.farmerLifeQualityDelta ?? 0);
+
+  if (merchantDelta !== 0) {
+    world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50) + merchantDelta);
+    world.merchantSatisfaction = world.merchantLifeQuality;
+  }
+
+  if (farmerDelta !== 0) {
+    world.farmerLifeQuality = clampPercentIndex(Number(world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) + farmerDelta);
+    world.farmerSatisfaction = world.farmerLifeQuality;
+  }
+}

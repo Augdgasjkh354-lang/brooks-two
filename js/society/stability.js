@@ -326,3 +326,204 @@ export function calculateFireLeakage(world) {
   world.fireLeakageFactors = factors.join(' | ') || '基准火耗 5%';
   return { rate, factors };
 }
+
+
+export function ensurePoliceInstitution(world, yearLog = null) {
+  if (!world) return false;
+
+  const unlocked = Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 100;
+  if (unlocked && !world.policeEstablished) {
+    world.policeEstablished = true;
+    if (Array.isArray(yearLog)) {
+      yearLog.unshift(`Year ${world.year}: 警务机构已建立（文官人才达到100）。`);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function getPoliceRatioTier(policeRatio) {
+  if (policeRatio < 1 / 1000) {
+    return {
+      key: 'extreme_shortage',
+      label: '警力极度短缺',
+      stabilityDelta: -20,
+      commerceMultiplier: 0.9,
+      merchantLifeQualityDelta: 0,
+      farmerLifeQualityDelta: 0,
+      message: '治安崩溃，盗贼横行',
+    };
+  }
+
+  if (policeRatio < 1 / 500) {
+    return {
+      key: 'shortage',
+      label: '警力不足',
+      stabilityDelta: -10,
+      commerceMultiplier: 1,
+      merchantLifeQualityDelta: 0,
+      farmerLifeQualityDelta: 0,
+      message: '治安较差，民间纠纷频发',
+    };
+  }
+
+  if (policeRatio < 1 / 200) {
+    return {
+      key: 'adequate',
+      label: '警力适中',
+      stabilityDelta: 0,
+      commerceMultiplier: 1,
+      merchantLifeQualityDelta: 0,
+      farmerLifeQualityDelta: 0,
+      message: '',
+    };
+  }
+
+  if (policeRatio < 1 / 100) {
+    return {
+      key: 'good',
+      label: '警力良好',
+      stabilityDelta: 5,
+      commerceMultiplier: 1.05,
+      merchantLifeQualityDelta: 5,
+      farmerLifeQualityDelta: 0,
+      message: '治安良好，商业繁荣',
+    };
+  }
+
+  return {
+    key: 'excessive',
+    label: '警力过剩',
+    stabilityDelta: 3,
+    commerceMultiplier: 1,
+    merchantLifeQualityDelta: 0,
+    farmerLifeQualityDelta: -10,
+    message: '警力过剩，民间压迫感强',
+  };
+}
+
+export function calculatePoliceEffects(world) {
+  const totalPopulation = Math.max(1, Number(world?.totalPopulation ?? 0));
+  if (!world?.policeEstablished) {
+    world.policeRatio = 0;
+    world.policeEfficiency = 0;
+    world.policeEfficiencyTalent = 0;
+    world.policeEfficiencyPaper = 0;
+    world.policeEfficiencyStaffing = 0;
+    world.policePaperInsufficient = false;
+    world.policeStatusLabel = '未建立';
+    world.policeEffectsSummary = '警务机构未建立';
+    world.adminTalentDeployedPolice = 0;
+    return {
+      established: false,
+      policeRatio: 0,
+      policeRatioTier: 'inactive',
+      policeRatioLabel: '未建立',
+      stabilityDelta: 0,
+      commerceMultiplier: 1,
+      merchantLifeQualityDelta: 0,
+      farmerLifeQualityDelta: 0,
+      message: '',
+      efficiency: 0,
+      paperInsufficient: false,
+      talentInsufficient: false,
+      annualPoliceCost: 0,
+    };
+  }
+  const adminTalent = Math.max(0, Number(world?.adminTalent ?? 0));
+  const officerCount = Math.max(0, Math.floor(Number(world?.policeOfficerCount ?? 0)));
+  world.policeOfficerCount = officerCount;
+
+  const policeRatio = officerCount / totalPopulation;
+  world.policeRatio = policeRatio;
+
+  const gdpPerCapita = Math.max(0, Number(world?.gdpPerCapita ?? 0));
+  const currentWage = Number(world?.officerWage ?? 0);
+  world.officerWage = currentWage > 0 ? currentWage : gdpPerCapita * 1.2;
+  world.adminTalentDeployedPolice = officerCount;
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const requiredTalent = institutionSize * 2;
+  const deployedTalent = Math.max(0, Math.min(officerCount, adminTalent));
+  const talentRatio = requiredTalent > 0 ? deployedTalent / requiredTalent : 1;
+
+  let talentTierMultiplier = 1.0;
+  if (talentRatio < 0.3) talentTierMultiplier = 0;
+  else if (talentRatio < 0.6) talentTierMultiplier = 0.5;
+  else if (talentRatio < 0.9) talentTierMultiplier = 0.8;
+  else if (talentRatio > 1.0) talentTierMultiplier = 1.1;
+
+  const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
+
+  const paperOutput = Math.max(0, Number(world?.paperOutput ?? 0));
+  const policePaperDemand = paperOutput * 0.08;
+  const paperSupply = paperOutput > 0 ? 100 : 50;
+
+  const requiredStaff = institutionSize * 5;
+  const staffingRatio = requiredStaff > 0 ? officerCount / requiredStaff : 1;
+  const staffing = clampPercent(Math.min(1, staffingRatio) * 100);
+
+  let efficiency = clampPercent(talentAdequacy * 0.4 + paperSupply * 0.3 + staffing * 0.3);
+  let paperInsufficient = false;
+
+  if (policePaperDemand <= 0) {
+    paperInsufficient = true;
+    efficiency = clampPercent(efficiency - 20);
+  }
+
+  const availableTalentForPolice = adminTalent >= officerCount;
+  if (!availableTalentForPolice && officerCount > 0) {
+    efficiency = clampPercent(efficiency * 0.5);
+  }
+
+  world.policeEfficiencyTalent = talentAdequacy;
+  world.policeEfficiencyPaper = paperSupply;
+  world.policeEfficiencyStaffing = staffing;
+  world.policeEfficiency = efficiency;
+  world.policePaperInsufficient = paperInsufficient;
+
+  let ratioEffects = getPoliceRatioTier(policeRatio);
+
+  const efficiencyScale = efficiency < 60 ? 0.5 : 1;
+  if (efficiency < 30) {
+    ratioEffects = {
+      ...ratioEffects,
+      stabilityDelta: -ratioEffects.stabilityDelta,
+      commerceMultiplier: ratioEffects.commerceMultiplier === 1 ? 1 : 1 - (ratioEffects.commerceMultiplier - 1),
+      merchantLifeQualityDelta: -ratioEffects.merchantLifeQualityDelta,
+      farmerLifeQualityDelta: -ratioEffects.farmerLifeQualityDelta,
+      message: '警察系统效率低下，执法混乱',
+      label: `${ratioEffects.label}（反转）`,
+    };
+  } else if (efficiency < 60) {
+    ratioEffects = {
+      ...ratioEffects,
+      stabilityDelta: ratioEffects.stabilityDelta * efficiencyScale,
+      commerceMultiplier: 1 + (ratioEffects.commerceMultiplier - 1) * efficiencyScale,
+      merchantLifeQualityDelta: ratioEffects.merchantLifeQualityDelta * efficiencyScale,
+      farmerLifeQualityDelta: ratioEffects.farmerLifeQualityDelta * efficiencyScale,
+    };
+  }
+
+  const ratioLine = `警民比 ${(policeRatio * 1000).toFixed(2)}/千人（${ratioEffects.label}）`;
+  const effLine = `效率 ${efficiency.toFixed(1)}%`;
+  world.policeStatusLabel = ratioEffects.label;
+  world.policeEffectsSummary = `${ratioLine}，${effLine}`;
+
+  return {
+    established: Boolean(world.policeEstablished),
+    policeRatio,
+    policeRatioTier: ratioEffects.key,
+    policeRatioLabel: ratioEffects.label,
+    stabilityDelta: ratioEffects.stabilityDelta,
+    commerceMultiplier: ratioEffects.commerceMultiplier,
+    merchantLifeQualityDelta: ratioEffects.merchantLifeQualityDelta,
+    farmerLifeQualityDelta: ratioEffects.farmerLifeQualityDelta,
+    message: ratioEffects.message,
+    efficiency,
+    paperInsufficient,
+    talentInsufficient: !availableTalentForPolice && officerCount > 0,
+    annualPoliceCost: officerCount * Math.max(0, Number(world.officerWage ?? 0)),
+  };
+}
