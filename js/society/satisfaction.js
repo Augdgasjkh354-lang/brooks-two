@@ -396,3 +396,29 @@ export function applyPoliceLifeQualityEffects(world, policeEffects) {
     world.farmerSatisfaction = world.farmerLifeQuality;
   }
 }
+
+export function applyCourtTaxLifeQualityEffects(world, courtEffects = null) {
+  if (!world) return;
+
+  if (courtEffects) {
+    const merchantDelta = Number(courtEffects.merchantLifeQualityDelta ?? 0);
+    if (merchantDelta !== 0) {
+      world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) + merchantDelta);
+      world.merchantSatisfaction = world.merchantLifeQuality;
+    }
+  }
+
+  const commerceTaxRate = Math.max(0, Number(world.commerceTaxRate ?? 0));
+  if (commerceTaxRate > 0.2) {
+    world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) - 15);
+    world.merchantSatisfaction = world.merchantLifeQuality;
+  }
+
+  const landTaxRate = Math.max(0, Number(world.landTaxRate ?? 0));
+  if (landTaxRate > 3) {
+    world.farmerLifeQuality = clampPercentIndex(Number(world.farmerLifeQuality ?? 50) - 10);
+    world.landlordLifeQuality = clampPercentIndex(Number(world.landlordLifeQuality ?? 50) - 15);
+    world.farmerSatisfaction = world.farmerLifeQuality;
+    world.landlordSatisfaction = world.landlordLifeQuality;
+  }
+}

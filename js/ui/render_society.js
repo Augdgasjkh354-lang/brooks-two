@@ -570,6 +570,74 @@ function getHealthPanelHtml(world) {
   `;
 }
 
+
+function getCourtPanelHtml(world) {
+  const unlocked = Boolean(world.courtEstablished) || (Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 200 && Boolean(world.codifiedLawPolicyActive));
+  if (!unlocked) return '<div class="muted">需满足：政府已建立、文官人才≥200、律法成文。</div>';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>法院状态</strong></div>
+        <div class="stat-value">${world.courtEstablished ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">信用评级：${world.creditRating ?? 'B'} / 纠纷率：${formatDecimal((world.disputeRate ?? 0) * 100, 1)}%</div>
+      </div>
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>法官人数</div>
+        <input class="gov-config" data-key="judgeCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.judgeCount ?? 0)))}" ${!world.courtEstablished ? 'disabled' : ''} />
+        <div class="muted">文官占用：${formatNumber(world.adminTalentDeployedCourt ?? 0)}</div>
+        <div>法官工资</div>
+        <input class="gov-config" data-key="judgeWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.judgeWage ?? 0)).toFixed(0)}" ${!world.courtEstablished ? 'disabled' : ''} />
+        <div class="muted">年成本：${formatNumber(world.courtAnnualCost ?? 0)}</div>
+      </div>
+      <div class="stat-item">
+        <div class="muted">法院效率：${formatDecimal(world.courtEfficiency ?? 0, 1)}%</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.courtEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.courtEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.courtEfficiencyStaffing ?? 0, 1)}%</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label>信用评级</label>
+          <select class="gov-config-select" data-key="creditRating">
+            ${['A','B','C','D'].map((r)=>`<option value="${r}" ${String(world.creditRating ?? 'B')===r?'selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getTaxBureauPanelHtml(world) {
+  const unlocked = Boolean(world.taxBureauEstablished) || (Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 150 && Boolean(world.householdRegistryActive));
+  if (!unlocked) return '<div class="muted">需满足：政府已建立、文官人才≥150、户籍制度启用。</div>';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>税务局状态</strong></div>
+        <div class="stat-value">${world.taxBureauEstablished ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">税务效率：${formatDecimal(world.taxBureauEfficiency ?? 0, 1)}% / 税收倍率：${formatDecimal((world.taxBureauRevenueMultiplier ?? 1) * 100, 1)}%</div>
+      </div>
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>税务官人数</div>
+        <input class="gov-config" data-key="taxOfficerCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.taxOfficerCount ?? 0)))}" ${!world.taxBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">文官占用：${formatNumber(world.adminTalentDeployedTax ?? 0)}</div>
+        <div>税务官工资</div>
+        <input class="gov-config" data-key="taxOfficerWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.taxOfficerWage ?? 0)).toFixed(0)}" ${!world.taxBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">年成本：${formatNumber(world.taxBureauAnnualCost ?? 0)}</div>
+        <div>税务技术人才</div>
+        <input class="gov-config" data-key="techTalentDeployedTax" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.techTalentDeployedTax ?? 0)))}" ${!world.taxBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">按50%折算编制效率</div>
+      </div>
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>商业税率(0-30%)</div>
+        <input class="gov-config" data-key="commerceTaxRate" type="number" min="0" max="0.3" step="0.01" value="${Number(world.commerceTaxRate ?? 0)}" ${!world.taxBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">本年商业税收：${formatNumber(world.commerceTaxRevenue ?? 0)}</div>
+        <div>土地税率(0-5/亩)</div>
+        <input class="gov-config" data-key="landTaxRate" type="number" min="0" max="5" step="0.1" value="${Number(world.landTaxRate ?? 0)}" ${!world.taxBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">本年土地税收：${formatNumber(world.landTaxRevenue ?? 0)}</div>
+      </div>
+    </div>
+  `;
+}
+
 function bindGovernmentPanelEvents() {
   document.querySelectorAll('.gov-config').forEach((el) => {
     el.addEventListener('input', () => {
@@ -583,6 +651,14 @@ function bindGovernmentPanelEvents() {
     el.addEventListener('change', () => {
       document.dispatchEvent(new CustomEvent('government:config', {
         detail: { key: el.getAttribute('data-key'), checked: el.checked }
+      }));
+    });
+  });
+
+  document.querySelectorAll('.gov-config-select').forEach((el) => {
+    el.addEventListener('change', () => {
+      document.dispatchEvent(new CustomEvent('government:config', {
+        detail: { key: el.getAttribute('data-key'), valueText: el.value }
       }));
     });
   });
@@ -647,6 +723,8 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     <section class="panel"><h2>Government Institution</h2>${getGovernmentPanelHtml(world)}</section>
     <section class="panel"><h2>Police Bureau</h2>${getPolicePanelHtml(world)}</section>
     <section class="panel"><h2>Health Bureau</h2>${getHealthPanelHtml(world)}</section>
+    <section class="panel"><h2>Court</h2>${getCourtPanelHtml(world)}</section>
+    <section class="panel"><h2>Tax Bureau</h2>${getTaxBureauPanelHtml(world)}</section>
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>

@@ -715,14 +715,24 @@ export function updateEconomy(world, options = {}) {
   const salaryGrainRatio = clampRatio(world.salaryGrainRatio ?? 1);
   world.taxGrainRatio = taxGrainRatio;
   world.salaryGrainRatio = salaryGrainRatio;
+  world.landTaxRate = clampBetween(Number(world.landTaxRate ?? 0), 0, 5);
 
   if (collectTax) {
     const farmlandRentRate = clampBetween(Number(world.farmlandRentRate ?? 0), 0, 20);
     world.farmlandRentRate = farmlandRentRate;
     const farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
+    const landTaxCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * Number(world.landTaxRate ?? 0));
+    const commerceTaxRate = Math.max(0, Math.min(0.3, Number(world.commerceTaxRate ?? 0)));
+    if (commerceTaxRate > 0.2) {
+      world.commerceGDP = Math.max(0, Number(world.commerceGDP ?? 0) * 0.9);
+      adjustedCommerceGDP = Math.max(0, adjustedCommerceGDP * 0.9);
+    }
+    const commerceTaxCollected = Math.max(0, Number(world.commerceGDP ?? 0) * commerceTaxRate);
+    world.commerceTaxRevenue = commerceTaxCollected;
 
-    const theoreticalTaxRevenue = Math.max(0, agriculturalTax);
-    const actualTaxRevenue = theoreticalTaxRevenue * (1 - (world.fireLeakageRate ?? fireLeakageInfo.rate ?? 0.05));
+    const theoreticalTaxRevenue = Math.max(0, agriculturalTax + landTaxCollected + commerceTaxCollected);
+    const taxBureauMultiplier = Math.max(0.5, Number(world.taxBureauRevenueMultiplier ?? 1));
+    const actualTaxRevenue = theoreticalTaxRevenue * (1 - (world.fireLeakageRate ?? fireLeakageInfo.rate ?? 0.05)) * taxBureauMultiplier;
     const leakedTax = Math.max(0, theoreticalTaxRevenue - actualTaxRevenue);
     const leakedToOfficials = leakedTax * 0.6;
 
@@ -733,6 +743,8 @@ export function updateEconomy(world, options = {}) {
     const taxToCoupon = actualTaxRevenue - taxToGrain;
     const rentToGrain = farmlandRentCollected * taxGrainRatio;
     const rentToCoupon = farmlandRentCollected - rentToGrain;
+    const landTaxToGrain = landTaxCollected * taxGrainRatio;
+    const landTaxToCoupon = landTaxCollected - landTaxToGrain;
 
     const totalSalaryCost = Math.max(0, Number(world.totalSalaryCost ?? 0));
     const desiredCouponSalary = totalSalaryCost * (1 - salaryGrainRatio);
@@ -750,7 +762,7 @@ export function updateEconomy(world, options = {}) {
       actualGrainSalary = totalSalaryCost;
     }
 
-    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain + rentToGrain - actualGrainSalary);
+    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain + rentToGrain + landTaxToGrain - actualGrainSalary);
 
     const retainedByLedger = clamp((world.grainTreasury ?? 0) * bureaucracyEffects.grainRetentionRate);
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + retainedByLedger);
@@ -765,11 +777,12 @@ export function updateEconomy(world, options = {}) {
       );
     }
 
-    world.couponTreasury = clamp(couponTreasuryAfterTax + rentToCoupon - actualCouponSalary);
+    world.couponTreasury = clamp(couponTreasuryAfterTax + rentToCoupon + landTaxToCoupon - actualCouponSalary);
     world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + actualCouponSalary + actualGrainSalary + leakedToOfficials);
     world.lastSalaryCost = clamp(totalSalaryCost);
     world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;
     world.lastFarmlandRentCollected = clamp(farmlandRentCollected);
+    world.landTaxRevenue = clamp(landTaxCollected);
     world.lastTaxCollectionYear = world.year;
 
     if ((world.fireLeakageRate ?? 0) > 0.25) {
@@ -786,10 +799,15 @@ export function updateEconomy(world, options = {}) {
     if (farmlandRentCollected > 0) {
       behaviorMessages.push(`地租征收：共${Math.round(farmlandRentCollected)}（粮${Math.round(rentToGrain)} / 粮劵${Math.round(rentToCoupon)}）`);
     }
+    if (landTaxCollected > 0) {
+      behaviorMessages.push(`土地税征收：共${Math.round(landTaxCollected)}（粮${Math.round(landTaxToGrain)} / 粮劵${Math.round(landTaxToCoupon)}）`);
+    }
   } else {
     world.lastFarmlandRentCollected = 0;
     world.theoreticalTaxRevenue = 0;
     world.actualTaxRevenue = 0;
+    world.landTaxRevenue = 0;
+    world.commerceTaxRevenue = 0;
   }
 
   world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);

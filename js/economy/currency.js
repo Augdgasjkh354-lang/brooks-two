@@ -11,6 +11,15 @@ function clampIndex(value) {
   return Math.max(0, Math.min(100, Number(value ?? 0)));
 }
 
+
+function getBorrowingRateByCredit(creditRating = 'B') {
+  const rating = String(creditRating || 'B').toUpperCase();
+  if (rating === 'A') return { coupon: 0.03, grain: 0.02 };
+  if (rating === 'B') return { coupon: 0.05, grain: 0.03 };
+  if (rating === 'C') return { coupon: 0.08, grain: 0.05 };
+  return { coupon: Infinity, grain: Infinity };
+}
+
 export function getInflationState(world) {
   if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
     return {
@@ -155,6 +164,10 @@ export function borrowGovernmentDebt(world, amount) {
   }
 
   const debtCurrency = world.grainCouponsUnlocked ? 'coupon' : 'grain';
+  const rates = getBorrowingRateByCredit(world.creditRating ?? 'B');
+  if (!Number.isFinite(rates[debtCurrency])) {
+    return { success: false, reason: 'Credit rating D: borrowing is unavailable.' };
+  }
   if (debtCurrency === 'coupon') {
     world.couponTreasury = clampMoney(world.couponTreasury ?? 0) + borrowAmount;
   } else {
@@ -184,12 +197,13 @@ export function processGovernmentDebtYear(world) {
       interestDue: 0,
       repaymentPaid: 0,
       remainingDebt: 0,
-      interestRate: currency === 'coupon' ? 0.05 : 0.03,
+      interestRate: (() => { const r = getBorrowingRateByCredit(world.creditRating ?? 'B')[currency]; return Number.isFinite(r) ? r : (currency === 'coupon' ? 0.08 : 0.05); })(),
       penaltyMessages: [],
     };
   }
 
-  const interestRate = currency === 'coupon' ? 0.05 : 0.03;
+  const rawRate = getBorrowingRateByCredit(world.creditRating ?? 'B')[currency];
+  const interestRate = Number.isFinite(rawRate) ? rawRate : (currency === 'coupon' ? 0.08 : 0.05);
   const interestDue = debt * interestRate;
 
   world.governmentDebtInterest = interestDue;

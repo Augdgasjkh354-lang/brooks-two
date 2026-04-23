@@ -287,3 +287,27 @@ export function applyPoliceCommerceEffects(world, policeEffects) {
   const multiplier = Math.max(0, Number(policeEffects.commerceMultiplier ?? 1));
   world.commerceGDP = clampMoney(Number(world.commerceGDP ?? 0) * multiplier);
 }
+
+export function applyCourtCommerceEffects(world, courtEffects) {
+  if (!world || !courtEffects) return;
+  const mult = Math.max(0, Number(courtEffects.commerceMultiplier ?? 1));
+  world.commerceGDP = clampMoney(Number(world.commerceGDP ?? 0) * mult);
+}
+
+export function applyCommerceTax(world) {
+  if (!world) return { revenue: 0, taxRate: 0 };
+
+  const taxRate = clampPercent(Number(world.commerceTaxRate ?? 0), 0, 0.3);
+  world.commerceTaxRate = taxRate;
+
+  let taxableGdp = Math.max(0, Number(world.commerceGDP ?? 0));
+  if (taxRate > 0.2) {
+    taxableGdp *= 0.9;
+    world.commerceGDP = taxableGdp;
+  }
+
+  const revenue = taxableGdp * taxRate;
+  world.commerceTaxRevenue = revenue;
+
+  return { revenue, taxRate, taxableGdp };
+}

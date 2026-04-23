@@ -300,11 +300,11 @@ export function calculateFireLeakage(world) {
     factors.push('司法机构未设立 +2%');
   }
 
-  if (world.taxBureauEstablished && (world.governmentEfficiency ?? 0) > 80) {
+  if (world.taxBureauEstablished && (world.taxBureauEfficiency ?? 0) > 80) {
     rate -= 0.03;
     factors.push('税务机构高效 -3%');
   }
-  if (world.courtEstablished && (world.governmentEfficiency ?? 0) > 80) {
+  if (world.courtEstablished && (world.courtEfficiency ?? 0) > 80) {
     rate -= 0.02;
     factors.push('司法机构高效 -2%');
   }
@@ -526,6 +526,170 @@ export function calculatePoliceEffects(world) {
     talentInsufficient: !availableTalentForPolice && officerCount > 0,
     annualPoliceCost: officerCount * Math.max(0, Number(world.officerWage ?? 0)),
   };
+}
+
+
+function calculateInstitutionEfficiency({ institutionSize, deployedTalent, paperOutput, paperShare, staffCount, staffTalentBonus = 0 }) {
+  const requiredTalent = institutionSize * 2;
+  const talentRatio = requiredTalent > 0 ? deployedTalent / requiredTalent : 1;
+
+  let talentTierMultiplier = 1.0;
+  if (talentRatio < 0.3) talentTierMultiplier = 0;
+  else if (talentRatio < 0.6) talentTierMultiplier = 0.5;
+  else if (talentRatio < 0.9) talentTierMultiplier = 0.8;
+  else if (talentRatio > 1.0) talentTierMultiplier = 1.1;
+
+  const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
+  const requiredPaper = Math.max(0, paperOutput * paperShare);
+  let paperSupply = 50;
+  if (paperOutput > 0) {
+    const ratio = requiredPaper > 0 ? (paperOutput * paperShare) / requiredPaper : 1;
+    paperSupply = Math.max(30, Math.min(100, ratio * 100));
+  }
+
+  const requiredStaff = institutionSize * 5;
+  const staffingRaw = requiredStaff > 0 ? (staffCount + staffTalentBonus) / requiredStaff : 1;
+  const staffing = clampPercent(Math.min(1, staffingRaw) * 100);
+
+  return {
+    talentAdequacy,
+    paperSupply,
+    staffing,
+    efficiency: clampPercent(talentAdequacy * 0.4 + paperSupply * 0.3 + staffing * 0.3),
+  };
+}
+
+export function ensureCourtInstitution(world, yearLog = null) {
+  if (!world) return false;
+  const unlocked = Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 200 && Boolean(world.codifiedLawPolicyActive);
+  if (unlocked && !world.courtEstablished) {
+    world.courtEstablished = true;
+    if (Array.isArray(yearLog)) yearLog.unshift(`Year ${world.year}: 法院已建立（文官人才达到200且律法成文已实施）。`);
+    return true;
+  }
+  return false;
+}
+
+export function ensureTaxBureauInstitution(world, yearLog = null) {
+  if (!world) return false;
+  const unlocked = Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 150 && Boolean(world.householdRegistryActive);
+  if (unlocked && !world.taxBureauEstablished) {
+    world.taxBureauEstablished = true;
+    if (Array.isArray(yearLog)) yearLog.unshift(`Year ${world.year}: 税务局已建立（文官人才达到150且户籍制度已启用）。`);
+    return true;
+  }
+  return false;
+}
+
+export function calculateCourtEffects(world) {
+  if (!world?.courtEstablished) {
+    world.courtEfficiency = 0;
+    world.disputeRate = 1;
+    world.adminTalentDeployedCourt = 0;
+    return { established: false, efficiency: 0, disputeRate: 1, commerceMultiplier: 1, merchantLifeQualityDelta: 0, merchantSatisfactionDelta: 0, fireLeakageDelta: 0, creditRatingCap: 'D', annualCourtCost: 0, message: '' };
+  }
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 0));
+  world.judgeCount = Math.max(0, Math.floor(Number(world.judgeCount ?? 0)));
+  const adminTalent = Math.max(0, Number(world.adminTalent ?? 0));
+  world.adminTalentDeployedCourt = Math.min(world.judgeCount, adminTalent);
+
+  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  if ((world.judgeWage ?? 0) <= 0) world.judgeWage = gdpPc * 2.0;
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const eff = calculateInstitutionEfficiency({
+    institutionSize,
+    deployedTalent: world.adminTalentDeployedCourt,
+    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
+    paperShare: 0.15,
+    staffCount: world.judgeCount,
+  });
+
+  world.courtEfficiencyTalent = eff.talentAdequacy;
+  world.courtEfficiencyPaper = eff.paperSupply;
+  world.courtEfficiencyStaffing = eff.staffing;
+  world.courtEfficiency = eff.efficiency;
+  world.disputeRate = Math.max(0, 1 - eff.efficiency / 100);
+
+  let commerceMultiplier = 1;
+  let merchantLifeQualityDelta = 0;
+  let merchantSatisfactionDelta = 0;
+  let fireLeakageDelta = 0;
+  let creditRatingCap = 'C';
+  let message = '';
+
+  if (eff.efficiency >= 80) {
+    merchantLifeQualityDelta = 8;
+    commerceMultiplier *= 1.05;
+    fireLeakageDelta = -0.02;
+    creditRatingCap = 'A';
+    message = '法院运作良好，商业纠纷大减';
+  } else if (eff.efficiency >= 50) {
+    merchantLifeQualityDelta = 3;
+    creditRatingCap = 'B';
+  } else if (eff.efficiency < 30) {
+    merchantLifeQualityDelta = -10;
+    message = '法院效率低下，民间积案严重';
+  }
+
+  if (world.disputeRate > 0.5) {
+    commerceMultiplier *= 0.95;
+    merchantSatisfactionDelta -= 10;
+    message = message ? `${message}；商业纠纷频发，影响市场秩序` : '商业纠纷频发，影响市场秩序';
+  }
+
+  const annualCourtCost = world.judgeCount * Math.max(0, Number(world.judgeWage ?? 0));
+  return { established: true, efficiency: eff.efficiency, disputeRate: world.disputeRate, commerceMultiplier, merchantLifeQualityDelta, merchantSatisfactionDelta, fireLeakageDelta, creditRatingCap, annualCourtCost, message };
+}
+
+export function calculateTaxBureauEffects(world) {
+  if (!world?.taxBureauEstablished) {
+    world.taxBureauEfficiency = 0;
+    world.adminTalentDeployedTax = 0;
+    world.taxBureauRevenueMultiplier = 1;
+    return { established: false, efficiency: 0, revenueMultiplier: 1, fireLeakageDelta: 0, annualTaxCost: 0, message: '' };
+  }
+
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 0));
+  world.taxOfficerCount = Math.max(0, Math.floor(Number(world.taxOfficerCount ?? 0)));
+  const adminTalent = Math.max(0, Number(world.adminTalent ?? 0));
+  world.adminTalentDeployedTax = Math.min(world.taxOfficerCount, adminTalent);
+
+  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  if ((world.taxOfficerWage ?? 0) <= 0) world.taxOfficerWage = gdpPc * 1.0;
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const eff = calculateInstitutionEfficiency({
+    institutionSize,
+    deployedTalent: world.adminTalentDeployedTax,
+    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
+    paperShare: 0.2,
+    staffCount: world.taxOfficerCount,
+    staffTalentBonus: Math.max(0, Number(world.techTalentDeployedTax ?? 0)) * 0.5,
+  });
+
+  world.taxBureauEfficiencyTalent = eff.talentAdequacy;
+  world.taxBureauEfficiencyPaper = eff.paperSupply;
+  world.taxBureauEfficiencyStaffing = eff.staffing;
+  world.taxBureauEfficiency = eff.efficiency;
+
+  let revenueMultiplier = 1;
+  let fireLeakageDelta = 0;
+  let message = '';
+  if (eff.efficiency >= 80) {
+    revenueMultiplier = 1.10;
+    fireLeakageDelta = -0.02;
+    message = '税务局运作高效，税收大幅提升';
+  } else if (eff.efficiency >= 50) {
+    revenueMultiplier = 1.05;
+  } else if (eff.efficiency < 30) {
+    revenueMultiplier = 0.90;
+    message = '税务局效率低下，大量漏税';
+  }
+
+  world.taxBureauRevenueMultiplier = revenueMultiplier;
+  const annualTaxCost = world.taxOfficerCount * Math.max(0, Number(world.taxOfficerWage ?? 0));
+  return { established: true, efficiency: eff.efficiency, revenueMultiplier, fireLeakageDelta, annualTaxCost, message };
 }
 
 export function ensureHealthBureauInstitution(world, yearLog = null) {
