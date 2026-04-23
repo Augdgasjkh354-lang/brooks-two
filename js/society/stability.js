@@ -581,6 +581,163 @@ export function ensureTaxBureauInstitution(world, yearLog = null) {
   return false;
 }
 
+export function ensureTradeBureauInstitution(world, yearLog = null) {
+  if (!world) return false;
+  const unlocked =
+    Boolean(world.governmentEstablished) &&
+    Number(world.commerceTalent ?? 0) >= 100 &&
+    Boolean(world.techBonuses?.newTradePartners);
+  if (unlocked && !world.tradeBureauEstablished) {
+    world.tradeBureauEstablished = true;
+    world.newTradePartnerUnlocked = true;
+    if (Array.isArray(yearLog)) {
+      yearLog.unshift(`Year ${world.year}: 贸易管理局已建立（商贸人才达到100且远途贸易已完成）。`);
+    }
+    return true;
+  }
+  return false;
+}
+
+export function ensureEngineeringBureauInstitution(world, yearLog = null) {
+  if (!world) return false;
+  const unlocked =
+    Boolean(world.governmentEstablished) &&
+    Number(world.techTalent ?? 0) >= 100 &&
+    Boolean(world.techBonuses?.flourProcessing);
+  if (unlocked && !world.engineeringBureauEstablished) {
+    world.engineeringBureauEstablished = true;
+    if (Array.isArray(yearLog)) {
+      yearLog.unshift(`Year ${world.year}: 工程局已建立（技术人才达到100且水车磨坊已完成）。`);
+    }
+    return true;
+  }
+  return false;
+}
+
+export function calculateTradeBureauEffects(world) {
+  if (!world?.tradeBureauEstablished) {
+    world.tradeBureauEfficiency = 0;
+    world.tradeBureauTradeBonus = 0;
+    world.commerceTalentDeployedTrade = 0;
+    world.tradeBureauAnnualCost = 0;
+    return { established: false, efficiency: 0, tradeBonus: 0, annualTradeCost: 0, message: '' };
+  }
+
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 0));
+  world.tradeOfficerCount = Math.max(0, Math.floor(Number(world.tradeOfficerCount ?? 0)));
+  const commerceTalent = Math.max(0, Number(world.commerceTalent ?? 0));
+  world.commerceTalentDeployedTrade = Math.min(world.tradeOfficerCount, commerceTalent);
+
+  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  if ((world.tradeOfficerWage ?? 0) <= 0) world.tradeOfficerWage = gdpPc * 1.3;
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const eff = calculateInstitutionEfficiency({
+    institutionSize,
+    deployedTalent: world.commerceTalentDeployedTrade * 2,
+    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
+    paperShare: 0.12,
+    staffCount: world.tradeOfficerCount,
+  });
+
+  world.tradeBureauEfficiencyTalent = eff.talentAdequacy;
+  world.tradeBureauEfficiencyPaper = eff.paperSupply;
+  world.tradeBureauEfficiencyStaffing = eff.staffing;
+  world.tradeBureauEfficiency = eff.efficiency;
+
+  let tradeBonus = 0.1;
+  let message = '';
+  let quotaBonus = 0;
+  let attitudeDelta = 0;
+
+  if (eff.efficiency >= 80) {
+    tradeBonus += 0.15;
+    quotaBonus = 0.2;
+    attitudeDelta = 2;
+    message = '贸易局运作高效，对外贸易繁荣';
+  } else if (eff.efficiency >= 50) {
+    tradeBonus += 0.05;
+  } else if (eff.efficiency < 30) {
+    tradeBonus -= 0.05;
+    message = '贸易局效率低下，贸易受阻';
+  }
+
+  world.tradeBureauTradeBonus = tradeBonus;
+  world.tradeQuotaBonus = quotaBonus;
+  world.tradeBureauAttitudeDelta = attitudeDelta;
+  const annualTradeCost = world.tradeOfficerCount * Math.max(0, Number(world.tradeOfficerWage ?? 0));
+  world.tradeBureauAnnualCost = annualTradeCost;
+
+  return { established: true, efficiency: eff.efficiency, tradeBonus, quotaBonus, attitudeDelta, annualTradeCost, message };
+}
+
+export function calculateEngineeringBureauEffects(world) {
+  if (!world?.engineeringBureauEstablished) {
+    world.engineeringBureauEfficiency = 0;
+    world.techTalentDeployedEngineering = 0;
+    world.constructionCostReduction = Math.max(0, Number(world.constructionCostReductionBase ?? 0));
+    world.engineeringBureauAnnualCost = 0;
+    return { established: false, efficiency: 0, constructionCostReduction: world.constructionCostReduction, reclaimEfficiencyBonus: 0, annualEngineeringCost: 0, message: '' };
+  }
+
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 0));
+  world.engineerCount = Math.max(0, Math.floor(Number(world.engineerCount ?? 0)));
+  const techTalent = Math.max(0, Number(world.techTalent ?? 0));
+  world.techTalentDeployedEngineering = Math.min(world.engineerCount, techTalent);
+
+  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  if ((world.engineerWage ?? 0) <= 0) world.engineerWage = gdpPc * 1.5;
+
+  const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
+  const eff = calculateInstitutionEfficiency({
+    institutionSize,
+    deployedTalent: world.techTalentDeployedEngineering * 2,
+    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
+    paperShare: 0.08,
+    staffCount: world.engineerCount,
+  });
+
+  world.engineeringBureauEfficiencyTalent = eff.talentAdequacy;
+  world.engineeringBureauEfficiencyPaper = eff.paperSupply;
+  world.engineeringBureauEfficiencyStaffing = eff.staffing;
+  world.engineeringBureauEfficiency = eff.efficiency;
+
+  let reduction = 0.05;
+  let reclaimEfficiencyBonus = 0;
+  let infraCostMultiplier = 1;
+  let message = '';
+
+  if (eff.efficiency >= 80) {
+    reduction += 0.10;
+    reclaimEfficiencyBonus = 0.10;
+    infraCostMultiplier = 0.8;
+    message = '工程局运作高效，建设成本大幅降低';
+  } else if (eff.efficiency >= 50) {
+    reduction += 0.05;
+    reclaimEfficiencyBonus = 0.05;
+  } else if (eff.efficiency < 30) {
+    reduction = 0;
+    message = '工程局效率低下，建设无法提速';
+  }
+
+  world.engineeringConstructionReduction = reduction;
+  world.engineeringReclaimBonus = reclaimEfficiencyBonus;
+  world.infrastructureCostMultiplier = infraCostMultiplier;
+  world.constructionCostReduction = Math.max(0, Number(world.constructionCostReductionBase ?? 0)) + reduction;
+  const annualEngineeringCost = world.engineerCount * Math.max(0, Number(world.engineerWage ?? 0));
+  world.engineeringBureauAnnualCost = annualEngineeringCost;
+
+  return {
+    established: true,
+    efficiency: eff.efficiency,
+    constructionCostReduction: world.constructionCostReduction,
+    reclaimEfficiencyBonus,
+    infraCostMultiplier,
+    annualEngineeringCost,
+    message,
+  };
+}
+
 export function calculateCourtEffects(world) {
   if (!world?.courtEstablished) {
     world.courtEfficiency = 0;

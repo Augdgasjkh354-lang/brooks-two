@@ -638,6 +638,71 @@ function getTaxBureauPanelHtml(world) {
   `;
 }
 
+function getTradeBureauPanelHtml(world) {
+  const unlocked =
+    Boolean(world.tradeBureauEstablished) ||
+    (Boolean(world.governmentEstablished) && Number(world.commerceTalent ?? 0) >= 100 && Boolean(world.techBonuses?.newTradePartners));
+  if (!unlocked) return '<div class="muted">需满足：政府已建立、商贸人才≥100、远途贸易已完成。</div>';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>贸易管理局状态</strong></div>
+        <div class="stat-value">${world.tradeBureauEstablished ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">贸易效率加成：${formatDecimal((world.tradeBureauTradeBonus ?? 0) * 100, 1)}% / 进口配额加成：${formatDecimal((world.tradeQuotaBonus ?? 0) * 100, 1)}%</div>
+      </div>
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>贸易官人数</div>
+        <input class="gov-config" data-key="tradeOfficerCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.tradeOfficerCount ?? 0)))}" ${!world.tradeBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">商贸人才占用：${formatNumber(world.commerceTalentDeployedTrade ?? 0)}</div>
+        <div>贸易官工资</div>
+        <input class="gov-config" data-key="tradeOfficerWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.tradeOfficerWage ?? 0)).toFixed(0)}" ${!world.tradeBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">年成本：${formatNumber(world.tradeBureauAnnualCost ?? 0)}</div>
+      </div>
+      <div class="stat-item">
+        <div class="muted">效率：${formatDecimal(world.tradeBureauEfficiency ?? 0, 1)}%</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.tradeBureauEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.tradeBureauEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.tradeBureauEfficiencyStaffing ?? 0, 1)}%</div>
+        <div class="muted">北方商队：${world.newTradePartnerUnlocked ? '已开放' : '未开放'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function getEngineeringBureauPanelHtml(world) {
+  const unlocked =
+    Boolean(world.engineeringBureauEstablished) ||
+    (Boolean(world.governmentEstablished) && Number(world.techTalent ?? 0) >= 100 && Boolean(world.techBonuses?.flourProcessing));
+  if (!unlocked) return '<div class="muted">需满足：政府已建立、技术人才≥100、水车磨坊已完成。</div>';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>工程局状态</strong></div>
+        <div class="stat-value">${world.engineeringBureauEstablished ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">建设减免：${formatDecimal((world.engineeringConstructionReduction ?? 0) * 100, 1)}% / 开荒效率加成：${formatDecimal((world.engineeringReclaimBonus ?? 0) * 100, 1)}%</div>
+      </div>
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>工程师人数</div>
+        <input class="gov-config" data-key="engineerCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.engineerCount ?? 0)))}" ${!world.engineeringBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">技术人才占用：${formatNumber(world.techTalentDeployedEngineering ?? 0)}</div>
+        <div>工程师工资</div>
+        <input class="gov-config" data-key="engineerWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.engineerWage ?? 0)).toFixed(0)}" ${!world.engineeringBureauEstablished ? 'disabled' : ''}/>
+        <div class="muted">年成本：${formatNumber(world.engineeringBureauAnnualCost ?? 0)}</div>
+      </div>
+      <div class="stat-item">
+        <div class="muted">效率：${formatDecimal(world.engineeringBureauEfficiency ?? 0, 1)}%</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.engineeringBureauEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.engineeringBureauEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.engineeringBureauEfficiencyStaffing ?? 0, 1)}%</div>
+        <div class="muted">工程项目：待竣工水渠 ${formatNumber(world.pendingIrrigationCanals ?? 0)} / 已建水渠 ${formatNumber(world.irrigationCanalCount ?? 0)} / 粮仓容量 ${formatNumber(world.grainStorageCapacity ?? 0)}</div>
+      </div>
+      <div class="stat-item" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="build-irrigation-canal-btn" ${!world.engineeringBureauEstablished ? 'disabled' : ''}>修建水渠（5,000,000粮）</button>
+        <button id="build-wall-reinforcement-btn" ${!world.engineeringBureauEstablished || world.wallReinforced ? 'disabled' : ''}>城墙加固（8,000,000粮）</button>
+        <button id="build-granary-expansion-btn" ${!world.engineeringBureauEstablished ? 'disabled' : ''}>粮仓扩建（2,000,000粮）</button>
+      </div>
+    </div>
+  `;
+}
+
 function bindGovernmentPanelEvents() {
   document.querySelectorAll('.gov-config').forEach((el) => {
     el.addEventListener('input', () => {
@@ -725,6 +790,8 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     <section class="panel"><h2>Health Bureau</h2>${getHealthPanelHtml(world)}</section>
     <section class="panel"><h2>Court</h2>${getCourtPanelHtml(world)}</section>
     <section class="panel"><h2>Tax Bureau</h2>${getTaxBureauPanelHtml(world)}</section>
+    <section class="panel"><h2>Trade Bureau</h2>${getTradeBureauPanelHtml(world)}</section>
+    <section class="panel"><h2>Engineering Bureau</h2>${getEngineeringBureauPanelHtml(world)}</section>
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
@@ -778,5 +845,11 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindMoneylenderPolicyEvents(state);
   bindSchoolEvents(state);
   bindGovernmentPanelEvents();
+  const canalBtn = document.getElementById('build-irrigation-canal-btn');
+  const wallBtn = document.getElementById('build-wall-reinforcement-btn');
+  const granaryBtn = document.getElementById('build-granary-expansion-btn');
+  canalBtn?.addEventListener('click', () => document.dispatchEvent(new CustomEvent('engineering:project', { detail: { type: 'canal' } })));
+  wallBtn?.addEventListener('click', () => document.dispatchEvent(new CustomEvent('engineering:project', { detail: { type: 'wall' } })));
+  granaryBtn?.addEventListener('click', () => document.dispatchEvent(new CustomEvent('engineering:project', { detail: { type: 'granary' } })));
   bindTalentEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
 }

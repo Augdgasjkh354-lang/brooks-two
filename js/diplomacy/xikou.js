@@ -109,6 +109,21 @@ export function updateXikouDiplomacy(world) {
     factors.push('溪口村粮储紧张（<100000）：+5');
   }
 
+  if (world.tradeBureauEstablished && (world.tradeBureauEfficiency ?? 0) >= 80) {
+    delta += 2;
+    factors.push('贸易局高效运作：+2');
+  }
+
+  if (world.protectLocalCloth) {
+    delta -= 5;
+    factors.push('贸易保护政策：-5');
+  }
+
+  if ((world.subsidyRate ?? 0) > 0) {
+    delta += 3;
+    factors.push(`贸易补贴（${Math.round((world.subsidyRate ?? 0) * 100)}%）：+3`);
+  }
+
   const roadAttitudeBonus = Math.min(10, Math.floor(Math.max(0, Number(world.roadLength ?? 0)) / 10));
   if (roadAttitudeBonus > 0) {
     delta += roadAttitudeBonus;

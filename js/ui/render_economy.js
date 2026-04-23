@@ -251,6 +251,47 @@ function bindMoneylenderEconomyEvents(state) {
   }
 }
 
+function getTradePolicyControlsHtml(world) {
+  if (!world.tradeBureauEstablished) {
+    return '<div class="muted">需先建立贸易管理局后可调整贸易政策。</div>';
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label><input id="trade-protect-local-cloth" type="checkbox" ${world.protectLocalCloth ? 'checked' : ''}/> 启用贸易保护（布匹进口上限=本地产量30%）</label>
+      <div class="muted">当前保护上限系数：${formatDecimal((world.tradeProtectionQuotaCapRatio ?? 1) * 100, 1)}%</div>
+
+      <label for="trade-subsidy-rate">贸易补贴率：${formatDecimal((world.subsidyRate ?? 0) * 100, 1)}%</label>
+      <input id="trade-subsidy-rate" type="range" min="0" max="0.2" step="0.01" value="${Math.max(0, Math.min(0.2, Number(world.subsidyRate ?? 0)))}" />
+      <div id="trade-subsidy-rate-value" class="muted">预计补贴率：${formatDecimal((world.subsidyRate ?? 0) * 100, 1)}%</div>
+
+      <label><input id="trade-monopoly-granted" type="checkbox" ${world.tradeMonopolyGranted ? 'checked' : ''}/> 授予专营权（商业收益+20%，其他商人满意度下降）</label>
+      <div class="muted">补贴已支出：${formatNumber(world.tradeSubsidyCost ?? 0)}</div>
+    </div>
+  `;
+}
+
+function bindTradePolicyEvents(state) {
+  const protect = document.getElementById('trade-protect-local-cloth');
+  const subsidy = document.getElementById('trade-subsidy-rate');
+  const subsidyText = document.getElementById('trade-subsidy-rate-value');
+  const monopoly = document.getElementById('trade-monopoly-granted');
+
+  protect?.addEventListener('change', () => {
+    document.dispatchEvent(new CustomEvent('trade:config', { detail: { key: 'protectLocalCloth', checked: protect.checked } }));
+  });
+
+  subsidy?.addEventListener('input', () => {
+    const next = Math.max(0, Math.min(0.2, Number(subsidy.value ?? 0)));
+    if (subsidyText) subsidyText.textContent = `预计补贴率：${formatDecimal(next * 100, 1)}%`;
+    document.dispatchEvent(new CustomEvent('trade:config', { detail: { key: 'subsidyRate', value: next } }));
+  });
+
+  monopoly?.addEventListener('change', () => {
+    document.dispatchEvent(new CustomEvent('trade:config', { detail: { key: 'tradeMonopolyGranted', checked: monopoly.checked } }));
+  });
+}
+
 export function renderEconomyTab(state) {
   const world = state.world;
   const mount = document.getElementById('economy-tab-content');
@@ -277,7 +318,11 @@ export function renderEconomyTab(state) {
       ${statItem('Farmer Income / Head', formatDecimal(world.farmerIncomePerHead ?? 0, 2))}
       ${statItem('Merchant Income / Head', formatDecimal(world.merchantIncomePerHead ?? 0, 2))}
       ${statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2))}
+      ${statItem('Trade Efficiency', `${formatDecimal((world.tradeEfficiency ?? 0) * 100, 1)}%`)}
+      ${statItem('Trade Bureau Bonus', `${formatDecimal((world.tradeBureauTradeBonus ?? 0) * 100, 1)}%`)}
+      ${statItem('Trade Partner', world.newTradePartnerUnlocked ? '北方商队已开放' : '未开放')}
     </div></section>
+    <section class="panel"><h2>Trade Policies</h2>${getTradePolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender & Debt</h2><div class="tab-grid">
       ${statItem('Moneylender Shops', formatNumber(world.moneylenderShops ?? 0))}
       ${statItem('Lending Pool Size', formatNumber(world.lendingPoolSize ?? 0))}
@@ -290,6 +335,7 @@ export function renderEconomyTab(state) {
   `;
 
   bindMoneylenderEconomyEvents(state);
+  bindTradePolicyEvents(state);
 }
 
 export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) {

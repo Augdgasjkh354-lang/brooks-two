@@ -3,12 +3,12 @@ import { updatePopulation, processEducationYear } from './society/population.js'
 import { updateEconomy } from './economy/agriculture.js';
 import { issueGrainCoupons, borrowGovernmentDebt, processGovernmentDebtYear } from './economy/currency.js';
 import { executeOfficialSaltSale } from './economy/market.js';
-import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem, approveCommercialSchoolLicenses, applyPoliceCommerceEffects, applyCourtCommerceEffects } from './economy/commerce.js';
+import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCaps, canUseMoneylenderSystem, approveCommercialSchoolLicenses, applyPoliceCommerceEffects, applyCourtCommerceEffects, applyTradeBureauCommerceEffects } from './economy/commerce.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
-import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects } from './society/stability.js';
+import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, ensureTradeBureauInstitution, ensureEngineeringBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects, calculateTradeBureauEffects, calculateEngineeringBureauEffects } from './society/stability.js';
 import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects } from './society/satisfaction.js';
 
 const state = createGameState();
@@ -304,6 +304,82 @@ function syncCourtTaxInstitutionSettings() {
     : 'B';
 }
 
+function syncTradeEngineeringSettings() {
+  state.world.tradeOfficerCount = Math.max(0, Math.floor(Number(state.world.tradeOfficerCount ?? 0)));
+  state.world.tradeOfficerWage = Math.max(0, Number(state.world.tradeOfficerWage ?? 0));
+  state.world.engineerCount = Math.max(0, Math.floor(Number(state.world.engineerCount ?? 0)));
+  state.world.engineerWage = Math.max(0, Number(state.world.engineerWage ?? 0));
+  state.world.subsidyRate = Math.max(0, Math.min(0.2, Number(state.world.subsidyRate ?? 0)));
+  state.world.protectLocalCloth = Boolean(state.world.protectLocalCloth);
+  state.world.tradeMonopolyGranted = Boolean(state.world.tradeMonopolyGranted);
+}
+
+function runEngineeringProject(type) {
+  const w = state.world;
+  if (!w.engineeringBureauEstablished) {
+    state.yearLog.unshift(`Year ${w.year}: 工程项目失败 - 工程局尚未建立。`);
+    render();
+    return;
+  }
+
+  const costMultiplier = Math.max(0.5, Number(w.infrastructureCostMultiplier ?? 1));
+
+  if (type === 'canal') {
+    const cost = Math.round(5000000 * costMultiplier);
+    const maxCanals = Math.floor(Math.max(0, Number(w.farmlandAreaMu ?? 0)) / 5000);
+    if ((w.irrigationCanalCount ?? 0) + (w.pendingIrrigationCanals ?? 0) >= maxCanals) {
+      state.yearLog.unshift(`Year ${w.year}: 水渠工程失败 - 已达到可修建上限。`);
+      render();
+      return;
+    }
+    if ((w.grainTreasury ?? 0) < cost) {
+      state.yearLog.unshift(`Year ${w.year}: 水渠工程失败 - 粮仓不足（需要${cost}粮）。`);
+      render();
+      return;
+    }
+    w.grainTreasury -= cost;
+    w.pendingIrrigationCanals = Math.max(0, Number(w.pendingIrrigationCanals ?? 0)) + 1;
+    w.irrigationCanalYear = (w.year ?? 1) + 2;
+    w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.7;
+    w.merchantIncomePool = Math.max(0, Number(w.merchantIncomePool ?? 0)) + cost * 0.3;
+    state.yearLog.unshift(`Year ${w.year}: 启动水渠工程（耗资${cost}粮，预计Year ${w.irrigationCanalYear}完工）。`);
+  } else if (type === 'wall') {
+    if (w.wallReinforced) {
+      state.yearLog.unshift(`Year ${w.year}: 城墙已加固，无需重复建设。`);
+      render();
+      return;
+    }
+    const cost = Math.round(8000000 * costMultiplier);
+    if ((w.grainTreasury ?? 0) < cost) {
+      state.yearLog.unshift(`Year ${w.year}: 城墙加固失败 - 粮仓不足（需要${cost}粮）。`);
+      render();
+      return;
+    }
+    w.grainTreasury -= cost;
+    w.wallReinforced = true;
+    w.defenseRating = Math.max(0, Number(w.defenseRating ?? 0)) + 0.3;
+    w.stabilityIndex = Math.min(100, Number(w.stabilityIndex ?? 0) + 5);
+    w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.6;
+    w.merchantIncomePool = Math.max(0, Number(w.merchantIncomePool ?? 0)) + cost * 0.4;
+    state.yearLog.unshift(`Year ${w.year}: 城墙加固完成，防御力大幅提升。`);
+  } else if (type === 'granary') {
+    const cost = Math.round(2000000 * costMultiplier);
+    if ((w.grainTreasury ?? 0) < cost) {
+      state.yearLog.unshift(`Year ${w.year}: 粮仓扩建失败 - 粮仓不足（需要${cost}粮）。`);
+      render();
+      return;
+    }
+    w.grainTreasury -= cost;
+    w.grainStorageExpansions = Math.max(0, Number(w.grainStorageExpansions ?? 0)) + 1;
+    w.grainStorageCapacity = Math.max(0, Number(w.grainStorageCapacity ?? 50000000)) + 10000000;
+    w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.8;
+    w.merchantIncomePool = Math.max(0, Number(w.merchantIncomePool ?? 0)) + cost * 0.2;
+    state.yearLog.unshift(`Year ${w.year}: 粮仓扩建完成，容量提升至${Math.round(w.grainStorageCapacity)}。`);
+  }
+
+  render();
+}
+
 function nextYear() {
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
@@ -319,20 +395,27 @@ function nextYear() {
   ensureHealthBureauInstitution(state.world, state.yearLog);
   ensureCourtInstitution(state.world, state.yearLog);
   ensureTaxBureauInstitution(state.world, state.yearLog);
+  ensureTradeBureauInstitution(state.world, state.yearLog);
+  ensureEngineeringBureauInstitution(state.world, state.yearLog);
   syncGovernmentInstitutionSettings();
   syncPoliceInstitutionSettings();
   syncHealthInstitutionSettings();
   syncCourtTaxInstitutionSettings();
+  syncTradeEngineeringSettings();
   const annualWageBill = calculateGovernmentWageBill(state.world);
   const prePoliceEffects = calculatePoliceEffects(state.world);
   const preHealthEffects = calculateHealthEffects(state.world);
   const preCourtEffects = calculateCourtEffects(state.world);
   const preTaxBureauEffects = calculateTaxBureauEffects(state.world);
+  const preTradeBureauEffects = calculateTradeBureauEffects(state.world);
+  const preEngineeringEffects = calculateEngineeringBureauEffects(state.world);
   state.world.policeAnnualCost = Math.max(0, Number(prePoliceEffects.annualPoliceCost ?? 0));
   state.world.healthAnnualCost = Math.max(0, Number(preHealthEffects.annualHealthCost ?? 0));
   state.world.courtAnnualCost = Math.max(0, Number(preCourtEffects.annualCourtCost ?? 0));
   state.world.taxBureauAnnualCost = Math.max(0, Number(preTaxBureauEffects.annualTaxCost ?? 0));
-  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost;
+  state.world.tradeBureauAnnualCost = Math.max(0, Number(preTradeBureauEffects.annualTradeCost ?? 0));
+  state.world.engineeringBureauAnnualCost = Math.max(0, Number(preEngineeringEffects.annualEngineeringCost ?? 0));
+  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost + state.world.tradeBureauAnnualCost + state.world.engineeringBureauAnnualCost;
 
   const schoolSettlement = settleEducationYear();
   const popResult = updatePopulation(state.world);
@@ -368,6 +451,9 @@ function nextYear() {
   state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
 
   const taxBureauEffects = calculateTaxBureauEffects(state.world);
+  const tradeBureauEffects = calculateTradeBureauEffects(state.world);
+  const engineeringBureauEffects = calculateEngineeringBureauEffects(state.world);
+  applyTradeBureauCommerceEffects(state.world, tradeBureauEffects);
   state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
   if (courtEffects.merchantSatisfactionDelta) {
     state.world.merchantSatisfaction = Math.max(0, Math.min(100, Number(state.world.merchantSatisfaction ?? 50) + Number(courtEffects.merchantSatisfactionDelta)));
@@ -383,6 +469,16 @@ function nextYear() {
 
   if (courtEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${courtEffects.message}`);
   if (taxBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${taxBureauEffects.message}`);
+  if (tradeBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${tradeBureauEffects.message}`);
+  if (engineeringBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${engineeringBureauEffects.message}`);
+
+  if ((state.world.pendingIrrigationCanals ?? 0) > 0 && (state.world.year ?? 0) >= (state.world.irrigationCanalYear ?? Number.MAX_SAFE_INTEGER)) {
+    const completed = Math.floor(Number(state.world.pendingIrrigationCanals ?? 0));
+    state.world.irrigationCanalCount = Math.max(0, Number(state.world.irrigationCanalCount ?? 0)) + completed;
+    state.world.pendingIrrigationCanals = 0;
+    state.world.baseGrainYieldPerMu = Math.max(0, Number(state.world.baseGrainYieldPerMu ?? 500)) + completed * 50;
+    state.yearLog.unshift(`Year ${state.world.year}: 水渠工程完工${completed}条，灌溉能力提升。`);
+  }
 
   if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
     const currentPop = Math.max(0, Number(state.world.totalPopulation ?? 0));
@@ -426,6 +522,8 @@ function nextYear() {
   state.yearLog.unshift(`Year ${state.world.year}: 官员薪俸结算：总额 ${Math.round(state.world.totalWageBill ?? 0)}（粮/劵按薪资比例支付）。`);
   state.yearLog.unshift(`Year ${state.world.year}: 警务支出结算：警员${Math.round(state.world.policeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.policeAnnualCost ?? 0)}。`);
   state.yearLog.unshift(`Year ${state.world.year}: 卫生支出结算：卫生员${Math.round(state.world.healthOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.healthAnnualCost ?? 0)}，健康指数 ${Math.round(state.world.healthIndex ?? 50)}。`);
+  state.yearLog.unshift(`Year ${state.world.year}: 贸易局支出结算：贸易官${Math.round(state.world.tradeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.tradeBureauAnnualCost ?? 0)}。`);
+  state.yearLog.unshift(`Year ${state.world.year}: 工程局支出结算：工程师${Math.round(state.world.engineerCount ?? 0)}人，年成本 ${Math.round(state.world.engineeringBureauAnnualCost ?? 0)}。`);
 
   if (econResult.creditCrisisTriggered) {
     state.yearLog.unshift(`Year ${state.world.year}: 粮劵信用崩塌，市场发生挤兑`);
@@ -493,7 +591,8 @@ function startResearchById(techId) {
 function openHempLand() {
   const input = document.getElementById('hemp-land-input');
   const mu = Math.floor(Number(input?.value ?? 0));
-  const costPerMu = 8;
+  const reduction = Math.max(0, Math.min(0.5, Number(state.world.constructionCostReduction ?? 0)));
+  const costPerMu = 8 * (1 - reduction);
   const minOrderMu = 100;
 
   if (mu < minOrderMu) {
@@ -502,7 +601,7 @@ function openHempLand() {
     return;
   }
 
-  const totalCost = mu * costPerMu;
+  const totalCost = Math.round(mu * costPerMu);
   if ((state.world.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.world.year}: 开垦麻田失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
@@ -526,7 +625,8 @@ function openHempLand() {
 function openMulberryLand() {
   const input = document.getElementById('mulberry-land-input');
   const mu = Math.floor(Number(input?.value ?? 0));
-  const costPerMu = 15;
+  const reduction = Math.max(0, Math.min(0.5, Number(state.world.constructionCostReduction ?? 0)));
+  const costPerMu = 15 * (1 - reduction);
   const minOrderMu = 100;
 
   if (mu < minOrderMu) {
@@ -535,7 +635,7 @@ function openMulberryLand() {
     return;
   }
 
-  const totalCost = mu * costPerMu;
+  const totalCost = Math.round(mu * costPerMu);
   if ((state.world.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.world.year}: 开垦桑田失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
@@ -589,7 +689,8 @@ function buildPublicToilets() {
     return;
   }
 
-  const totalCost = count * 50000;
+  const infraMultiplier = Math.max(0.5, Number(state.world.infrastructureCostMultiplier ?? 1));
+  const totalCost = Math.round(count * 50000 * infraMultiplier);
   if ((state.world.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.world.year}: 公厕修建失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
@@ -615,7 +716,8 @@ function buildRoads() {
     return;
   }
 
-  const totalCost = li * 10000;
+  const infraMultiplier = Math.max(0.5, Number(state.world.infrastructureCostMultiplier ?? 1));
+  const totalCost = Math.round(li * 10000 * infraMultiplier);
   if ((state.world.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.world.year}: 道路修建失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
@@ -998,9 +1100,9 @@ function bindEvents() {
     const key = String(event?.detail?.key ?? '');
     const value = Number(event?.detail?.value ?? 0);
     if (!key) return;
-    const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov', 'policeOfficerCount', 'healthOfficerCount', 'judgeCount', 'taxOfficerCount', 'techTalentDeployedTax']);
-    const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage', 'officerWage', 'healthOfficerWage', 'judgeWage', 'taxOfficerWage']);
-    const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished']);
+    const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov', 'policeOfficerCount', 'healthOfficerCount', 'judgeCount', 'taxOfficerCount', 'techTalentDeployedTax', 'tradeOfficerCount', 'engineerCount']);
+    const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage', 'officerWage', 'healthOfficerWage', 'judgeWage', 'taxOfficerWage', 'tradeOfficerWage', 'engineerWage']);
+    const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished', 'tradeBureauEstablished', 'engineeringBureauEstablished']);
     const ratingKeys = new Set(['creditRating']);
     const rateKeys = new Set(['commerceTaxRate', 'landTaxRate']);
 
@@ -1027,16 +1129,35 @@ function bindEvents() {
     syncPoliceInstitutionSettings();
     syncHealthInstitutionSettings();
     syncCourtTaxInstitutionSettings();
+    syncTradeEngineeringSettings();
     calculateGovernmentWageBill(state.world);
     const policeEffects = calculatePoliceEffects(state.world);
     const healthEffects = calculateHealthEffects(state.world);
     const courtEffects = calculateCourtEffects(state.world);
     const taxBureauEffects = calculateTaxBureauEffects(state.world);
+    const tradeBureauEffects = calculateTradeBureauEffects(state.world);
+    const engineeringBureauEffects = calculateEngineeringBureauEffects(state.world);
     state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
     state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
     state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
     state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
+    state.world.tradeBureauAnnualCost = Math.max(0, Number(tradeBureauEffects.annualTradeCost ?? 0));
+    state.world.engineeringBureauAnnualCost = Math.max(0, Number(engineeringBureauEffects.annualEngineeringCost ?? 0));
     render();
+  });
+
+  document.addEventListener('trade:config', (event) => {
+    const key = String(event?.detail?.key ?? '');
+    if (!key) return;
+    if (key === 'subsidyRate') state.world.subsidyRate = Math.max(0, Math.min(0.2, Number(event?.detail?.value ?? 0)));
+    if (key === 'protectLocalCloth') state.world.protectLocalCloth = Boolean(event?.detail?.checked);
+    if (key === 'tradeMonopolyGranted') state.world.tradeMonopolyGranted = Boolean(event?.detail?.checked);
+    render();
+  });
+
+  document.addEventListener('engineering:project', (event) => {
+    const type = String(event?.detail?.type ?? '');
+    runEngineeringProject(type);
   });
 }
 
@@ -1067,18 +1188,25 @@ function init() {
   ensureHealthBureauInstitution(state.world, state.yearLog);
   ensureCourtInstitution(state.world, state.yearLog);
   ensureTaxBureauInstitution(state.world, state.yearLog);
+  ensureTradeBureauInstitution(state.world, state.yearLog);
+  ensureEngineeringBureauInstitution(state.world, state.yearLog);
   syncPoliceInstitutionSettings();
   syncHealthInstitutionSettings();
   syncCourtTaxInstitutionSettings();
+  syncTradeEngineeringSettings();
   calculateGovernmentWageBill(state.world);
   const policeEffects = calculatePoliceEffects(state.world);
   const healthEffects = calculateHealthEffects(state.world);
   const courtEffects = calculateCourtEffects(state.world);
   const taxBureauEffects = calculateTaxBureauEffects(state.world);
+  const tradeBureauEffects = calculateTradeBureauEffects(state.world);
+  const engineeringBureauEffects = calculateEngineeringBureauEffects(state.world);
   state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
   state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
   state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
   state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
+  state.world.tradeBureauAnnualCost = Math.max(0, Number(tradeBureauEffects.annualTradeCost ?? 0));
+  state.world.engineeringBureauAnnualCost = Math.max(0, Number(engineeringBureauEffects.annualEngineeringCost ?? 0));
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
   bindEvents();
