@@ -2158,3 +2158,118 @@ economy/currency.js, economy/labor.js
   when bureaucracyUnlocked = true
 - Tech costs updated in research panel
 - yearLog records policy activation and costs
+## Phase 6A-3 Scope (Current)
+
+Phase 6A-2 and cost rebalance complete.
+Now adding third-tier technologies.
+
+**Goal:** Add 8 new tier-3 techs with real effects.
+All require tier-2 prerequisites.
+
+**New techs to add to techTree in research.js:**
+
+Agriculture:
+- id: "selective_breeding", name: "育种改良",
+  prerequisites: ["crop_rotation"],
+  years: 3, cost: { grain: 1200000 },
+  unlocks: [
+    { type: "bonus", target: "grainYieldPerMu", value: 50 },
+    { type: "available", target: "new_crops" }
+  ]
+
+- id: "watermill", name: "水车磨坊",
+  prerequisites: ["irrigation"],
+  years: 3, cost: { grain: 1500000, cloth: 150000 },
+  unlocks: [
+    { type: "bonus", target: "laborEfficiency", value: 0.05 },
+    { type: "system", target: "flour_processing" }
+  ]
+
+Commerce:
+- id: "moneylender", name: "钱庄系统",
+  prerequisites: ["contract_law"],
+  years: 3, cost: { grain: 2000000 },
+  unlocks: [
+    { type: "system", target: "lending_system" },
+    { type: "bonus", target: "commerceGDP", value: 0.1 }
+  ]
+
+- id: "long_distance_trade", name: "远途贸易",
+  prerequisites: ["weights_measures"],
+  years: 4, cost: { grain: 2500000, cloth: 200000 },
+  unlocks: [
+    { type: "system", target: "new_trade_partners" },
+    { type: "bonus", target: "tradeEfficiency", value: 0.15 }
+  ]
+
+Society:
+- id: "imperial_exam_proto", name: "科举雏形",
+  prerequisites: ["papermaking", "codified_law"],
+  years: 4, cost: { grain: 3000000 },
+  unlocks: [
+    { type: "system", target: "scholar_class" },
+    { type: "bonus", target: "officialSatisfaction", value: 15 },
+    { type: "bonus", target: "stabilityBase", value: 5 }
+  ]
+
+- id: "advanced_medicine", name: "高级医学",
+  prerequisites: ["basic_medicine"],
+  years: 4, cost: { grain: 2000000, cloth: 100000 },
+  unlocks: [
+    { type: "bonus", target: "populationGrowthRate",
+      value: 0.005 },
+    { type: "bonus", target: "farmerSatisfaction", value: 5 }
+  ]
+
+Military:
+- id: "fortification", name: "城防工事",
+  prerequisites: ["weapon_forging"],
+  years: 3, cost: { grain: 2500000, cloth: 250000 },
+  unlocks: [
+    { type: "bonus", target: "defenseRating", value: 0.3 },
+    { type: "system", target: "defense_system" }
+  ]
+
+- id: "intelligence", name: "情报系统",
+  prerequisites: ["weapon_forging"],
+  years: 3, cost: { grain: 1500000 },
+  unlocks: [
+    { type: "system", target: "espionage_system" },
+    { type: "bonus", target: "attitudeToPlayer", value: 5 }
+  ]
+
+**Apply new tech effects in applyTechEffect():**
+- watermill: laborEfficiency += 0.05
+- moneylender: commerceGDP multiplier += 0.1
+- long_distance_trade: tradeEfficiency += 0.15
+- imperial_exam_proto: officialSatisfaction += 15,
+  stabilityBase += 5
+- advanced_medicine: populationGrowthRate += 0.005,
+  farmerSatisfaction permanent += 5
+- fortification: defenseRating += 0.3 (new field)
+- intelligence: attitudeToPlayer += 5 (one-time bonus)
+- selective_breeding: grainYieldPerMu += 50
+
+**New state fields needed in techBonuses:**
+- defenseRating: 0
+- flourProcessing: false
+- lendingSystem: false
+- newTradePartners: false
+- scholarClass: false
+- espionageSystem: false
+
+**Files to modify:**
+- js/tech/research.js
+- js/state.js
+- js/ui/render_tech.js
+**Do NOT touch:** any economy/ society/ diplomacy/
+ui/render_economy.js ui/render_society.js files
+
+**Definition of Done (Phase 6A-3):**
+- All 8 new techs appear in tech tree UI
+- Prerequisites correctly enforced
+- All techs show correct costs and research time
+- Completed techs apply correct bonuses
+- New techBonuses fields initialized in state
+- yearLog records completion of each new tech
+- Tech panel organizes by tier visually
