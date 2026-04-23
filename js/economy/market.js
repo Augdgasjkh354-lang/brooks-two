@@ -1,4 +1,12 @@
-// Market module: prices, purchasing power, salt market
+// Market module: prices, purchasing power, living-cost helpers, salt market
+
+function clamp(value, min = 0, max = Number.POSITIVE_INFINITY) {
+  return Math.max(min, Math.min(max, Number(value ?? 0)));
+}
+
+function clampPercentIndex(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
+}
 
 export function getGrainPrice(supplyRatio) {
   if (supplyRatio > 2) return 1.2;
@@ -34,6 +42,31 @@ export function calculateCommodityPrice({
   return {
     supplyDemandRatio,
     nextPrice: boundedPrice,
+  };
+}
+
+export function calculateLivingCost(world) {
+  const saltPrice = Math.max(0, Number(world?.saltPrice ?? 4));
+  const clothPrice = Math.max(0, Number(world?.clothPrice ?? 2));
+  const grainCost = 360;
+  const saltCost = 15 * saltPrice;
+  const clothCost = 0.3 * clothPrice;
+  const totalLivingCost = grainCost + saltCost + clothCost;
+
+  const saltAffordability = saltPrice / 4.0;
+  const clothAffordability = clothPrice / 2.0;
+
+  world.totalLivingCost = totalLivingCost;
+  world.saltAffordability = saltAffordability;
+  world.clothAffordability = clothAffordability;
+
+  return {
+    grainCost,
+    saltCost,
+    clothCost,
+    totalLivingCost,
+    saltAffordability,
+    clothAffordability,
   };
 }
 
@@ -135,18 +168,19 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + revenue);
   }
 
-  let farmerSatisfactionGain = 0;
+  let farmerLifeQualityGain = 0;
   let farmerMessage = '';
   if (preview.cappedPrice <= marketPrice * 0.7) {
-    farmerSatisfactionGain = 15;
+    farmerLifeQualityGain = 15;
     farmerMessage = '官府平价放盐，民心稳定';
   } else if (preview.cappedPrice <= marketPrice * 0.9) {
-    farmerSatisfactionGain = 8;
+    farmerLifeQualityGain = 8;
     farmerMessage = '官府适量投放食盐';
   }
 
-  if (farmerSatisfactionGain > 0) {
-    world.farmerSatisfaction = clampPercentIndex((world.farmerSatisfaction ?? 70) + farmerSatisfactionGain);
+  if (farmerLifeQualityGain > 0) {
+    world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) + farmerLifeQualityGain);
+    world.farmerSatisfaction = world.farmerLifeQuality;
   }
 
   world.officialSaltSaleUsed = true;
@@ -159,13 +193,11 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     subsidyLoss,
     releaseRatio: preview.releaseRatio,
     nextSaltPrice: preview.nextSaltPrice,
-    farmerSatisfactionGain,
+    farmerLifeQualityGain,
     farmerMessage,
     currency: world.grainCouponsUnlocked ? 'coupon' : 'grain',
   };
 }
-
-
 
 export function getIncomePoolDemandEffects(world) {
   const farmerIncomePool = Math.max(0, Number(world?.farmerIncomePool ?? 0));

@@ -10,13 +10,13 @@ export function getStabilityDisplay(stabilityIndex) {
   return { label: 'Unstable', color: '#b42318' };
 }
 
-export function getSatisfactionDisplay(score) {
-  if (score >= 70) return { color: '#1b8a3b', label: 'Content' };
-  if (score >= 40) return { color: '#b28704', label: 'Uneasy' };
-  return { color: '#b42318', label: 'Discontent' };
+export function getLifeQualityDisplay(score) {
+  if (score >= 70) return { color: '#1b8a3b', label: 'Good' };
+  if (score >= 40) return { color: '#b28704', label: 'Pressured' };
+  return { color: '#b42318', label: 'Poor' };
 }
 
-export function getClassSatisfactionFactors(world) {
+export function getClassLifeQualityFactors(world) {
   const farmerFactors = [];
   if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
   if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
@@ -41,11 +41,12 @@ export function getClassSatisfactionFactors(world) {
   if ((world.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
   if ((world.farmlandAreaMu ?? 0) > 40000) landlordFactors.push('Large estate bonus (>40,000 mu)');
 
+  const cached = world.lifeQualityFactors ?? {};
   return {
-    farmer: farmerFactors.length ? farmerFactors.join(' | ') : 'No active factors',
-    merchant: merchantFactors.length ? merchantFactors.join(' | ') : 'No active factors',
-    official: officialFactors.length ? officialFactors.join(' | ') : 'No active factors',
-    landlord: landlordFactors.length ? landlordFactors.join(' | ') : 'No active factors',
+    farmer: cached.farmer || (farmerFactors.length ? farmerFactors.join(' | ') : 'No active factors'),
+    merchant: cached.merchant || (merchantFactors.length ? merchantFactors.join(' | ') : 'No active factors'),
+    official: cached.official || (officialFactors.length ? officialFactors.join(' | ') : 'No active factors'),
+    landlord: cached.landlord || (landlordFactors.length ? landlordFactors.join(' | ') : 'No active factors'),
   };
 }
 
@@ -414,14 +415,14 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   if (!mount) return;
 
   const stabilityDisplay = getStabilityDisplay(world.stabilityIndex ?? 80);
-  const factors = getClassSatisfactionFactors(world);
+  const factors = getClassLifeQualityFactors(world);
   const warnings = getActiveBehaviorWarnings(world);
   const growth = getPopulationGrowthDisplayDetails(world);
   const literacyEffects = getLiteracyEffectsSummary(world);
 
-  const sat = (value) => {
-    const d = getSatisfactionDisplay(value ?? 70);
-    return `<span style="color:${d.color};font-weight:700;">${formatNumber(value ?? 70)}</span> / 100 (${d.label})`;
+  const life = (value) => {
+    const d = getLifeQualityDisplay(value ?? 50);
+    return `<span style="color:${d.color};font-weight:700;">${formatNumber(value ?? 50)}</span> / 100 (${d.label})`;
   };
 
   mount.innerHTML = `
@@ -468,15 +469,31 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender Policy</h2>${getMoneylenderPolicyControlsHtml(world)}</section>
-    <section class="panel"><h2>Class Satisfaction</h2><div class="tab-grid">
-      ${statItem('Farmer Satisfaction', sat(world.farmerSatisfaction))}
+    <section class="panel"><h2>Class Life Quality</h2><div class="tab-grid">
+      ${statItem('Farmer Life Quality', life(world.farmerLifeQuality ?? world.farmerSatisfaction))}
+      ${statItem('Farmer Savings Rate', `${formatDecimal((world.farmerSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Farmer Savings Pool', formatNumber(world.farmerSavings ?? 0))}
       ${statItem('Farmer Factors', factors.farmer)}
-      ${statItem('Merchant Satisfaction', sat(world.merchantSatisfaction))}
+
+      ${statItem('Merchant Life Quality', life(world.merchantLifeQuality ?? world.merchantSatisfaction))}
+      ${statItem('Merchant Savings Rate', `${formatDecimal((world.merchantSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Merchant Savings Pool', formatNumber(world.merchantSavings ?? 0))}
       ${statItem('Merchant Factors', factors.merchant)}
-      ${statItem('Official Satisfaction', sat(world.officialSatisfaction))}
+
+      ${statItem('Official Life Quality', life(world.officialLifeQuality ?? world.officialSatisfaction))}
+      ${statItem('Official Savings Rate', `${formatDecimal((world.officialSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Official Savings Pool', formatNumber(world.officialSavings ?? 0))}
       ${statItem('Official Factors', factors.official)}
-      ${statItem('Landlord Satisfaction', sat(world.landlordSatisfaction))}
+
+      ${statItem('Landlord Life Quality', life(world.landlordLifeQuality ?? world.landlordSatisfaction))}
+      ${statItem('Landlord Savings Rate', `${formatDecimal((world.landlordSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Landlord Savings Pool', formatNumber(world.landlordSavings ?? 0))}
       ${statItem('Landlord Factors', factors.landlord)}
+
+      ${statItem('Inequality (Gini Ratio proxy)', formatDecimal(world.giniRatio ?? 0, 2))}
+      ${statItem('Living Cost (Total)', formatDecimal(world.totalLivingCost ?? 0, 2))}
+      ${statItem('Living Cost Breakdown', `Grain 360 + Salt ${formatDecimal((world.saltPrice ?? 4) * 15, 2)} + Cloth ${formatDecimal((world.clothPrice ?? 2) * 0.3, 2)}`)}
+      ${statItem('Price Pressure', `Salt affordability ${formatDecimal(world.saltAffordability ?? (world.saltPrice ?? 4) / 4, 2)} / Cloth affordability ${formatDecimal(world.clothAffordability ?? (world.clothPrice ?? 2) / 2, 2)}`)}
     </div></section>
     <section class="panel"><h2>Behavior Warnings</h2>${warnings.length ? warnings.map((w) => `<div class="stat-item"><div class="stat-value">⚠️ ${w}</div></div>`).join('') : '<div class="muted">No active behavior warnings</div>'}</section>
     <section class="panel"><h2>Credit Crisis</h2>${getCreditCrisisControlsHtml(world)}</section>

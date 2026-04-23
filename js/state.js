@@ -116,10 +116,35 @@ export const initialState = {
     backingRatio: 1.0,
     inflationRate: 0,
 
-    farmerSatisfaction: 70,
-    merchantSatisfaction: 70,
-    officialSatisfaction: 70,
-    landlordSatisfaction: 70,
+    farmerSatisfaction: 50,
+    merchantSatisfaction: 50,
+    officialSatisfaction: 50,
+    landlordSatisfaction: 50,
+
+    farmerLifeQuality: 50,
+    merchantLifeQuality: 50,
+    officialLifeQuality: 50,
+    landlordLifeQuality: 50,
+
+    farmerSavings: 0,
+    merchantSavings: 0,
+    officialSavings: 0,
+    landlordSavings: 0,
+
+    farmerSavingsRate: 0,
+    merchantSavingsRate: 0,
+    officialSavingsRate: 0,
+    landlordSavingsRate: 0,
+
+    totalLivingCost: 0,
+    giniRatio: 0,
+    lifeQualityFactors: {
+      farmer: '',
+      merchant: '',
+      official: '',
+      landlord: '',
+    },
+    lifeQualityChangeNotes: [],
 
     farmerIncomePool: 0,
     merchantIncomePool: 0,
