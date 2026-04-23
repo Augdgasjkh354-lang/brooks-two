@@ -71,13 +71,26 @@ export function getLiteracyEffects(world) {
 export function applyLiteracyEffectsToWorld(world) {
   updateLiteracyCaps(world);
   const effects = getLiteracyEffects(world);
+  const availableAdminTalent = Math.max(0, Number(world.adminTalent ?? 0) - Number(world.adminTalentDeployed ?? 0));
+  const availableCommerceTalent =
+    Math.max(0, Number(world.commerceTalent ?? 0) - Number(world.commerceTalentDeployed ?? 0));
+  const availableTechTalent = Math.max(0, Number(world.techTalent ?? 0) - Number(world.techTalentDeployed ?? 0));
 
-  world.policyExecutionEfficiency = effects.policyExecutionEfficiency;
+  const adminPolicyBonus = availableAdminTalent >= 50 ? 0.1 : 0;
+  const commerceGdpBonus = availableCommerceTalent >= 50 ? 0.05 : 0;
+  const moneylenderEfficiencyBonus = availableCommerceTalent >= 10 ? 0.05 : 0;
+  const agricultureTechBonus = availableTechTalent >= 50 ? 0.03 : 0;
+  const researchSpeedBonus = availableTechTalent >= 10 ? 0.1 : 0;
+
+  world.policyExecutionEfficiency = effects.policyExecutionEfficiency * (1 + adminPolicyBonus);
   world.stabilityPenaltyLiteracyReduction = effects.stabilityPenaltyReduction;
   world.textileOutputLiteracyBonus = effects.textileOutputBonus;
   world.landReclaimEfficiency = 1 + effects.landReclaimEfficiencyBonus;
   world.farmerLiteracyEfficiencyBonus = effects.farmerEfficiencyBonus;
-  world.merchantLiteracyEfficiencyBonus = effects.merchantGDPMultiplierBonus;
+  world.merchantLiteracyEfficiencyBonus = effects.merchantGDPMultiplierBonus + commerceGdpBonus;
+  world.moneylenderEfficiencyBonus = moneylenderEfficiencyBonus;
+  world.techTalentAgricultureBonus = agricultureTechBonus;
+  world.techTalentResearchSpeedBonus = researchSpeedBonus;
 
   return effects;
 }

@@ -548,7 +548,9 @@ export function updateResearch(state) {
     return null;
   }
 
-  state.research.yearsRemaining = Math.max(0, (state.research.yearsRemaining ?? 0) - 1);
+  const researchSpeedBonus = Math.max(0, Number(state.world?.techTalentResearchSpeedBonus ?? 0));
+  const annualProgress = 1 + researchSpeedBonus;
+  state.research.yearsRemaining = Math.max(0, (state.research.yearsRemaining ?? 0) - annualProgress);
   if (state.research.yearsRemaining > 0) {
     return null;
   }

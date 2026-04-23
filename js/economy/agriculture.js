@@ -137,7 +137,10 @@ export function updateEconomy(world, options = {}) {
   }
 
   const effectiveFarmEfficiency =
-    farmEfficiency * laborEfficiency * (1 + (literacyEffects.farmerEfficiencyBonus ?? 0));
+    farmEfficiency *
+    laborEfficiency *
+    (1 + (literacyEffects.farmerEfficiencyBonus ?? 0)) *
+    (1 + Math.max(0, Number(world.techTalentAgricultureBonus ?? 0)));
   const effectiveHempEfficiency = hempEfficiency * laborEfficiency;
   const effectiveMulberryEfficiency = mulberryEfficiency * laborEfficiency;
 
