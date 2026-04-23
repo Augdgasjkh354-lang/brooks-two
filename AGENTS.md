@@ -1822,3 +1822,107 @@ any economy/ society/ diplomacy/ files
   completed techs list
 - Cannot start research if already researching
 - index.html updated with new script tags
+## UI Refactor: Tab Layout (Current)
+
+Tech tree scaffold complete. Now refactoring UI only.
+No logic or value changes. Layout only.
+
+**Goal:** Replace infinite scroll with a tab-based mobile
+UI. Fixed dashboard at top, tab navigation at bottom,
+content panels per tab.
+
+**Fixed header (always visible):**
+- Game title (small)
+- Year | Population | Grain Treasury | Stability | 
+  Purchasing Power
+- Next Year button
+
+**Bottom tab navigation (7 tabs):**
+1. 总览 (Overview)
+2. 经济 (Economy)
+3. 农业 (Agriculture)
+4. 社会 (Society)
+5. 外交 (Diplomacy)
+6. 科技 (Technology)
+7. 货币 (Currency)
+
+**Tab contents:**
+
+总览:
+- Core stats (year, population, labor breakdown)
+- Land utilization
+- Year log (last 10 entries)
+- Available policies panel
+
+经济:
+- GDP breakdown (agriculture/commerce/construction)
+- Shop count, operating shops, idle shops
+- Merchant count
+- Income per head (farmer/merchant/income gap)
+- Commerce activity bonus
+- Demand saturation
+
+农业:
+- Grain output (potential/actual/lost)
+- Yield per mu (effective)
+- Farmland area
+- Hemp/mulberry land holdings
+- Pending land
+- Cloth production breakdown
+- Silkworm dung panel
+- Land reclamation buttons
+
+社会:
+- Stability index (with color)
+- Efficiency multiplier
+- Four class satisfaction panels
+- Active behavior warnings
+- Policy intervention buttons
+  (grain redistribution, merchant tax)
+
+外交:
+- Xikou Village full panel
+- Send envoy button
+- Trade panels (grain for salt, grain for cloth)
+- Silkworm dung import panel
+
+科技:
+- Available techs (with cost, years, research button)
+- Current research progress bar
+- Completed techs list
+
+货币:
+- Treasury (grain/coupon split)
+- Coupon issuance panel
+- Tax ratio slider
+- Salary ratio slider
+- Inflation panel
+- Credit crisis panel
+
+**Design requirements:**
+- Mobile-first, portrait orientation
+- Fixed header: ~80px tall
+- Fixed bottom tabs: ~60px tall
+- Scrollable content area between header and tabs
+- Active tab highlighted
+- Tab icons optional, Chinese labels required
+- Color scheme: keep existing dark theme
+- Each panel is a card with subtle border
+- All existing HTML element IDs must be preserved
+  (do not rename any id attributes)
+
+**Files to modify:** index.html, style.css,
+js/render.js, js/ui/render_world.js,
+js/ui/render_economy.js, js/ui/render_society.js,
+js/ui/render_diplomacy.js, js/ui/render_tech.js
+**Do NOT touch:** any js/economy/ js/society/
+js/diplomacy/ js/tech/research.js files
+
+**Definition of Done:**
+- 7 tabs visible at bottom
+- Fixed header always shows key stats
+- Each tab shows correct panels
+- Next Year button always accessible
+- No content lost (everything still renders)
+- Smooth tab switching (no page reload)
+- Works on mobile portrait screen
