@@ -83,6 +83,38 @@ export function updateEconomy(world, options = {}) {
 
   const { farmEfficiency, hempEfficiency, mulberryEfficiency } = calculateLaborAllocation(world);
 
+  const paperMaterial = clamp((world.hempLandMu ?? 0) * 20);
+  const hempStalks = clamp((world.hempLandMu ?? 0) * 200);
+  const buildingFiber = clamp((world.hempLandMu ?? 0) * 10);
+
+  const paperMaterialReserveCap = clamp((world.hempLandMu ?? 0) * 100);
+  const nextPaperMaterialReserve = clamp(
+    Math.min(
+      paperMaterialReserveCap,
+      Math.max(0, Number(world.paperMaterialReserve ?? 0)) + paperMaterial
+    )
+  );
+
+  const paperOutput = world.techBonuses?.bureaucracyUnlocked ? clamp(nextPaperMaterialReserve / 50) : 0;
+
+  const nextBuildingFiberReserve = clamp(Math.max(0, Number(world.buildingFiberReserve ?? 0)) + buildingFiber);
+  const structuralThreshold = clamp((world.farmlandAreaMu ?? 0) * 5);
+  const structuralBonus = structuralThreshold > 0 && nextBuildingFiberReserve >= structuralThreshold;
+  const laborEfficiency = structuralBonus ? 1.02 : 1.0;
+
+  let constructionCostReduction = 0;
+  if ((world.hempLandMu ?? 0) >= 5000) {
+    constructionCostReduction = 0.15;
+  } else if ((world.hempLandMu ?? 0) >= 2000) {
+    constructionCostReduction = 0.1;
+  } else if ((world.hempLandMu ?? 0) >= 500) {
+    constructionCostReduction = 0.05;
+  }
+
+  const effectiveFarmEfficiency = farmEfficiency * laborEfficiency;
+  const effectiveHempEfficiency = hempEfficiency * laborEfficiency;
+  const effectiveMulberryEfficiency = mulberryEfficiency * laborEfficiency;
+
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
   world.baseGrainYieldPerMu = clamp(baseYield);
 
@@ -90,7 +122,7 @@ export function updateEconomy(world, options = {}) {
   const effectiveYieldPerMu = Math.min(800, Math.max(0, world.baseGrainYieldPerMu + techYieldBonus));
 
   const potentialGrainOutput = clamp(world.farmlandAreaMu * effectiveYieldPerMu);
-  const preStabilityGrainOutput = clamp(potentialGrainOutput * farmEfficiency);
+  const preStabilityGrainOutput = clamp(potentialGrainOutput * effectiveFarmEfficiency);
   const agriculturalTax = clamp(preStabilityGrainOutput * world.agriculturalTaxRate);
 
   const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
@@ -119,7 +151,7 @@ export function updateEconomy(world, options = {}) {
   const landDevelopmentFarmerIncomeBoost = Math.max(0, Number(world.landDevelopmentFarmerIncomeBoost ?? 0));
   const landDevelopmentCommerceBoost = Math.max(0, Number(world.landDevelopmentCommerceBoost ?? 0));
   const preStabilityCommerceGDP = clamp(
-    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus +
+    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus * laborEfficiency +
       landDevelopmentCommerceBoost
   );
 
@@ -165,8 +197,8 @@ export function updateEconomy(world, options = {}) {
   const clothReserveAtYearStart = Math.max(0, Number(world.clothReserve ?? 0));
   const clothTradeReceived = Math.max(0, clothReserveAtYearStart - previousClothReserveSnapshot);
 
-  const coarseClothOutput = clamp((world.hempLandMu ?? 0) * 5 * hempEfficiency);
-  const rawSilkOutput = clamp((world.mulberryMatureLandMu ?? 0) * 5 * mulberryEfficiency);
+  const coarseClothOutput = clamp((world.hempLandMu ?? 0) * 5 * effectiveHempEfficiency);
+  const rawSilkOutput = clamp((world.mulberryMatureLandMu ?? 0) * 5 * effectiveMulberryEfficiency);
   const fineClothOutput = clamp(rawSilkOutput * 3);
   const totalClothOutput = clamp(coarseClothOutput + fineClothOutput);
   const totalClothSupply = clamp(totalClothOutput + clothTradeReceived);
@@ -248,6 +280,15 @@ export function updateEconomy(world, options = {}) {
   world.dungCoverage = dungCoverage;
   world.fertilizerBonus = fertilizerBonus;
   world.dungImportQuota = dungImportQuota;
+  world.paperMaterial = paperMaterial;
+  world.paperMaterialReserve = nextPaperMaterialReserve;
+  world.paperOutput = paperOutput;
+  world.hempStalks = hempStalks;
+  world.constructionCostReduction = constructionCostReduction;
+  world.buildingFiber = buildingFiber;
+  world.buildingFiberReserve = nextBuildingFiberReserve;
+  world.structuralBonus = structuralBonus;
+  world.laborEfficiency = laborEfficiency;
 
   const maxSaltImport = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
   const desiredSaltImport = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
@@ -315,7 +356,7 @@ export function updateEconomy(world, options = {}) {
   let additionalStabilityPenalty = 0;
   const demandShortfall = demandSaturation < 0.5;
 
-  world.grainYieldPerMu = clamp(effectiveYieldPerMu * farmEfficiency * efficiencyMultiplier);
+  world.grainYieldPerMu = clamp(effectiveYieldPerMu * effectiveFarmEfficiency * efficiencyMultiplier);
   world.potentialGrainOutput = potentialGrainOutput;
   world.actualGrainOutput = grainOutput;
 
@@ -360,13 +401,22 @@ export function updateEconomy(world, options = {}) {
   world.demandShortfall = demandShortfall;
 
   const satisfaction = calculateClassSatisfaction(world);
-  world.farmerSatisfaction = satisfaction.farmerSatisfaction;
+  const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);
+  const structuralFarmerBonus = structuralBonus ? 3 : 0;
+
+  world.farmerSatisfaction = clampPercentIndex(satisfaction.farmerSatisfaction + structuralFarmerBonus);
   const merchantSatisfactionTechBonus = Number(world.techBonuses?.merchantSatisfactionBonus ?? 0);
   world.merchantSatisfaction = clampPercentIndex(satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus);
-  world.officialSatisfaction = satisfaction.officialSatisfaction;
+  world.officialSatisfaction = clampPercentIndex(satisfaction.officialSatisfaction + paperSatisfactionBonus);
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
   const activeBehaviorWarnings = [];
+  if (structuralBonus) {
+    behaviorMessages.push('麻纤维加固生效：农业结构稳固，劳作效率提升2%');
+  }
+  if (paperOutput > 0) {
+    behaviorMessages.push(`造纸产出${Math.round(paperOutput)}，官员满意度提升${paperSatisfactionBonus.toFixed(1)}`);
+  }
 
   if (saltImportExecuted > 0) {
     if (xikou) {
