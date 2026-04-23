@@ -121,6 +121,12 @@ export const initialState = {
     officialSatisfaction: 70,
     landlordSatisfaction: 70,
 
+    farmerIncomePool: 0,
+    merchantIncomePool: 0,
+    officialIncomePool: 0,
+    farmlandRentRate: 0,
+    lastFarmlandRentCollected: 0,
+
     creditCrisis: false,
     creditCrisisResolved: false,
 

@@ -2,6 +2,21 @@
 
 export const SHOP_BUILD_COST_GRAIN = 1500000;
 
+export function routeShopConstructionIncome(world, totalCost) {
+  const safeCost = Math.max(0, Number(totalCost ?? 0));
+  const farmerShare = safeCost * 0.8;
+  const merchantShare = safeCost - farmerShare;
+
+  world.farmerIncomePool = Math.max(0, Number(world.farmerIncomePool ?? 0) + farmerShare);
+  world.merchantIncomePool = Math.max(0, Number(world.merchantIncomePool ?? 0) + merchantShare);
+
+  return {
+    farmerShare,
+    merchantShare,
+    totalCost: safeCost,
+  };
+}
+
 export function getCommerceActivityBonus(world) {
   if (!world?.grainCouponsUnlocked) return { circulationRatio: 0, commerceActivityBonus: 1.0 };
 

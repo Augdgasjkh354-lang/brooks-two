@@ -399,6 +399,12 @@ export function startResearch(state, techId) {
   state.world.clothReserve -= cost.cloth;
   state.world.couponTreasury -= cost.coupon;
 
+  const totalResearchSpend = Math.max(0, (cost.grain ?? 0) + (cost.cloth ?? 0) + (cost.coupon ?? 0));
+  const merchantShare = totalResearchSpend * 0.6;
+  const officialShare = totalResearchSpend - merchantShare;
+  state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0) + merchantShare);
+  state.world.officialIncomePool = Math.max(0, Number(state.world.officialIncomePool ?? 0) + officialShare);
+
   state.research.currentTech = tech.id;
   state.research.yearsRemaining = tech.researchYears;
 
