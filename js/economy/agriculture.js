@@ -7,8 +7,12 @@ import {
   getBureaucracyEffects,
   applyBureaucracyAnnualMaintenance,
 } from '../society/stability.js';
-import { calculateClassSatisfaction, clampPercentIndex } from '../society/satisfaction.js';
-import { getCommerceActivityBonus } from './commerce.js';
+import {
+  calculateClassSatisfaction,
+  clampPercentIndex,
+  applyLiteracyEffectsToWorld,
+} from '../society/satisfaction.js';
+import { getCommerceActivityBonus, getMerchantLiteracyMultiplier } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
 import {
   updateXikouVillageEconomy,
@@ -102,6 +106,8 @@ export function updateEconomy(world, options = {}) {
 
   const { farmEfficiency, hempEfficiency, mulberryEfficiency } = calculateLaborAllocation(world);
 
+  const literacyEffects = applyLiteracyEffectsToWorld(world);
+
   const paperMaterial = clamp((world.hempLandMu ?? 0) * 20);
   const hempStalks = clamp((world.hempLandMu ?? 0) * 200);
   const buildingFiber = clamp((world.hempLandMu ?? 0) * 10);
@@ -130,7 +136,8 @@ export function updateEconomy(world, options = {}) {
     constructionCostReduction = 0.05;
   }
 
-  const effectiveFarmEfficiency = farmEfficiency * laborEfficiency;
+  const effectiveFarmEfficiency =
+    farmEfficiency * laborEfficiency * (1 + (literacyEffects.farmerEfficiencyBonus ?? 0));
   const effectiveHempEfficiency = hempEfficiency * laborEfficiency;
   const effectiveMulberryEfficiency = mulberryEfficiency * laborEfficiency;
 
@@ -171,8 +178,16 @@ export function updateEconomy(world, options = {}) {
 
   const landDevelopmentFarmerIncomeBoost = Math.max(0, Number(world.landDevelopmentFarmerIncomeBoost ?? 0));
   const landDevelopmentCommerceBoost = Math.max(0, Number(world.landDevelopmentCommerceBoost ?? 0));
+  const merchantLiteracyMultiplier = getMerchantLiteracyMultiplier(world);
+
   const preStabilityCommerceGDP = clamp(
-    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus * laborEfficiency +
+    operatingShops *
+      500 *
+      demandEfficiencyRate *
+      grainSupplyEfficiency *
+      effectiveCommerceActivityBonus *
+      laborEfficiency *
+      merchantLiteracyMultiplier +
       landDevelopmentCommerceBoost
   );
 
@@ -191,7 +206,9 @@ export function updateEconomy(world, options = {}) {
   const { penalty: incomeGapPenalty, reason: stabilityPenaltyReason } =
     getStabilityPenaltyFromIncomeGap(preStabilityIncomeGap);
   const rawStabilityPenalty = incomeGapPenalty + inflationStabilityPenalty;
-  const stabilityPenalty = rawStabilityPenalty * (1 - bureaucracyEffects.stabilityPenaltyReduction);
+  const literacyStabilityReduction = Math.max(0, literacyEffects.stabilityPenaltyReduction ?? 0);
+  const totalStabilityPenaltyReduction = Math.min(0.8, bureaucracyEffects.stabilityPenaltyReduction + literacyStabilityReduction);
+  const stabilityPenalty = rawStabilityPenalty * (1 - totalStabilityPenaltyReduction);
   const stabilityBase = getStabilityBase(world);
   const stabilityIndex = Math.max(0, stabilityBase - stabilityPenalty);
   const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
@@ -421,6 +438,12 @@ export function updateEconomy(world, options = {}) {
   world.maxMarketDemand = maxMarketDemand;
   world.demandSaturation = demandSaturation;
   world.demandShortfall = demandShortfall;
+  world.policyExecutionEfficiency = literacyEffects.policyExecutionEfficiency;
+  world.stabilityPenaltyLiteracyReduction = literacyEffects.stabilityPenaltyReduction;
+  world.textileOutputLiteracyBonus = literacyEffects.textileOutputBonus;
+  world.landReclaimEfficiency = 1 + (literacyEffects.landReclaimEfficiencyBonus ?? 0);
+  world.farmerLiteracyEfficiencyBonus = literacyEffects.farmerEfficiencyBonus;
+  world.merchantLiteracyEfficiencyBonus = literacyEffects.merchantGDPMultiplierBonus;
 
   const satisfaction = calculateClassSatisfaction(world);
   const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);

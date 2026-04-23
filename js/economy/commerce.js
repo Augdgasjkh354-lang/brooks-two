@@ -49,6 +49,19 @@ export function getCommerceActivityBonus(world) {
   return { circulationRatio, commerceActivityBonus: 0.7 };
 }
 
+
+export function getMerchantLiteracyMultiplier(world) {
+  const directBonus = Number(world?.merchantLiteracyEfficiencyBonus ?? 0);
+  if (Number.isFinite(directBonus) && directBonus > 0) {
+    return 1 + Math.min(0.1, Math.max(0, directBonus));
+  }
+
+  const literacy = Math.max(0, Math.min(1, Number(world?.merchantLiteracy ?? 0)));
+  const step = Math.floor((literacy * 100) / 10);
+  const bonus = Math.min(step * 0.02, 0.1);
+  return 1 + bonus;
+}
+
 export function isMoneylenderSystemUnlocked(world) {
   return Boolean(world?.techBonuses?.lendingSystem);
 }
