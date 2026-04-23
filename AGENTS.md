@@ -1569,3 +1569,94 @@ game.js
   own dung / imported / total coverage % / bonus %
 - UI shows max yield per mu with current bonus
 - yearLog records dung import and fertilizer effect
+## Refactor: Modular Structure (Current)
+
+Phase 5D-1 is complete. Before adding tech tree,
+refactor all JS into clean modules.
+
+**Goal:** Split large files into focused modules.
+No logic changes. No value changes. Move only.
+
+**New directory structure:**
+
+js/
+├── state.js          (keep: initialState + createGameState only)
+├── game.js           (keep: main year loop + event binding only)
+├── render.js         (keep: renderAll() entry point only)
+│
+├── economy/
+│   ├── agriculture.js  (grain output, land, fertilizer, hemp,
+│                         mulberry, silk)
+│   ├── commerce.js     (shops, merchants, commerce GDP,
+│                         demand saturation)
+│   ├── market.js       (commodity prices, purchasing power,
+│                         salt market, cloth market)
+│   ├── currency.js     (coupons, inflation, credit crisis,
+│                         treasury split)
+│   └── labor.js        (labor allocation, all sector
+│                         labor requirements)
+│
+├── society/
+│   ├── population.js   (population growth, growth rate
+│                         modifiers)
+│   ├── satisfaction.js (all four class satisfaction
+│                         calculations and behavior triggers)
+│   └── stability.js    (stability index, efficiency
+│                         multiplier, policy interventions)
+│
+├── diplomacy/
+│   └── xikou.js        (Xikou Village state, annual economy,
+│                         diplomacy, trade, dung trade)
+│
+└── ui/
+    ├── render_economy.js   (all economy panels)
+    ├── render_society.js   (satisfaction, stability,
+│                            purchasing power panels)
+    ├── render_diplomacy.js (Xikou village panel,
+│                            trade panels)
+    └── render_world.js     (core stats, labor, land,
+                              year log)
+
+**Rules:**
+- Do NOT change any logic, formulas, or values
+- Do NOT rename any functions or variables
+- Every function goes into exactly one file
+- Modules only import from state.js (no circular deps)
+- Each new file must have clear section comments
+
+**index.html updates:**
+- Remove old script tags for economy.js, population.js,
+  render.js
+- Add new script tags in correct dependency order:
+  1. state.js
+  2. economy/labor.js
+  3. economy/agriculture.js
+  4. economy/commerce.js
+  5. economy/market.js
+  6. economy/currency.js
+  7. society/population.js
+  8. society/stability.js
+  9. society/satisfaction.js
+  10. diplomacy/xikou.js
+  11. ui/render_world.js
+  12. ui/render_economy.js
+  13. ui/render_society.js
+  14. ui/render_diplomacy.js
+  15. render.js
+  16. policies.js
+  17. unlocks.js
+  18. game.js
+
+**Old files to empty after migration:**
+- js/economy.js → replace with single comment:
+  // Migrated to js/economy/ modules
+- js/population.js → replace with single comment:
+  // Migrated to js/society/population.js
+
+**Definition of Done:**
+- All new module files created with complete content
+- All functions correctly placed in new modules
+- index.html script tags updated
+- Old files emptied with migration comment
+- No logic or value changes anywhere
+- Game runs identically after refactor
