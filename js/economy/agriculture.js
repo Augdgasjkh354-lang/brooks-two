@@ -28,6 +28,7 @@ import {
   previewOfficialSaltSale,
   clampBetween,
   getIncomePoolDemandEffects,
+  applyRoadMarketEffects,
 } from './market.js';
 import {
   getStabilityPenaltyFromIncomeGap,
@@ -70,6 +71,7 @@ export function updateEconomy(world, options = {}) {
   const officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0));
   const incomePoolEffects = getIncomePoolDemandEffects(world);
   const bureaucracyEffects = getBureaucracyEffects(world);
+  const roadEffects = applyRoadMarketEffects(world);
 
   const maturedHempLand = Math.max(0, Math.floor(world.pendingHempLandMu ?? 0));
   if (maturedHempLand > 0) {
@@ -185,6 +187,8 @@ export function updateEconomy(world, options = {}) {
   const landDevelopmentCommerceBoost = Math.max(0, Number(world.landDevelopmentCommerceBoost ?? 0));
   const merchantLiteracyMultiplier = getMerchantLiteracyMultiplier(world);
 
+  const tradeEfficiencyMultiplier = 1 + Math.max(0, Number(roadEffects.effectiveTradeBonus ?? 0));
+
   const preStabilityCommerceGDP = clamp(
     operatingShops *
       500 *
@@ -192,7 +196,8 @@ export function updateEconomy(world, options = {}) {
       grainSupplyEfficiency *
       effectiveCommerceActivityBonus *
       laborEfficiency *
-      merchantLiteracyMultiplier +
+      merchantLiteracyMultiplier *
+      tradeEfficiencyMultiplier +
       landDevelopmentCommerceBoost
   );
 
@@ -446,7 +451,7 @@ export function updateEconomy(world, options = {}) {
   world.policyExecutionEfficiency = literacyEffects.policyExecutionEfficiency;
   world.stabilityPenaltyLiteracyReduction = literacyEffects.stabilityPenaltyReduction;
   world.textileOutputLiteracyBonus = literacyEffects.textileOutputBonus;
-  world.landReclaimEfficiency = 1 + (literacyEffects.landReclaimEfficiencyBonus ?? 0);
+  world.landReclaimEfficiency = 1 + (literacyEffects.landReclaimEfficiencyBonus ?? 0) + Math.max(0, Number(roadEffects.reclaimEfficiencyBonus ?? 0));
   world.farmerLiteracyEfficiencyBonus = literacyEffects.farmerEfficiencyBonus;
   world.merchantLiteracyEfficiencyBonus = literacyEffects.merchantGDPMultiplierBonus;
 
@@ -475,8 +480,58 @@ export function updateEconomy(world, options = {}) {
     satisfaction.officialSatisfaction + paperSatisfactionBonus + incomePoolEffects.officialSatisfactionBonus
   );
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
+  world.farmerSatisfaction = world.farmerLifeQuality;
+  world.merchantSatisfaction = world.merchantLifeQuality;
+  world.officialSatisfaction = world.officialLifeQuality;
+  world.landlordSatisfaction = world.landlordLifeQuality;
 
   const activeBehaviorWarnings = [];
+  const publicToilets = Math.max(0, Number(world.publicToilets ?? 0));
+  const sanitationWorkers = Math.max(0, Number(world.sanitationWorkerCount ?? 0));
+  const workerToToiletRatio = publicToilets > 0 ? sanitationWorkers / publicToilets : 0;
+  const toiletCoverage = (world.totalPopulation ?? 0) > 0 ? (publicToilets * 100) / (world.totalPopulation ?? 1) : 0;
+  const coverageMultiplier = publicToilets > 0 && workerToToiletRatio < 0.1 ? 0.5 : 1;
+
+  world.toiletCoverage = toiletCoverage;
+  world.workerToToiletRatio = workerToToiletRatio;
+
+  if (publicToilets > 0 && workerToToiletRatio < 0.1) {
+    behaviorMessages.push('厕所维护人手不足');
+  }
+
+  if (toiletCoverage >= 30) {
+    world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? 50) + Math.round(3 * coverageMultiplier));
+  }
+  if (toiletCoverage >= 50) {
+    world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? 50) + Math.round(5 * coverageMultiplier));
+    world.workerLifeQuality = clampPercentIndex((world.workerLifeQuality ?? 50) + Math.round(3 * coverageMultiplier));
+  }
+  if (toiletCoverage >= 80) {
+    const allBoost = Math.round(3 * coverageMultiplier);
+    world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? 50) + allBoost);
+    world.merchantLifeQuality = clampPercentIndex((world.merchantLifeQuality ?? 50) + allBoost);
+    world.officialLifeQuality = clampPercentIndex((world.officialLifeQuality ?? 50) + allBoost);
+    world.landlordLifeQuality = clampPercentIndex((world.landlordLifeQuality ?? 50) + allBoost);
+    behaviorMessages.push('公共卫生覆盖良好');
+  }
+  if (toiletCoverage < 10 && (world.totalPopulation ?? 0) > 2000) {
+    world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? 50) - Math.round(5 * coverageMultiplier));
+    behaviorMessages.push('公共厕所严重不足');
+  }
+
+  const healthPrereqMet =
+    publicToilets >= 50 &&
+    Math.max(0, Number(world.sanitationWorkerCount ?? 0)) >= 5 &&
+    Math.max(0, Number(world.cleaningWorkerCount ?? 0)) >= 5;
+  if (healthPrereqMet && !world.healthBureauPrereqAnnounced) {
+    behaviorMessages.push('卫生局建立条件已满足');
+    world.healthBureauPrereqAnnounced = true;
+  }
+  world.healthBureauPrereqMet = healthPrereqMet;
+
+  if (roadEffects.maintenanceInsufficient) {
+    behaviorMessages.push('道路维护人手不足');
+  }
   if (structuralBonus) {
     behaviorMessages.push('麻纤维加固生效：农业结构稳固，劳作效率提升2%');
   }
