@@ -1,4 +1,5 @@
 import { renderCoreStats, renderPolicies, renderSystems, renderYearLog } from './ui/render_world.js';
+import { renderTechPanel } from './ui/render_tech.js';
 
 export function renderAll(
   state,
@@ -13,7 +14,8 @@ export function renderAll(
   onSetDungImportQuota,
   onOfficialSaltSale,
   onOpenHempLand,
-  onOpenMulberryLand
+  onOpenMulberryLand,
+  onStartResearch
 ) {
   renderCoreStats(
     state,
@@ -31,5 +33,6 @@ export function renderAll(
   );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
+  renderTechPanel(state, onStartResearch);
   renderYearLog(state);
 }
