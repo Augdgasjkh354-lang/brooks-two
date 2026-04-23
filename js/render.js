@@ -70,12 +70,22 @@ function getSatisfactionDisplay(score) {
 }
 
 function getClassSatisfactionFactors(world) {
+  const saltAffordability = (world.saltPrice ?? 4) / 4.0;
+  const clothAffordability = (world.clothPrice ?? 2) / 2.0;
+
   const farmerFactors = [];
   if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
   if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
   if ((world.grainTreasury ?? 0) < (world.totalPopulation ?? 0) * 1)
     farmerFactors.push('Food insecurity (<1 grain per person in treasury)');
   if ((world.taxGrainRatio ?? 1) < 0.5) farmerFactors.push('Tax mix favors coupons (>50% coupons)');
+  if (saltAffordability > 2.0) {
+    farmerFactors.push('Extreme salt price pressure (salt affordability > 2.0)');
+  } else if (saltAffordability > 1.5) {
+    farmerFactors.push('High salt price pressure (salt affordability > 1.5)');
+  }
+  if (clothAffordability > 1.5) farmerFactors.push('High cloth price pressure (cloth affordability > 1.5)');
+  if ((world.grainSurplus ?? 0) < 0) farmerFactors.push('Grain shortage (grain surplus below 0)');
 
   const merchantFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) merchantFactors.push('Inflation at or above 15%');
@@ -85,6 +95,10 @@ function getClassSatisfactionFactors(world) {
     merchantFactors.push('Oversaturated market demand (>150%)');
   if ((world.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
   if ((world.commerceActivityBonus ?? 1) > 1.0) merchantFactors.push('Commerce activity bonus active');
+  if ((world.saltPrice ?? 4) > 5.0) merchantFactors.push('High salt price boosts merchant margins (>5.0)');
+  if ((world.clothPrice ?? 2) > 3.0) merchantFactors.push('High cloth price boosts merchant margins (>3.0)');
+  if ((world.purchasingPower ?? 100) < 50)
+    merchantFactors.push('Weak purchasing power reduces customer demand (<50)');
 
   const officialFactors = [];
   if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) {
@@ -94,12 +108,20 @@ function getClassSatisfactionFactors(world) {
     officialFactors.push('Very low grain salary share (<30%) with inflation >=5%');
   }
   if ((world.stabilityIndex ?? 80) < 50) officialFactors.push('Low social stability (<50)');
+  if ((world.purchasingPower ?? 100) < 50) {
+    officialFactors.push('Weak purchasing power risks unrest (<50)');
+  }
+  if ((world.grainSurplus ?? 0) < 0) {
+    officialFactors.push('Grain shortage is a governance failure (grain surplus below 0)');
+  }
 
   const landlordFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) landlordFactors.push('Inflation at or above 15%');
   if ((world.grainPrice ?? 1) < 0.8) landlordFactors.push('Low grain price (<0.8)');
   if ((world.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
   if ((world.farmlandAreaMu ?? 0) > 40000) landlordFactors.push('Large estate bonus (>40,000 mu)');
+  if ((world.grainSurplus ?? 0) < 0) landlordFactors.push('Grain scarcity bonus active (grain surplus below 0)');
+  if (saltAffordability > 2.0) landlordFactors.push('Extreme salt prices still hurt elites (salt affordability > 2.0)');
 
   return {
     farmer: farmerFactors.length > 0 ? farmerFactors.join(' | ') : 'No active factors',
