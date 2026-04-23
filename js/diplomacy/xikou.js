@@ -1,4 +1,5 @@
 // Diplomacy module: Xikou village and relations
+import { clamp, clampRatio } from '../economy/labor.js';
 
 export function updateXikouVillageEconomy(world) {
   if (!world || !world.xikou) {
@@ -119,4 +120,3 @@ export function updateXikouDiplomacy(world) {
     `溪口村对我方态度${direction}${absoluteDelta}点（${factors.join('；')}）`,
   ];
 }
-

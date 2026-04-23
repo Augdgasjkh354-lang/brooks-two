@@ -1,11 +1,15 @@
 // Agriculture module: grain output and food security
 
-import { clamp, calculateLaborAllocation } from './labor.js';
+import { clamp, clampRatio, calculateLaborAllocation } from './labor.js';
 import { getEfficiencyMultiplier } from '../society/stability.js';
-import { calculateClassSatisfaction } from '../society/satisfaction.js';
+import { calculateClassSatisfaction, clampPercentIndex } from '../society/satisfaction.js';
 import { getCommerceActivityBonus } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
-import { updateXikouVillageEconomy, updateXikouDiplomacy } from '../diplomacy/xikou.js';
+import {
+  updateXikouVillageEconomy,
+  updateXikouDiplomacy,
+  clampAttitude,
+} from '../diplomacy/xikou.js';
 import {
   getGrainPrice,
   calculateCommodityPrice,
@@ -13,6 +17,7 @@ import {
   getSaltImportCost,
   executeOfficialSaltSale,
   previewOfficialSaltSale,
+  clampBetween,
 } from './market.js';
 import {
   getStabilityPenaltyFromIncomeGap,
@@ -601,4 +606,3 @@ export function updateEconomy(world, options = {}) {
     creditCrisisTriggered,
   };
 }
-
