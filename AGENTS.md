@@ -1208,3 +1208,67 @@ game.js, state.js
 - UI shows which price factors are affecting each class
 - Landlord grain scarcity bonus visible in UI
 - All effects recalculated every year-advance
+## Phase 5B-1 Scope (Current)
+
+Phase 5A-2 is complete. Now implementing Phase 5B-1 only.
+
+**Goal:** Salt demand is now a real annual pressure.
+Player sets import quota from Xikou. Shortfall creates
+real consequences.
+
+**Rules:**
+
+Salt demand:
+- saltAnnualDemand = totalPopulation * 15
+- saltImportQuota: player-set max import per year
+  default: 0 (player must actively set)
+  max: xikou.saltOutputJin * 0.5
+  (Xikou keeps at least half their salt)
+
+Salt import execution (each year-advance):
+- actualSaltImport = min(saltImportQuota,
+  xikou.saltOutputJin * 0.5)
+- Cost = actualSaltImport * saltPrice (paid in grain
+  if no coupons, or coupons if unlocked)
+- Cannot import if player cannot afford cost
+- saltReserve += actualSaltImport
+- xikou.grainTreasury += cost paid
+- attitudeToPlayer += 1 (trade is good for relations)
+
+Salt consumption (each year-advance):
+- saltConsumed = min(saltAnnualDemand, saltReserve)
+- saltReserve -= saltConsumed
+- saltShortfallRatio = 1 - (saltConsumed / saltAnnualDemand)
+  (0 = fully supplied, 1 = no salt at all)
+
+Shortfall effects:
+- saltShortfallRatio > 0.3:
+  farmerSatisfaction -= 20
+  purchasingPower -= 15
+  yearLog: "盐荒严重，民间怨声载道"
+- saltShortfallRatio 0.1-0.3:
+  farmerSatisfaction -= 10
+  purchasingPower -= 8
+  yearLog: "盐供应紧张"
+- saltShortfallRatio = 0:
+  no penalty
+
+State additions needed in world{}:
+- saltImportQuota: 0
+- actualSaltImport: 0
+- saltConsumed: 0
+- saltShortfallRatio: 0
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 5B-1):**
+- saltImportQuota input visible in UI
+- Player can set quota before each year-advance
+- Import cost shown before confirming year-advance
+- saltShortfallRatio calculated each year
+- UI shows salt supply status:
+  demand / imported / reserve / shortfall ratio
+- Shortfall warning shown when ratio > 0.1
+- yearLog records import amount and cost
