@@ -161,6 +161,16 @@ function getInflationDisplay(inflationRate) {
   };
 }
 
+function getPurchasingPowerDisplay(purchasingPower) {
+  if (purchasingPower >= 80) {
+    return { color: '#1b8a3b', label: 'Strong' };
+  }
+  if (purchasingPower >= 50) {
+    return { color: '#b28704', label: 'Stressed' };
+  }
+  return { color: '#b42318', label: 'Weak' };
+}
+
 function statItem(label, value) {
   return `
     <div class="stat-item">
@@ -541,6 +551,24 @@ export function renderCoreStats(
   const behaviorWarningsText =
     behaviorWarnings.length > 0 ? behaviorWarnings.join(' | ') : 'No active behavior warnings';
 
+  const commodityGrainPriceText = world.grainCouponsUnlocked
+    ? formatDecimal(world.grainPrice ?? 1, 2)
+    : 'N/A (locked before grain coupons)';
+
+  const grainSurplus = world.grainSurplus ?? 0;
+  const grainSurplusText =
+    grainSurplus >= 0 ? formatNumber(grainSurplus) : `<span style="color: #b42318; font-weight: 700;">${formatNumber(grainSurplus)}</span>`;
+  const famineRiskText =
+    grainSurplus < 0
+      ? '⚠️ Famine risk: treasury is below annual grain demand'
+      : 'No famine risk warning';
+
+  const purchasingPowerDisplay = getPurchasingPowerDisplay(world.purchasingPower ?? 100);
+  const purchasingPowerText = `<span style="color: ${purchasingPowerDisplay.color}; font-weight: 700;">${formatDecimal(
+    world.purchasingPower ?? 100,
+    1
+  )}</span> / 150 (${purchasingPowerDisplay.label})`;
+
   el.innerHTML = [
     statItem('Year', world.year),
     statItem('溪口村', getXikouVillagePanelHtml(state)),
@@ -579,8 +607,29 @@ export function renderCoreStats(
     demandWarning,
     demandShortfallWarning,
     statItem('Grain Consumed by Commerce', formatNumber(world.totalGrainDemand ?? 0)),
-    statItem('Grain Price', formatDecimal(world.grainPrice ?? 1, 2)),
+    statItem('Grain Price', commodityGrainPriceText),
     statItem('Grain Supply Ratio', formatDecimal(world.supplyRatio ?? 0, 2)),
+    statItem('Commodity Market - Grain Price', commodityGrainPriceText),
+    statItem('Commodity Market - Grain Annual Demand', formatNumber(world.grainAnnualDemand ?? 0)),
+    statItem('Commodity Market - Grain Surplus', grainSurplusText),
+    statItem('Commodity Market - Famine Risk', famineRiskText),
+    statItem(
+      'Commodity Market - Salt',
+      `Price ${formatDecimal(world.saltPrice ?? 4, 2)} | Supply ${formatNumber(
+        world.saltAnnualSupply ?? 0
+      )} | Demand ${formatNumber(world.saltAnnualDemand ?? 0)} | Reserve ${formatNumber(
+        world.saltReserve ?? 0
+      )}`
+    ),
+    statItem(
+      'Commodity Market - Cloth',
+      `Price ${formatDecimal(world.clothPrice ?? 2, 2)} | Supply ${formatNumber(
+        world.clothAnnualSupply ?? 0
+      )} | Demand ${formatNumber(world.clothAnnualDemand ?? 0)} | Reserve ${formatNumber(
+        world.clothReserve ?? 0
+      )}`
+    ),
+    statItem('Purchasing Power Index', purchasingPowerText),
     statItem('Coupon Backing Ratio', formatDecimal(world.backingRatio ?? 1, 2)),
     statItem('Inflation Rate', inflationRateHtml),
     statItem('Inflation Warning', inflationWarningText),
