@@ -37,9 +37,10 @@ function getPopulationGrowthDetails(world) {
   const demandShortfallPenalty = world.demandShortfall ? 0.005 : 0;
 
   const techGrowthBonus = Number(world.techBonuses?.populationGrowthBonus ?? 0);
+  const healthGrowthModifier = Number(world.healthGrowthModifier ?? 0);
   const growthRate = Math.max(
     0.005,
-    baseGrowthRate + techGrowthBonus + commerceProsperityBonus - demandShortfallPenalty
+    baseGrowthRate + techGrowthBonus + commerceProsperityBonus - demandShortfallPenalty + healthGrowthModifier
   );
 
   return {
@@ -48,6 +49,7 @@ function getPopulationGrowthDetails(world) {
     commerceProsperityBonus,
     demandShortfallPenalty,
     techGrowthBonus,
+    healthGrowthModifier,
   };
 }
 
@@ -342,6 +344,7 @@ export function updatePopulation(world) {
   world.populationGrowthCommerceBonus = growthDetails.commerceProsperityBonus;
   world.populationGrowthDemandPenalty = growthDetails.demandShortfallPenalty;
   world.populationGrowthTechBonus = growthDetails.techGrowthBonus;
+  world.populationGrowthHealthModifier = growthDetails.healthGrowthModifier;
 
   updateLaborAllocation(world);
 

@@ -509,6 +509,67 @@ function getPolicePanelHtml(world) {
   `;
 }
 
+
+function getHealthIndexDisplay(index) {
+  const value = Number(index ?? 50);
+  if (value >= 80) return { label: '优良', color: '#1b8a3b' };
+  if (value >= 60) return { label: '良好', color: '#1d4ed8' };
+  if (value >= 40) return { label: '基线', color: '#6b7280' };
+  if (value >= 20) return { label: '堪忧', color: '#c2410c' };
+  return { label: '危机', color: '#b42318' };
+}
+
+function getHealthPanelHtml(world) {
+  const unlocked = Boolean(world.healthBureauEstablished) ||
+    (Boolean(world.governmentEstablished) && Boolean(world.healthBureauPrereqMet));
+  const established = Boolean(world.healthBureauEstablished);
+
+  if (!unlocked) {
+    return '<div class="muted">需先满足条件：政府已建立，且公共卫生前置条件达成。</div>';
+  }
+
+  const healthDisplay = getHealthIndexDisplay(world.healthIndex ?? 50);
+  const positiveFactors = Array.isArray(world.healthFactorsPositive) && world.healthFactorsPositive.length
+    ? world.healthFactorsPositive.join(' | ')
+    : '无';
+  const negativeFactors = Array.isArray(world.healthFactorsNegative) && world.healthFactorsNegative.length
+    ? world.healthFactorsNegative.join(' | ')
+    : '无';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>卫生局状态</strong></div>
+        <div class="stat-value">${established ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">健康指数：<span style="color:${healthDisplay.color};font-weight:700;">${formatNumber(world.healthIndex ?? 50)}</span> / 100（${healthDisplay.label}）</div>
+      </div>
+
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>卫生员人数</div>
+        <input class="gov-config" data-key="healthOfficerCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.healthOfficerCount ?? 0)))}" ${!established ? 'disabled' : ''} />
+        <div class="muted">文官池占用：${formatNumber(world.adminTalentDeployedHealth ?? 0)}</div>
+
+        <div>卫生员工资</div>
+        <input class="gov-config" data-key="healthOfficerWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.healthOfficerWage ?? 0)).toFixed(0)}" ${!established ? 'disabled' : ''} />
+        <div class="muted">年成本：${formatNumber(world.healthAnnualCost ?? 0)}</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="muted">卫生效率：${formatDecimal(world.healthEfficiency ?? 0, 1)}%</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.healthEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.healthEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.healthEfficiencyStaffing ?? 0, 1)}%</div>
+        <div class="muted">增长修正：${formatDecimal((world.healthGrowthModifier ?? 0) * 100, 2)}%</div>
+        <div class="muted">连续低健康年数：${formatNumber(world.consecutiveLowHealthYears ?? 0)}</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="muted">正向因素：${positiveFactors}</div>
+        <div class="muted">负向因素：${negativeFactors}</div>
+        ${(world.diseaseOutbreak ? '<div style="color:#b42318;font-weight:700;">⚠️ 本年发生瘟疫</div>' : '')}
+      </div>
+    </div>
+  `;
+}
+
 function bindGovernmentPanelEvents() {
   document.querySelectorAll('.gov-config').forEach((el) => {
     el.addEventListener('input', () => {
@@ -585,6 +646,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
 
     <section class="panel"><h2>Government Institution</h2>${getGovernmentPanelHtml(world)}</section>
     <section class="panel"><h2>Police Bureau</h2>${getPolicePanelHtml(world)}</section>
+    <section class="panel"><h2>Health Bureau</h2>${getHealthPanelHtml(world)}</section>
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
