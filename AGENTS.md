@@ -1489,3 +1489,83 @@ game.js
   prematurely
 - yearLog records when player achieves 50% and 80%
   cloth self-sufficiency milestones
+## Phase 5D-1 Scope (Current)
+
+Phase 5C-2 is complete. Now implementing Phase 5D-1 only.
+
+**Goal:** Silkworm excrement (蚕沙) from mulberry land
+becomes agricultural fertilizer. Players can also import
+it from Xikou Village as a trade good.
+
+**Rules:**
+
+Silkworm excrement production:
+- playerSilkwormDung = mulberryLandMu * 600 jin per year
+- Only produced from mature mulberry land
+  (after 2-year maturation period)
+
+Xikou silkworm excrement:
+- xikouMulberryLandMu = 1200 (part of existing 2000 mu)
+- xikouHempLandMu = 800
+- xikouSilkwormDungOutput = 1200 * 600 = 720000 jin/year
+- xikouSilkwormDungAvailable = 720000 -
+  (xikou.farmlandMu * 600 * 0.3)
+  (Xikou uses 30% coverage on own farmland first)
+
+Silkworm dung trade:
+- Player can import silkworm dung from Xikou
+- Price: 1 grain per 100 jin dung
+  (or 1 coupon per 100 jin if unlocked)
+- Max import: xikouSilkwormDungAvailable per year
+- attitudeToPlayer += 1 per trade
+
+Fertilizer coverage calculation:
+- totalDung = playerSilkwormDung + importedDung
+- dungCoverage = totalDung /
+  (farmlandAreaMu * 600)
+  (600 jin per mu = full coverage)
+- Coverage capped at 1.0 (100%)
+
+Fertilizer effect on grain yield:
+- dungCoverage < 0.15: fertilizerBonus = 1.05 (+5%)
+- dungCoverage 0.15-0.40: fertilizerBonus = 1.12 (+12%)
+- dungCoverage > 0.40: fertilizerBonus = 1.20 (+20%)
+- dungCoverage = 0: fertilizerBonus = 1.0 (no effect)
+
+Apply to grain output:
+- actualGrainOutput *= fertilizerBonus
+- Max yield per mu = 600 jin (500 * 1.20)
+
+Dung import resets each year (perishable).
+Cannot stockpile silkworm dung.
+
+State additions needed in world{}:
+- playerSilkwormDung: 0
+- importedDung: 0
+- dungImportQuota: 0
+- totalDung: 0
+- dungCoverage: 0
+- fertilizerBonus: 1.0
+
+State additions needed in xikou{}:
+- silkwormDungOutput: 720000
+- silkwormDungAvailable: 0
+- mulberryLandMu: 1200
+- hempLandMu: 800
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 5D-1):**
+- playerSilkwormDung calculated from mature mulberry land
+- xikouSilkwormDungAvailable calculated each year
+- Dung import panel visible in UI
+- Player sets dungImportQuota
+- Import cost deducted from grain/coupon treasury
+- dungCoverage and fertilizerBonus calculated each year
+- Grain output correctly boosted by fertilizerBonus
+- UI shows fertilizer panel:
+  own dung / imported / total coverage % / bonus %
+- UI shows max yield per mu with current bonus
+- yearLog records dung import and fertilizer effect
