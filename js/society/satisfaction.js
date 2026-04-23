@@ -307,6 +307,7 @@ export function calculateClassSatisfaction(world) {
   world.merchantLifeQuality = clampPercentIndex(merchantLifeQuality);
   world.officialLifeQuality = clampPercentIndex(officialLifeQuality);
   world.landlordLifeQuality = clampPercentIndex(landlordLifeQuality);
+  world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? world.farmerLifeQuality ?? 50));
 
   // Backward compatibility for existing triggers.
   world.farmerSatisfaction = world.farmerLifeQuality;

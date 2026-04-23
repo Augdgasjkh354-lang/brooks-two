@@ -81,6 +81,19 @@ export function renderCoreStats(state) {
     statItem('Income Pool - Official', formatNumber(world.officialIncomePool ?? 0)),
     statItem('Farmland Rent Rate', `${formatDecimal(world.farmlandRentRate ?? 0, 1)} jin/mu`),
     statItem('Rent Collected (Last Year)', formatNumber(world.lastFarmlandRentCollected ?? 0)),
+    `<div class="stat-item stat-item-wide">
+      <div class="stat-label">Infrastructure</div>
+      <div class="stat-value">
+        公厕 ${formatNumber(world.publicToilets ?? 0)} 座 ｜ 覆盖率 ${formatDecimal(world.toiletCoverage ?? 0, 1)}% ｜ 厕工比 ${(world.workerToToiletRatio ?? 0).toFixed(2)}
+        <br/>道路 ${formatDecimal(world.roadLength ?? 0, 0)} 里 ｜ 贸易加成 ${(Math.max(0, Number(world.tradeEfficiency ?? 0)) * 100).toFixed(1)}% ｜ 开垦加成 ${(Math.max(0, Number(world.reclaimEfficiency ?? 0)) * 100).toFixed(1)}% ｜ 路工比 ${(world.workerToRoadRatio ?? 0).toFixed(2)}
+        <br/>卫生局前置：${world.healthBureauPrereqMet ? '已满足' : '未满足'}
+        <br/>
+        <label>新建公厕（座）<input id="public-toilet-input" type="number" min="1" step="1" value="1" /></label>
+        <button id="build-public-toilet-btn" ${(world.grainTreasury ?? 0) < 50000 ? 'disabled' : ''}>建造公厕（50000粮/座）</button>
+        <label style="margin-left:8px;">新建道路（里）<input id="road-length-input" type="number" min="1" step="1" value="1" /></label>
+        <button id="build-road-btn" ${(world.grainTreasury ?? 0) < 10000 ? 'disabled' : ''}>修建道路（10000粮/里）</button>
+      </div>
+    </div>`,
   ].join('');
 }
 

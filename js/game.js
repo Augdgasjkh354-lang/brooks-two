@@ -485,6 +485,59 @@ function openMulberryLand() {
   render();
 }
 
+
+function buildPublicToilets() {
+  const input = document.getElementById('public-toilet-input');
+  const count = Math.max(0, Math.floor(Number(input?.value ?? 0)));
+  if (count < 1) {
+    state.yearLog.unshift(`Year ${state.world.year}: 公厕修建失败 - 最少修建1座。`);
+    render();
+    return;
+  }
+
+  const totalCost = count * 50000;
+  if ((state.world.grainTreasury ?? 0) < totalCost) {
+    state.yearLog.unshift(`Year ${state.world.year}: 公厕修建失败 - 粮仓不足（需要${totalCost}粮）。`);
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= totalCost;
+  state.world.publicToilets = Math.max(0, Number(state.world.publicToilets ?? 0)) + count;
+  state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.8;
+  state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.2;
+
+  state.yearLog.unshift(`Year ${state.world.year}: 新建公共厕所${count}座（花费${totalCost}粮，农户收入池+${Math.round(totalCost*0.8)}，商人收入池+${Math.round(totalCost*0.2)}）。`);
+  if (input) input.value = '';
+  render();
+}
+
+function buildRoads() {
+  const input = document.getElementById('road-length-input');
+  const li = Math.max(0, Math.floor(Number(input?.value ?? 0)));
+  if (li < 1) {
+    state.yearLog.unshift(`Year ${state.world.year}: 道路修建失败 - 最少修建1里。`);
+    render();
+    return;
+  }
+
+  const totalCost = li * 10000;
+  if ((state.world.grainTreasury ?? 0) < totalCost) {
+    state.yearLog.unshift(`Year ${state.world.year}: 道路修建失败 - 粮仓不足（需要${totalCost}粮）。`);
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= totalCost;
+  state.world.roadLength = Math.max(0, Number(state.world.roadLength ?? 0)) + li;
+  state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.7;
+  state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.3;
+
+  state.yearLog.unshift(`Year ${state.world.year}: 新建道路${li}里（花费${totalCost}粮，农户收入池+${Math.round(totalCost*0.7)}，商人收入池+${Math.round(totalCost*0.3)}）。`);
+  if (input) input.value = '';
+  render();
+}
+
 function enactPolicy(policyId) {
   const policy = getPolicyById(policyId);
   if (!policy) return;
@@ -819,6 +872,12 @@ function issueCouponsFromInput() {
 function bindEvents() {
   document.getElementById('next-year-btn').addEventListener('click', nextYear);
   document.getElementById('issue-coupon-btn').addEventListener('click', issueCouponsFromInput);
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === 'build-public-toilet-btn') buildPublicToilets();
+    if (target.id === 'build-road-btn') buildRoads();
+  });
 
   document.addEventListener('moneylender:approve', (event) => {
     const target = Number(event?.detail?.target ?? 0);
@@ -850,6 +909,15 @@ function bindEvents() {
     const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished']);
 
     if (intKeys.has(key)) state.world[key] = Math.max(0, Math.floor(value));
+
+    if (key === 'sanitationWorkerCount' && (state.world.publicToilets ?? 0) < 1) {
+      state.world.sanitationWorkerCount = 0;
+      state.yearLog.unshift(`Year ${state.world.year}: 尚未建成公共厕所，无法配置挑粪工。`);
+    }
+    if (key === 'cleaningWorkerCount' && (state.world.roadLength ?? 0) < 1) {
+      state.world.cleaningWorkerCount = 0;
+      state.yearLog.unshift(`Year ${state.world.year}: 尚未建成道路，无法配置清洁工。`);
+    }
     if (wageKeys.has(key)) state.world[key] = Math.max(0, value);
     if (boolKeys.has(key)) state.world[key] = Boolean(event?.detail?.checked);
 

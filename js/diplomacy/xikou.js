@@ -109,6 +109,13 @@ export function updateXikouDiplomacy(world) {
     factors.push('溪口村粮储紧张（<100000）：+5');
   }
 
+  const roadAttitudeBonus = Math.min(10, Math.floor(Math.max(0, Number(world.roadLength ?? 0)) / 10));
+  if (roadAttitudeBonus > 0) {
+    delta += roadAttitudeBonus;
+    factors.push(`道路互通加成（${Math.floor(Math.max(0, Number(world.roadLength ?? 0)))}里）：+${roadAttitudeBonus}`);
+  }
+  world.roadAttitudeBonus = roadAttitudeBonus;
+
   if (factors.length === 0) {
     factors.push('无年度态度修正因素');
   }

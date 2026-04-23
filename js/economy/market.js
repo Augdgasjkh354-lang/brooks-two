@@ -199,6 +199,32 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
   };
 }
 
+
+export function applyRoadMarketEffects(world) {
+  const roadLength = Math.max(0, Number(world?.roadLength ?? 0));
+  const cleaningWorkers = Math.max(0, Number(world?.cleaningWorkerCount ?? 0));
+
+  const baseTradeBonus = Math.min(0.3, roadLength * 0.01);
+  const workerToRoadRatio = roadLength > 0 ? cleaningWorkers / roadLength : 1;
+  const maintenancePenalty = roadLength > 0 && workerToRoadRatio < 0.2 ? 0.7 : 1;
+
+  const effectiveTradeBonus = baseTradeBonus * maintenancePenalty;
+  const reclaimEfficiencyBonus = Math.min(0.15, roadLength * 0.005);
+
+  world.workerToRoadRatio = roadLength > 0 ? workerToRoadRatio : 0;
+  world.tradeEfficiency = effectiveTradeBonus;
+  world.reclaimEfficiency = reclaimEfficiencyBonus;
+
+  return {
+    roadLength,
+    baseTradeBonus,
+    effectiveTradeBonus,
+    reclaimEfficiencyBonus,
+    workerToRoadRatio: world.workerToRoadRatio,
+    maintenanceInsufficient: roadLength > 0 && workerToRoadRatio < 0.2,
+  };
+}
+
 export function getIncomePoolDemandEffects(world) {
   const farmerIncomePool = Math.max(0, Number(world?.farmerIncomePool ?? 0));
   const merchantIncomePool = Math.max(0, Number(world?.merchantIncomePool ?? 0));
