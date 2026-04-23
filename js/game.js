@@ -1,6 +1,6 @@
 import { createGameState } from './state.js';
 import { updatePopulation } from './population.js';
-import { updateEconomy, issueGrainCoupons } from './economy.js';
+import { updateEconomy, issueGrainCoupons, executeOfficialSaltSale } from './economy.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
@@ -133,6 +133,7 @@ function nextYear() {
   state.world.merchantTaxUsed = false;
   state.world.saltTradeUsed = false;
   state.world.clothTradeUsed = false;
+  state.world.officialSaltSaleUsed = false;
 
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
@@ -424,6 +425,36 @@ function tradeGrainForCloth() {
   render();
 }
 
+function executeOfficialSaltSaleFromInput() {
+  const priceInput = document.getElementById('official-salt-price-input');
+  const amountInput = document.getElementById('official-salt-amount-input');
+  const price = Number(priceInput?.value ?? 0);
+  const amount = Number(amountInput?.value ?? 0);
+
+  const result = executeOfficialSaltSale(state.world, price, amount);
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.world.year}: 官府放盐失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  const priceText = Number(result.price).toFixed(2);
+  const releaseRatioPercent = Math.round((result.releaseRatio ?? 0) * 1000) / 10;
+  const subsidyText = Math.round(result.subsidyLoss ?? 0);
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 官府放盐 ${result.amount}斤（单价${priceText}，收入${result.revenue}${
+      result.currency === 'coupon' ? '粮劵' : '粮食'
+    }，补贴成本${subsidyText}，投放占年需求${releaseRatioPercent}%）。`
+  );
+
+  if (result.farmerMessage) {
+    state.yearLog.unshift(`Year ${state.world.year}: ${result.farmerMessage}`);
+  }
+
+  render();
+}
+
 function issueCouponsFromInput() {
   const input = document.getElementById('coupon-issue-input');
   const amount = Number(input.value);
@@ -460,7 +491,8 @@ function render() {
     resolveByEmergencyRedemption,
     sendEnvoyToXikou,
     tradeGrainForSalt,
-    tradeGrainForCloth
+    tradeGrainForCloth,
+    executeOfficialSaltSaleFromInput
   );
 }
 

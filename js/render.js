@@ -1,5 +1,6 @@
 import { policies } from './policies.js';
 import { hasPrerequisites, getUnlockedSystems } from './unlocks.js';
+import { previewOfficialSaltSale } from './economy.js';
 
 function formatNumber(num) {
   return new Intl.NumberFormat().format(num);
@@ -517,6 +518,90 @@ function bindSaltImportQuotaEvents(state) {
   });
 }
 
+function getOfficialSaltSaleControlsHtml(world) {
+  const marketPrice = Number(world.saltPrice ?? 0);
+  const reserve = Math.max(0, Math.floor(Number(world.saltReserve ?? 0)));
+  const usedThisYear = !!world.officialSaltSaleUsed;
+
+  const defaultPrice = Number(world.officialSaltPrice ?? marketPrice);
+  const defaultAmount = Math.floor(Number(world.officialSaltAmount ?? 1000));
+  const preview = previewOfficialSaltSale(world, defaultPrice, defaultAmount);
+
+  const canSell = reserve >= 1000 && !usedThisYear;
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div class="muted">当前市场盐价：${formatDecimal(marketPrice, 2)}</div>
+      <div class="muted">政府可投放盐储备：${formatNumber(reserve)} 斤</div>
+      <label for="official-salt-price-input">官府放盐价格（不得高于市场价）</label>
+      <input
+        id="official-salt-price-input"
+        type="number"
+        min="0"
+        step="0.1"
+        max="${formatDecimal(marketPrice, 2)}"
+        value="${formatDecimal(preview.cappedPrice, 2)}"
+      />
+      <label for="official-salt-amount-input">官府放盐数量（最低1000斤）</label>
+      <input
+        id="official-salt-amount-input"
+        type="number"
+        min="1000"
+        step="1000"
+        max="${reserve}"
+        value="${Math.max(1000, Math.min(preview.cappedAmount || 1000, reserve || 1000))}"
+      />
+      <div id="official-salt-preview" class="muted">
+        预计收入：${formatNumber(Math.round(preview.revenue))} ${world.grainCouponsUnlocked ? 'coupon' : 'grain'} |
+        预计补贴成本：${formatNumber(Math.round(preview.subsidyLoss))} |
+        投放占年需求：${formatDecimal(preview.releaseRatio * 100, 1)}% |
+        预计投放后盐价：${formatDecimal(preview.nextSaltPrice, 2)}
+      </div>
+      <button id="official-salt-sale-btn" ${canSell ? '' : 'disabled'}>
+        ${usedThisYear ? '本年已执行官府放盐' : reserve < 1000 ? '盐储备不足1000，无法投放' : '执行官府放盐'}
+      </button>
+    </div>
+  `;
+}
+
+function bindOfficialSaltSaleEvents(state, onOfficialSaltSale) {
+  const priceInput = document.getElementById('official-salt-price-input');
+  const amountInput = document.getElementById('official-salt-amount-input');
+  const previewEl = document.getElementById('official-salt-preview');
+  const button = document.getElementById('official-salt-sale-btn');
+
+  const refreshPreview = () => {
+    if (!priceInput || !amountInput || !previewEl) return;
+
+    const marketPrice = Number(state.world.saltPrice ?? 0);
+    const reserve = Math.max(0, Math.floor(Number(state.world.saltReserve ?? 0)));
+    const inputPrice = Number(priceInput.value ?? 0);
+    const inputAmount = Number(amountInput.value ?? 0);
+    const preview = previewOfficialSaltSale(state.world, inputPrice, inputAmount);
+
+    if (inputPrice > marketPrice) {
+      priceInput.value = String(marketPrice);
+    }
+    if (inputAmount > reserve) {
+      amountInput.value = String(reserve);
+    }
+
+    previewEl.textContent = `预计收入：${formatNumber(Math.round(preview.revenue))} ${
+      state.world.grainCouponsUnlocked ? 'coupon' : 'grain'
+    } | 预计补贴成本：${formatNumber(Math.round(preview.subsidyLoss))} | 投放占年需求：${formatDecimal(
+      preview.releaseRatio * 100,
+      1
+    )}% | 预计投放后盐价：${formatDecimal(preview.nextSaltPrice, 2)}`;
+  };
+
+  priceInput?.addEventListener('input', refreshPreview);
+  amountInput?.addEventListener('input', refreshPreview);
+
+  if (button && typeof onOfficialSaltSale === 'function') {
+    button.addEventListener('click', onOfficialSaltSale);
+  }
+}
+
 export function renderCoreStats(
   state,
   onUseGrainRedistribution,
@@ -525,7 +610,8 @@ export function renderCoreStats(
   onEmergencyRedemption,
   onSendEnvoy,
   onTradeSalt,
-  onTradeCloth
+  onTradeCloth,
+  onOfficialSaltSale
 ) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -688,6 +774,7 @@ export function renderCoreStats(
       )}`
     ),
     statItem('Salt Import Quota', getSaltImportControlsHtml(world, state.xikou)),
+    statItem('Official Salt Sale', getOfficialSaltSaleControlsHtml(world)),
     statItem(
       'Salt Supply Status',
       `Demand ${formatNumber(world.saltAnnualDemand ?? 0)} | Imported ${formatNumber(
@@ -762,6 +849,7 @@ export function renderCoreStats(
   bindDiplomacyEvents(onSendEnvoy);
   bindTradeEvents(onTradeSalt, onTradeCloth);
   bindSaltImportQuotaEvents(state);
+  bindOfficialSaltSaleEvents(state, onOfficialSaltSale);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -858,7 +946,8 @@ export function renderAll(
   onEmergencyRedemption,
   onSendEnvoy,
   onTradeSalt,
-  onTradeCloth
+  onTradeCloth,
+  onOfficialSaltSale
 ) {
   renderCoreStats(
     state,
@@ -868,7 +957,8 @@ export function renderAll(
     onEmergencyRedemption,
     onSendEnvoy,
     onTradeSalt,
-    onTradeCloth
+    onTradeCloth,
+    onOfficialSaltSale
   );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
