@@ -2378,3 +2378,115 @@ economy/currency.js, economy/labor.js
   farmer pool / merchant pool / official pool
 - UI shows rent collected this year
 - yearLog records all flows
+## Phase 6B-2 Scope (Current)
+
+Phase 6B-1 complete. Now implementing 6B-2 only.
+
+**Goal:** Add moneylender shop upgrade system with
+government licensing. Add lending pool and interest
+mechanics.
+
+**Rules:**
+
+Unlock conditions (all must be true):
+- moneylenderUnlocked = true (tech completed)
+- bureaucracyUnlocked = true (papermaking tech)
+- shopCount >= 10
+
+Moneylender shop upgrade:
+- Player sets approvedMoneylenders (how many to license)
+- Cannot exceed shopCount
+- Each license costs 5,000,000 coupon (default)
+  or grain if grainCouponsUnlocked = false
+- licenseFee adjustable by player (policy panel)
+- License fee → 100% couponTreasury/grainTreasury
+- moneylenderShops = approvedMoneylenders
+
+Moneylender income:
+- Each moneylender shop earns base commerceGDP
+  (same as regular shop: 500/year)
+- Plus lending interest income (see below)
+
+Moneylender fees:
+- Pays shop rent (same as regular shops)
+- Pays moneylender tax: moneylenderGDP * moneylenderTaxRate
+- moneylenderTaxRate: 0.01 (1%, adjustable 0%-20%)
+- Tax → couponTreasury/grainTreasury
+
+Lending pool:
+- lendingPoolSize = moneylenderShops * 10,000,000
+  (each moneylender can lend 10M per year)
+- Government can borrow from lending pool
+- Max government borrow = lendingPoolSize * 0.5
+- Civilian auto-lending:
+  Each year, moneylenders auto-lend to merchants
+  civilianLending = lendingPoolSize * 0.3
+  → new shop opens every 5 years of lending
+    (civilianLendingAccumulator += civilianLending)
+    when accumulator >= 50,000,000: shopCount += 1,
+    accumulator -= 50,000,000
+
+Interest rates:
+- Government borrowing:
+  coupon loan: 5%/year
+  grain loan: 3%/year
+- Civilian lending: fixed 8%/year
+- Interest income → moneylenderIncomePool
+  → 50% merchantIncomePool
+  → 50% couponTreasury (moneylender profit)
+
+Government debt:
+- governmentDebt: 0 (total outstanding)
+- governmentDebtInterest: 0 (annual interest due)
+- Debt repayment: player sets annualRepayment
+- Cannot borrow if governmentDebt >
+  lendingPoolSize (overleveraged)
+- Default penalty (debt > grainTreasury * 2):
+  merchantSatisfaction -= 30
+  creditCrisis = true
+
+Debt effects on satisfaction:
+- governmentDebt > lendingPoolSize * 0.3:
+  merchantSatisfaction -= 5
+- governmentDebt > lendingPoolSize * 0.6:
+  merchantSatisfaction -= 15
+- governmentDebt > lendingPoolSize * 0.9:
+  merchantSatisfaction -= 30
+
+State additions needed in world{}:
+- moneylenderShops: 0
+- approvedMoneylenders: 0
+- licenseFee: 5000000
+- moneylenderTaxRate: 0.01
+- lendingPoolSize: 0
+- governmentDebt: 0
+- governmentDebtInterest: 0
+- annualRepayment: 0
+- civilianLendingAccumulator: 0
+- moneylenderGDP: 0
+
+**Files to modify:**
+- js/state.js
+- js/economy/commerce.js
+- js/economy/currency.js
+- js/ui/render_economy.js
+- js/ui/render_society.js (policy controls)
+- js/game.js (debt repayment each year)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/agriculture.js, economy/market.js,
+economy/labor.js, any society/ diplomacy/ files
+
+**Definition of Done (Phase 6B-2):**
+- Moneylender panel appears when conditions met
+- Player can set approvedMoneylenders count
+- License fee deducted on approval
+- moneylenderTaxRate slider (0%-20%)
+- licenseFee adjustable in policy panel
+- Government borrow button with amount input
+- Annual repayment input
+- Debt panel shows:
+  total debt / interest due / lending pool size
+- Civilian lending auto-generates shops over time
+- yearLog records borrowing, repayment, interest
+- Warning shown when debt levels are high
