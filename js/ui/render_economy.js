@@ -1,6 +1,7 @@
 import { formatNumber, formatDecimal, statItem } from './render_world.js';
 import { previewOfficialSaltSale } from '../economy/market.js';
 import { getInflationDisplay } from './render_society.js';
+import { canUseMoneylenderSystem } from '../economy/commerce.js';
 
 export function renderCouponDenominationBreakdown(world) {
   const breakdown = world.lastCouponDenominationBreakdown ?? [];
@@ -193,6 +194,63 @@ export function bindLandDevelopmentEvents(world, onOpenHempLand, onOpenMulberryL
   if (mulberryButton && typeof onOpenMulberryLand === 'function') mulberryButton.addEventListener('click', onOpenMulberryLand);
 }
 
+
+
+function getMoneylenderControlsHtml(world) {
+  const enabled = canUseMoneylenderSystem(world);
+  const cap = Math.max(0, Number(world.shopCount ?? 0));
+  const approved = Math.max(0, Math.min(cap, Number(world.approvedMoneylenders ?? 0)));
+  const borrowCap = Math.max(0, Math.floor((world.lendingPoolSize ?? 0) * 0.5));
+
+  if (!enabled) {
+    return `<div class="muted">钱庄系统未启用（需要：钱庄技术 + 造纸术官僚体系 + 商铺≥10）。</div>`;
+  }
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label for="approved-moneylenders-input">Licensed Moneylenders (max ${formatNumber(cap)})</label>
+      <input id="approved-moneylenders-input" type="number" min="0" max="${cap}" step="1" value="${Math.floor(approved)}" />
+      <button id="approve-moneylenders-btn">Apply Licenses</button>
+      <div class="muted">License fee per shop: ${formatNumber(Math.floor(world.licenseFee ?? 5000000))} ${world.grainCouponsUnlocked ? 'coupon' : 'grain'}</div>
+      <label for="government-borrow-input">Government Borrow Amount (max per action ${formatNumber(borrowCap)})</label>
+      <input id="government-borrow-input" type="number" min="0" step="100000" max="${borrowCap}" value="0" />
+      <button id="government-borrow-btn" ${borrowCap <= 0 ? 'disabled' : ''}>Borrow from Lending Pool</button>
+      <label for="annual-repayment-input">Annual Debt Repayment</label>
+      <input id="annual-repayment-input" type="number" min="0" step="100000" value="${Math.floor(world.annualRepayment ?? 0)}" />
+      <div class="muted">Debt currency: ${(world.governmentDebtCurrency === 'grain') ? 'grain' : 'coupon'} | Interest due this year: ${formatNumber(Math.round(world.governmentDebtInterest ?? 0))}</div>
+    </div>
+  `;
+}
+
+function bindMoneylenderEconomyEvents(state) {
+  const approvedInput = document.getElementById('approved-moneylenders-input');
+  const approveBtn = document.getElementById('approve-moneylenders-btn');
+  const borrowInput = document.getElementById('government-borrow-input');
+  const borrowBtn = document.getElementById('government-borrow-btn');
+  const repaymentInput = document.getElementById('annual-repayment-input');
+
+  if (repaymentInput) {
+    repaymentInput.addEventListener('input', () => {
+      const val = Math.max(0, Math.floor(Number(repaymentInput.value || 0)));
+      state.world.annualRepayment = val;
+    });
+  }
+
+  if (approveBtn && approvedInput) {
+    approveBtn.addEventListener('click', () => {
+      const target = Math.max(0, Math.floor(Number(approvedInput.value || 0)));
+      document.dispatchEvent(new CustomEvent('moneylender:approve', { detail: { target } }));
+    });
+  }
+
+  if (borrowBtn && borrowInput) {
+    borrowBtn.addEventListener('click', () => {
+      const amount = Math.max(0, Math.floor(Number(borrowInput.value || 0)));
+      document.dispatchEvent(new CustomEvent('moneylender:borrow', { detail: { amount } }));
+    });
+  }
+}
+
 export function renderEconomyTab(state) {
   const world = state.world;
   const mount = document.getElementById('economy-tab-content');
@@ -220,7 +278,18 @@ export function renderEconomyTab(state) {
       ${statItem('Merchant Income / Head', formatDecimal(world.merchantIncomePerHead ?? 0, 2))}
       ${statItem('Income Gap', formatDecimal(world.incomeGap ?? 0, 2))}
     </div></section>
+    <section class="panel"><h2>Moneylender & Debt</h2><div class="tab-grid">
+      ${statItem('Moneylender Shops', formatNumber(world.moneylenderShops ?? 0))}
+      ${statItem('Lending Pool Size', formatNumber(world.lendingPoolSize ?? 0))}
+      ${statItem('Moneylender GDP', formatNumber(world.moneylenderGDP ?? 0))}
+      ${statItem('Government Debt', formatNumber(world.governmentDebt ?? 0))}
+      ${statItem('Debt Interest Due', formatNumber(world.governmentDebtInterest ?? 0))}
+      ${statItem('Civilian Lending Accumulator', formatNumber(world.civilianLendingAccumulator ?? 0))}
+      ${statItem('Controls', getMoneylenderControlsHtml(world))}
+    </div></section>
   `;
+
+  bindMoneylenderEconomyEvents(state);
 }
 
 export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) {

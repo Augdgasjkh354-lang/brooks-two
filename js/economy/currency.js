@@ -1,5 +1,15 @@
-// Currency module: coupons and inflation
+// Currency module: coupons, inflation, and government debt
 import { clamp } from './labor.js';
+
+function clampMoney(value) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, n);
+}
+
+function clampIndex(value) {
+  return Math.max(0, Math.min(100, Number(value ?? 0)));
+}
 
 export function getInflationState(world) {
   if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
@@ -112,5 +122,123 @@ export function issueGrainCoupons(state, amount) {
     success: true,
     issueAmount,
     denominationBreakdown,
+  };
+}
+
+export function borrowGovernmentDebt(world, amount) {
+  const borrowAmount = Math.floor(clampMoney(amount));
+  const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
+
+  if (borrowAmount <= 0) {
+    return { success: false, reason: 'Borrow amount must be greater than 0.' };
+  }
+  if (lendingPoolSize <= 0) {
+    return { success: false, reason: 'No lending pool available.' };
+  }
+
+  const maxSingleBorrow = lendingPoolSize * 0.5;
+  if (borrowAmount > maxSingleBorrow) {
+    return {
+      success: false,
+      reason: `Borrow exceeds 50% pool cap (max ${Math.floor(maxSingleBorrow)}).`,
+    };
+  }
+
+  const currentDebt = clampMoney(world.governmentDebt ?? 0);
+  if (currentDebt > lendingPoolSize) {
+    return { success: false, reason: 'Cannot borrow while debt is over lending pool size.' };
+  }
+
+  const projectedDebt = currentDebt + borrowAmount;
+  if (projectedDebt > lendingPoolSize) {
+    return { success: false, reason: 'Projected debt would exceed lending pool size.' };
+  }
+
+  const debtCurrency = world.grainCouponsUnlocked ? 'coupon' : 'grain';
+  if (debtCurrency === 'coupon') {
+    world.couponTreasury = clampMoney(world.couponTreasury ?? 0) + borrowAmount;
+  } else {
+    world.grainTreasury = clampMoney(world.grainTreasury ?? 0) + borrowAmount;
+  }
+
+  world.governmentDebt = projectedDebt;
+  world.governmentDebtCurrency = debtCurrency;
+
+  return {
+    success: true,
+    amount: borrowAmount,
+    currency: debtCurrency,
+    totalDebt: projectedDebt,
+  };
+}
+
+export function processGovernmentDebtYear(world) {
+  const debt = clampMoney(world.governmentDebt ?? 0);
+  const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
+  const currency = world.governmentDebtCurrency === 'grain' ? 'grain' : 'coupon';
+
+  if (debt <= 0) {
+    world.governmentDebt = 0;
+    world.governmentDebtInterest = 0;
+    return {
+      interestDue: 0,
+      repaymentPaid: 0,
+      remainingDebt: 0,
+      interestRate: currency === 'coupon' ? 0.05 : 0.03,
+      penaltyMessages: [],
+    };
+  }
+
+  const interestRate = currency === 'coupon' ? 0.05 : 0.03;
+  const interestDue = debt * interestRate;
+
+  world.governmentDebtInterest = interestDue;
+  world.governmentDebt = debt + interestDue;
+
+  const desiredRepayment = clampMoney(world.annualRepayment ?? 0);
+  let repaymentPaid = 0;
+
+  if (desiredRepayment > 0) {
+    if (currency === 'coupon') {
+      const couponAvailable = clampMoney(world.couponTreasury ?? 0);
+      repaymentPaid = Math.min(desiredRepayment, couponAvailable, world.governmentDebt);
+      world.couponTreasury = couponAvailable - repaymentPaid;
+    } else {
+      const grainAvailable = clampMoney(world.grainTreasury ?? 0);
+      repaymentPaid = Math.min(desiredRepayment, grainAvailable, world.governmentDebt);
+      world.grainTreasury = grainAvailable - repaymentPaid;
+    }
+
+    world.governmentDebt = Math.max(0, world.governmentDebt - repaymentPaid);
+  }
+
+  const penaltyMessages = [];
+  if (lendingPoolSize > 0) {
+    const debtRatio = world.governmentDebt / lendingPoolSize;
+    if (debtRatio > 0.9) {
+      world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 30);
+      penaltyMessages.push('债务超过放贷池90%，商人满意度-30');
+    } else if (debtRatio > 0.6) {
+      world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 15);
+      penaltyMessages.push('债务超过放贷池60%，商人满意度-15');
+    } else if (debtRatio > 0.3) {
+      world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 5);
+      penaltyMessages.push('债务超过放贷池30%，商人满意度-5');
+    }
+  }
+
+  if (world.governmentDebt > clampMoney(world.grainTreasury ?? 0) * 2) {
+    world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 30);
+    world.creditCrisis = true;
+    penaltyMessages.push('债务超过粮仓2倍，触发信用风险（商人满意度-30）');
+  }
+
+  return {
+    interestDue,
+    repaymentPaid,
+    remainingDebt: world.governmentDebt,
+    interestRate,
+    penaltyMessages,
+    currency,
   };
 }
