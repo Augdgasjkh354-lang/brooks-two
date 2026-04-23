@@ -602,6 +602,64 @@ function bindOfficialSaltSaleEvents(state, onOfficialSaltSale) {
   }
 }
 
+function getLandDevelopmentControlsHtml(world) {
+  const hempCostPerMu = 8;
+  const mulberryCostPerMu = 15;
+  const defaultHempMu = 100;
+  const defaultMulberryMu = 100;
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div>
+        <div><strong>开垦麻田</strong>（最低100亩，成本8粮/亩，次年生效）</div>
+        <input id="hemp-land-input" type="number" min="100" step="100" value="${defaultHempMu}" />
+        <div class="muted">预计成本：${formatNumber(defaultHempMu * hempCostPerMu)} 粮</div>
+        <button id="open-hemp-land-btn">确认开垦麻田</button>
+      </div>
+      <div>
+        <div><strong>开垦桑田</strong>（最低100亩，成本15粮/亩，2年后首收）</div>
+        <input id="mulberry-land-input" type="number" min="100" step="100" value="${defaultMulberryMu}" />
+        <div class="muted">预计成本：${formatNumber(defaultMulberryMu * mulberryCostPerMu)} 粮</div>
+        <button id="open-mulberry-land-btn">确认开垦桑田</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindLandDevelopmentEvents(onOpenHempLand, onOpenMulberryLand) {
+  const hempInput = document.getElementById('hemp-land-input');
+  const hempButton = document.getElementById('open-hemp-land-btn');
+  const mulberryInput = document.getElementById('mulberry-land-input');
+  const mulberryButton = document.getElementById('open-mulberry-land-btn');
+
+  if (hempInput) {
+    hempInput.addEventListener('input', () => {
+      const costEl = hempInput.parentElement?.querySelector('.muted');
+      const mu = Math.max(0, Math.floor(Number(hempInput.value || 0)));
+      if (costEl) {
+        costEl.textContent = `预计成本：${formatNumber(mu * 8)} 粮`;
+      }
+    });
+  }
+
+  if (mulberryInput) {
+    mulberryInput.addEventListener('input', () => {
+      const costEl = mulberryInput.parentElement?.querySelector('.muted');
+      const mu = Math.max(0, Math.floor(Number(mulberryInput.value || 0)));
+      if (costEl) {
+        costEl.textContent = `预计成本：${formatNumber(mu * 15)} 粮`;
+      }
+    });
+  }
+
+  if (hempButton && typeof onOpenHempLand === 'function') {
+    hempButton.addEventListener('click', onOpenHempLand);
+  }
+  if (mulberryButton && typeof onOpenMulberryLand === 'function') {
+    mulberryButton.addEventListener('click', onOpenMulberryLand);
+  }
+}
+
 export function renderCoreStats(
   state,
   onUseGrainRedistribution,
@@ -611,7 +669,9 @@ export function renderCoreStats(
   onSendEnvoy,
   onTradeSalt,
   onTradeCloth,
-  onOfficialSaltSale
+  onOfficialSaltSale,
+  onOpenHempLand,
+  onOpenMulberryLand
 ) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -741,6 +801,33 @@ export function renderCoreStats(
     statItem('Children', formatNumber(world.children)),
     statItem('Elderly', formatNumber(world.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
+    statItem(
+      '纤维用地（麻/桑）',
+      `${formatNumber(world.hempLandMu ?? 0)} / ${formatNumber(world.mulberryLandMu ?? 0)} 亩`
+    ),
+    statItem(
+      '待转化用地（麻/桑）',
+      `${formatNumber(world.pendingHempLandMu ?? 0)} / ${formatNumber(world.pendingMulberryLandMu ?? 0)} 亩`
+    ),
+    statItem(
+      '桑田最早成熟年份',
+      (world.mulberryMaturationYear ?? 0) > 0 ? `Year ${world.mulberryMaturationYear}` : '无待成熟桑田'
+    ),
+    statItem(
+      '纤维产业用工（麻/桑）',
+      `${formatNumber(world.hempLaborAllocated ?? 0)} / ${formatNumber(
+        world.hempLaborRequired ?? 0
+      )} | ${formatNumber(world.mulberryLaborAllocated ?? 0)} / ${formatNumber(
+        world.mulberryLaborRequired ?? 0
+      )}`
+    ),
+    statItem(
+      '布匹年产量（粗布/细布/生丝）',
+      `${formatNumber(world.coarseClothOutput ?? 0)} / ${formatNumber(
+        world.fineClothOutput ?? 0
+      )} / ${formatNumber(world.rawSilkOutput ?? 0)}`
+    ),
+    statItem('土地开垦操作', getLandDevelopmentControlsHtml(world)),
     statItem('Yield / mu (effective)', formatNumber(world.grainYieldPerMu)),
     statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0)),
     statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0)),
@@ -850,6 +937,7 @@ export function renderCoreStats(
   bindTradeEvents(onTradeSalt, onTradeCloth);
   bindSaltImportQuotaEvents(state);
   bindOfficialSaltSaleEvents(state, onOfficialSaltSale);
+  bindLandDevelopmentEvents(onOpenHempLand, onOpenMulberryLand);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -947,7 +1035,9 @@ export function renderAll(
   onSendEnvoy,
   onTradeSalt,
   onTradeCloth,
-  onOfficialSaltSale
+  onOfficialSaltSale,
+  onOpenHempLand,
+  onOpenMulberryLand
 ) {
   renderCoreStats(
     state,
@@ -958,7 +1048,9 @@ export function renderAll(
     onSendEnvoy,
     onTradeSalt,
     onTradeCloth,
-    onOfficialSaltSale
+    onOfficialSaltSale,
+    onOpenHempLand,
+    onOpenMulberryLand
   );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
