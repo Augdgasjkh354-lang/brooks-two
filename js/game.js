@@ -8,6 +8,7 @@ import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
+import { ensureGovernmentInstitution, calculateGovernmentWageBill } from './society/stability.js';
 
 const state = createGameState();
 
@@ -242,6 +243,21 @@ function borrowFromMoneylenderPool(amount) {
   render();
 }
 
+function syncGovernmentInstitutionSettings() {
+  state.world.seniorOfficialCount = Math.max(0, Math.floor(Number(state.world.seniorOfficialCount ?? 0)));
+  state.world.midOfficialCount = Math.max(0, Math.floor(Number(state.world.midOfficialCount ?? 0)));
+  state.world.juniorOfficialCount = Math.max(0, Math.floor(Number(state.world.juniorOfficialCount ?? 0)));
+  state.world.sanitationWorkerCount = Math.max(0, Math.floor(Number(state.world.sanitationWorkerCount ?? 0)));
+  state.world.cleaningWorkerCount = Math.max(0, Math.floor(Number(state.world.cleaningWorkerCount ?? 0)));
+
+  state.world.seniorOfficialWage = Math.max(0, Number(state.world.seniorOfficialWage ?? 0));
+  state.world.midOfficialWage = Math.max(0, Number(state.world.midOfficialWage ?? 0));
+  state.world.juniorOfficialWage = Math.max(0, Number(state.world.juniorOfficialWage ?? 0));
+  state.world.professionalWage = Math.max(0, Number(state.world.professionalWage ?? 0));
+  state.world.sanitationWorkerWage = Math.max(0, Number(state.world.sanitationWorkerWage ?? 0));
+  state.world.cleaningWorkerWage = Math.max(0, Number(state.world.cleaningWorkerWage ?? 0));
+}
+
 function nextYear() {
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
@@ -252,6 +268,11 @@ function nextYear() {
   state.world.mulberryReclamationUsedThisYear = false;
 
   state.world.year += 1;
+  ensureGovernmentInstitution(state.world, state.yearLog);
+  syncGovernmentInstitutionSettings();
+  const annualWageBill = calculateGovernmentWageBill(state.world);
+  state.world.totalSalaryCost = annualWageBill;
+
   const schoolSettlement = settleEducationYear();
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
@@ -277,6 +298,7 @@ function nextYear() {
 
   state.yearLog.unshift(`Year ${state.world.year}: 学校结算：在校生 P/S/H = ${schoolSettlement.edu.primaryEnrolled}/${schoolSettlement.edu.secondaryEnrolled}/${schoolSettlement.edu.higherEnrolled}；毕业生 +${schoolSettlement.edu.annualPrimaryGrads}/+${schoolSettlement.edu.annualSecondaryGrads}/+${schoolSettlement.edu.annualHigherGrads}。`);
   state.yearLog.unshift(`Year ${state.world.year}: 教育财政：官办教育支出 ${Math.round(schoolSettlement.govCost)}，商办学费流入商人收入池 ${Math.round(schoolSettlement.commercialTuition)}，学子下乡支出 ${Math.round(schoolSettlement.downCost)}。`);
+  state.yearLog.unshift(`Year ${state.world.year}: 官员薪俸结算：总额 ${Math.round(state.world.totalWageBill ?? 0)}（粮/劵按薪资比例支付）。`);
 
   if (econResult.creditCrisisTriggered) {
     state.yearLog.unshift(`Year ${state.world.year}: 粮劵信用崩塌，市场发生挤兑`);
@@ -785,7 +807,29 @@ function bindEvents() {
     const target = Number(event?.detail?.target ?? 0);
     setStudentsDownToVillage(target);
   });
+
+  document.addEventListener('government:config', (event) => {
+    const key = String(event?.detail?.key ?? '');
+    const value = Number(event?.detail?.value ?? 0);
+    if (!key) return;
+    const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov']);
+    const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage']);
+    const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished']);
+
+    if (intKeys.has(key)) state.world[key] = Math.max(0, Math.floor(value));
+    if (wageKeys.has(key)) state.world[key] = Math.max(0, value);
+    if (boolKeys.has(key)) state.world[key] = Boolean(event?.detail?.checked);
+
+    if (key === 'adminTalentDeployedGov') {
+      state.world.adminTalentDeployedGov = Math.max(0, Math.floor(value));
+    }
+
+    syncGovernmentInstitutionSettings();
+    calculateGovernmentWageBill(state.world);
+    render();
+  });
 }
+
 
 function render() {
   renderAll(
@@ -808,6 +852,8 @@ function render() {
 
 function init() {
   initResearch(state);
+  ensureGovernmentInstitution(state.world, state.yearLog);
+  calculateGovernmentWageBill(state.world);
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
   bindEvents();

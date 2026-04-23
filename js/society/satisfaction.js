@@ -36,7 +36,7 @@ function getClassIncomePerHead(world) {
 
   const annualWageBill = Math.max(
     0,
-    Number(world.annualWageBill ?? world.lastSalaryCost ?? world.totalSalaryCost ?? 0)
+    Number(world.totalWageBill ?? world.annualWageBill ?? world.lastSalaryCost ?? world.totalSalaryCost ?? 0)
   );
   const totalOfficials = Math.max(0, Number(world.totalOfficials ?? world.officialPopulation ?? 0));
   const officialIncomePerHead = totalOfficials > 0 ? annualWageBill / totalOfficials : farmerIncomePerHead;

@@ -409,6 +409,74 @@ function getLiteracyEffectsSummary(world) {
   };
 }
 
+
+function getGovernmentPanelHtml(world) {
+  const established = Boolean(world.governmentEstablished);
+  const gdpPc = Number(world.gdpPerCapita ?? 0);
+  const govStatus = established ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">未建立（需文官人才≥10）</span>';
+
+  const row = (label, countKey, wageKey, disabled = false) => `
+    <div style="display:grid;grid-template-columns:140px 1fr 1fr;gap:8px;align-items:center;">
+      <div>${label}</div>
+      <input class="gov-config" data-key="${countKey}" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world[countKey] ?? 0)))}" ${disabled ? 'disabled' : ''} />
+      <input class="gov-config" data-key="${wageKey}" type="number" min="0" step="1" value="${Math.max(0, Number(world[wageKey] ?? 0)).toFixed(0)}" ${disabled ? 'disabled' : ''} />
+    </div>
+  `;
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>政府机构状态</strong></div>
+        <div class="stat-value">${govStatus}</div>
+        <div class="muted">人均GDP：${formatDecimal(gdpPc, 2)} / 政府效率：${formatDecimal(world.governmentEfficiency ?? 0, 1)}%</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="muted">编制（左）与工资（右）</div>
+        ${row('高级官员', 'seniorOfficialCount', 'seniorOfficialWage', !established)}
+        ${row('中级官员', 'midOfficialCount', 'midOfficialWage', !established)}
+        ${row('基层官员', 'juniorOfficialCount', 'juniorOfficialWage', !established)}
+        ${row('专业人员', 'professionalCount', 'professionalWage', true)}
+        ${row('挑粪工', 'sanitationWorkerCount', 'sanitationWorkerWage', !established)}
+        ${row('清洁工', 'cleaningWorkerCount', 'cleaningWorkerWage', !established)}
+        <div class="muted">专业人员数量按机构规模自动决定。</div>
+      </div>
+
+      <div class="stat-item" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <label>政府部署文官</label>
+        <input class="gov-config" data-key="adminTalentDeployedGov" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.adminTalentDeployedGov ?? 0)))}" ${!established ? 'disabled' : ''}/>
+        <label><input class="gov-toggle" data-key="taxBureauEstablished" type="checkbox" ${world.taxBureauEstablished ? 'checked' : ''} ${!established ? 'disabled' : ''}/> 税务机构</label>
+        <label><input class="gov-toggle" data-key="courtEstablished" type="checkbox" ${world.courtEstablished ? 'checked' : ''} ${!established ? 'disabled' : ''}/> 司法机构</label>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-value">年薪俸总额：${formatNumber(world.totalWageBill ?? 0)}</div>
+        <div class="muted">火耗率：${formatDecimal((world.fireLeakageRate ?? 0.05) * 100, 1)}% | 理论税收：${formatNumber(world.theoreticalTaxRevenue ?? 0)} | 实征税收：${formatNumber(world.actualTaxRevenue ?? 0)}</div>
+        <div class="muted">火耗因素：${world.fireLeakageFactors || '基准火耗 5%'}</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.governmentEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.governmentEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.governmentEfficiencyStaffing ?? 0, 1)}%</div>
+      </div>
+    </div>
+  `;
+}
+
+function bindGovernmentPanelEvents() {
+  document.querySelectorAll('.gov-config').forEach((el) => {
+    el.addEventListener('input', () => {
+      document.dispatchEvent(new CustomEvent('government:config', {
+        detail: { key: el.getAttribute('data-key'), value: Number(el.value ?? 0) }
+      }));
+    });
+  });
+
+  document.querySelectorAll('.gov-toggle').forEach((el) => {
+    el.addEventListener('change', () => {
+      document.dispatchEvent(new CustomEvent('government:config', {
+        detail: { key: el.getAttribute('data-key'), checked: el.checked }
+      }));
+    });
+  });
+}
+
 export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
   const world = state.world;
   const mount = document.getElementById('society-tab-content');
@@ -465,6 +533,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Talent Deployment Controls', getTalentControlsHtml(world))}
     </div></section>
 
+    <section class="panel"><h2>Government Institution</h2>${getGovernmentPanelHtml(world)}</section>
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
@@ -517,5 +586,6 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindLandRentEvents(state);
   bindMoneylenderPolicyEvents(state);
   bindSchoolEvents(state);
+  bindGovernmentPanelEvents();
   bindTalentEvents(state, () => renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption));
 }

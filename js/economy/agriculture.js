@@ -12,7 +12,7 @@ import {
   clampPercentIndex,
   applyLiteracyEffectsToWorld,
 } from '../society/satisfaction.js';
-import { getCommerceActivityBonus, getMerchantLiteracyMultiplier } from './commerce.js';
+import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
 import {
   updateXikouVillageEconomy,
@@ -31,6 +31,8 @@ import {
 } from './market.js';
 import {
   getStabilityPenaltyFromIncomeGap,
+  calculateGovernmentEfficiency,
+  calculateFireLeakage,
 } from '../society/stability.js';
 
 
@@ -449,6 +451,8 @@ export function updateEconomy(world, options = {}) {
   world.merchantLiteracyEfficiencyBonus = literacyEffects.merchantGDPMultiplierBonus;
 
   const satisfaction = calculateClassSatisfaction(world);
+  calculateGovernmentEfficiency(world);
+  const fireLeakageInfo = calculateFireLeakage(world);
   const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);
   const structuralFarmerBonus = structuralBonus ? 3 : 0;
 
@@ -640,6 +644,7 @@ export function updateEconomy(world, options = {}) {
   world.agricultureGDP = agricultureGDP;
   world.commerceGDP = clamp(adjustedCommerceGDP);
   world.gdpEstimate = gdpEstimate;
+  world.gdpPerCapita = calculateGdpPerCapita(world, gdpEstimate);
 
   world.grainDemandTotal = grainDemandTotal;
   world.grainBalance = grainBalance;
@@ -661,8 +666,16 @@ export function updateEconomy(world, options = {}) {
     world.farmlandRentRate = farmlandRentRate;
     const farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
 
-    const taxToGrain = agriculturalTax * taxGrainRatio;
-    const taxToCoupon = agriculturalTax - taxToGrain;
+    const theoreticalTaxRevenue = Math.max(0, agriculturalTax);
+    const actualTaxRevenue = theoreticalTaxRevenue * (1 - (world.fireLeakageRate ?? fireLeakageInfo.rate ?? 0.05));
+    const leakedTax = Math.max(0, theoreticalTaxRevenue - actualTaxRevenue);
+    const leakedToOfficials = leakedTax * 0.6;
+
+    world.theoreticalTaxRevenue = theoreticalTaxRevenue;
+    world.actualTaxRevenue = actualTaxRevenue;
+
+    const taxToGrain = actualTaxRevenue * taxGrainRatio;
+    const taxToCoupon = actualTaxRevenue - taxToGrain;
     const rentToGrain = farmlandRentCollected * taxGrainRatio;
     const rentToCoupon = farmlandRentCollected - rentToGrain;
 
@@ -698,16 +711,30 @@ export function updateEconomy(world, options = {}) {
     }
 
     world.couponTreasury = clamp(couponTreasuryAfterTax + rentToCoupon - actualCouponSalary);
+    world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + actualCouponSalary + actualGrainSalary + leakedToOfficials);
     world.lastSalaryCost = clamp(totalSalaryCost);
     world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;
     world.lastFarmlandRentCollected = clamp(farmlandRentCollected);
     world.lastTaxCollectionYear = world.year;
+
+    if ((world.fireLeakageRate ?? 0) > 0.25) {
+      world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) - 20);
+      world.farmerSatisfaction = world.farmerLifeQuality;
+      world.stabilityIndex = Math.max(0, (world.stabilityIndex ?? 0) - 10);
+      behaviorMessages.push('火耗失控，财政大量流失');
+    } else if ((world.fireLeakageRate ?? 0) > 0.15) {
+      world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) - 10);
+      world.farmerSatisfaction = world.farmerLifeQuality;
+      behaviorMessages.push('火耗严重，民间怨声载道');
+    }
 
     if (farmlandRentCollected > 0) {
       behaviorMessages.push(`地租征收：共${Math.round(farmlandRentCollected)}（粮${Math.round(rentToGrain)} / 粮劵${Math.round(rentToCoupon)}）`);
     }
   } else {
     world.lastFarmlandRentCollected = 0;
+    world.theoreticalTaxRevenue = 0;
+    world.actualTaxRevenue = 0;
   }
 
   world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
