@@ -227,6 +227,7 @@ function updateXikouVillageEconomy(world) {
   xikou.grainOutput = grainOutput;
   xikou.clothOutput = clothOutput;
   xikou.saltOutputJin = clamp(saltOutputJin);
+  xikou.saltReserve = clamp((xikou.saltReserve ?? 0) + saltOutputJin);
   xikou.grainTreasury = nextGrainTreasury;
 }
 

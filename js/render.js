@@ -210,6 +210,66 @@ function bindDiplomacyEvents(onSendEnvoy) {
   }
 }
 
+function getTradeControlsHtml(world, xikou) {
+  if (!xikou || !xikou.diplomaticContact) {
+    return '<span class="muted">需先建立外交关系</span>';
+  }
+
+  if ((xikou.attitudeToPlayer ?? 0) < -9) {
+    return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
+  }
+
+  const saltTradeCapByOutput = Math.floor((xikou.saltOutputJin ?? 0) * 0.5);
+  const saltAvailable = Math.max(0, Math.min(xikou.saltReserve ?? 0, saltTradeCapByOutput));
+  const maxSaltTradeGrain = saltAvailable > 0 ? Math.floor(saltAvailable / 0.5) : 0;
+  const saltDisabled =
+    world.saltTradeUsed ||
+    saltAvailable <= 0 ||
+    (world.grainTreasury ?? 0) < 10000;
+
+  const clothAvailable = Math.max(0, xikou.clothOutput ?? 0);
+  const maxClothTradeGrain = clothAvailable > 0 ? Math.floor(clothAvailable / 0.3) : 0;
+  const clothDisabled =
+    world.clothTradeUsed ||
+    clothAvailable <= 0 ||
+    (world.grainTreasury ?? 0) < 5000;
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div>
+        <div><strong>粮食换盐</strong>（2粮:1盐，最低10000粮）</div>
+        <div class="muted">可交易盐：${formatNumber(saltAvailable)} 斤（本年上限）</div>
+        <div class="muted">最大可输入粮食：${formatNumber(maxSaltTradeGrain)}</div>
+        <input id="salt-trade-input" type="number" min="10000" step="1000" placeholder="输入粮食数量" />
+        <button id="trade-salt-btn" ${saltDisabled ? 'disabled' : ''}>
+          ${world.saltTradeUsed ? '本年已交易' : '确认粮盐交易'}
+        </button>
+      </div>
+      <div>
+        <div><strong>粮食换布匹</strong>（10粮:3布，最低5000粮）</div>
+        <div class="muted">可交易布匹：${formatNumber(clothAvailable)} 斤</div>
+        <div class="muted">最大可输入粮食：${formatNumber(maxClothTradeGrain)}</div>
+        <input id="cloth-trade-input" type="number" min="5000" step="500" placeholder="输入粮食数量" />
+        <button id="trade-cloth-btn" ${clothDisabled ? 'disabled' : ''}>
+          ${world.clothTradeUsed ? '本年已交易' : '确认粮布交易'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function bindTradeEvents(onTradeSalt, onTradeCloth) {
+  const tradeSaltBtn = document.getElementById('trade-salt-btn');
+  if (tradeSaltBtn && typeof onTradeSalt === 'function') {
+    tradeSaltBtn.addEventListener('click', onTradeSalt);
+  }
+
+  const tradeClothBtn = document.getElementById('trade-cloth-btn');
+  if (tradeClothBtn && typeof onTradeCloth === 'function') {
+    tradeClothBtn.addEventListener('click', onTradeCloth);
+  }
+}
+
 function getXikouVillagePanelHtml(state) {
   const xikou = state.xikou ?? state.world?.xikou;
   if (!xikou) {
@@ -235,6 +295,7 @@ function getXikouVillagePanelHtml(state) {
     `劳动力：${formatNumber(xikou.laborForce ?? 0)}`,
     `粮食储备：${formatNumber(xikou.grainTreasury ?? 0)}`,
     `盐产量：${formatNumber(xikou.saltOutputJin ?? 0)} 斤/年`,
+    `可用盐库存：${formatNumber(xikou.saltReserve ?? 0)} 斤`,
     `布匹产量：${formatNumber(xikou.clothOutput ?? 0)} 斤/年`,
     `稳定度：${formatNumber(xikou.stabilityIndex ?? 0)}`,
     `对我方态度：${attitudeText}`,
@@ -391,7 +452,9 @@ export function renderCoreStats(
   onUseMerchantTax,
   onEmergencyRecirculation,
   onEmergencyRedemption,
-  onSendEnvoy
+  onSendEnvoy,
+  onTradeSalt,
+  onTradeCloth
 ) {
   const world = state.world;
   const el = document.getElementById('core-stats');
@@ -482,6 +545,7 @@ export function renderCoreStats(
     statItem('Year', world.year),
     statItem('溪口村', getXikouVillagePanelHtml(state)),
     statItem('溪口外交操作', getDiplomacyControlsHtml(world, state.xikou)),
+    statItem('溪口贸易操作', getTradeControlsHtml(world, state.xikou)),
     statItem('Credit Crisis Status', world.creditCrisis ? 'Active' : 'None'),
     statItem('Credit Crisis Controls', getCreditCrisisControlsHtml(world)),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -559,6 +623,8 @@ export function renderCoreStats(
     statItem('Last Salary Cost', formatNumber(world.lastSalaryCost ?? 0)),
     statItem('Salary Payment Warning', salaryWarningText),
     statItem('Grain Treasury', formatNumber(world.grainTreasury)),
+    statItem('Salt Reserve', formatNumber(world.saltReserve ?? 0)),
+    statItem('Cloth Reserve', formatNumber(world.clothReserve ?? 0)),
     statItem('Coupon Treasury (Gov Held)', formatNumber(world.couponTreasury ?? 0)),
     statItem('Agriculture GDP', formatNumber(world.agricultureGDP ?? 0)),
     statItem('Commerce GDP', formatNumber(world.commerceGDP ?? 0)),
@@ -569,6 +635,7 @@ export function renderCoreStats(
   bindStabilityPolicyEvents(onUseGrainRedistribution, onUseMerchantTax);
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
   bindDiplomacyEvents(onSendEnvoy);
+  bindTradeEvents(onTradeSalt, onTradeCloth);
 }
 
 export function renderPolicies(state, onEnactPolicy) {
@@ -663,7 +730,9 @@ export function renderAll(
   onUseMerchantTax,
   onEmergencyRecirculation,
   onEmergencyRedemption,
-  onSendEnvoy
+  onSendEnvoy,
+  onTradeSalt,
+  onTradeCloth
 ) {
   renderCoreStats(
     state,
@@ -671,7 +740,9 @@ export function renderAll(
     onUseMerchantTax,
     onEmergencyRecirculation,
     onEmergencyRedemption,
-    onSendEnvoy
+    onSendEnvoy,
+    onTradeSalt,
+    onTradeCloth
   );
   renderPolicies(state, onEnactPolicy);
   renderSystems(state);
