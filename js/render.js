@@ -100,6 +100,8 @@ function getClassSatisfactionFactors(world) {
   if ((world.clothPrice ?? 2) > 3.0) merchantFactors.push('High cloth price boosts merchant margins (>3.0)');
   if ((world.purchasingPower ?? 100) < 50)
     merchantFactors.push('Weak purchasing power reduces customer demand (<50)');
+  if (world.clothImportReductionPenaltyApplied)
+    merchantFactors.push('Reduced cloth imports too early hurt Xikou relations (-5 attitude)');
 
   const officialFactors = [];
   if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) {
@@ -780,6 +782,16 @@ export function renderCoreStats(
     saltShortfallRatio > 0.1
       ? `⚠️ 盐供应短缺：缺口比例 ${formatDecimal(saltShortfallRatio * 100, 1)}%`
       : '盐供应充足';
+  const localClothRatio = world.localClothRatio ?? 0;
+  const localClothRatioText = `${formatDecimal(localClothRatio * 100, 1)}%`;
+  const clothImportAttitudeText =
+    world.clothImportReductionPenaltyApplied
+      ? '⚠️ 本年在自给率不足50%时减少布匹进口，溪口态度 -5'
+      : localClothRatio >= 0.8
+        ? '自给率≥80%，可将布匹进口降至0而无态度惩罚'
+        : localClothRatio >= 0.5
+          ? '自给率≥50%，减少布匹进口不会触发额外态度变化'
+          : '自给率<50%，若减少布匹进口将触发溪口态度惩罚';
 
   el.innerHTML = [
     statItem('Year', world.year),
@@ -873,12 +885,23 @@ export function renderCoreStats(
     statItem('Salt Shortfall Warning', saltShortfallWarning),
     statItem(
       'Commodity Market - Cloth',
-      `Price ${formatDecimal(world.clothPrice ?? 2, 2)} | Supply ${formatNumber(
-        world.clothAnnualSupply ?? 0
+      `Market Price ${formatDecimal(world.clothPrice ?? 2, 2)} | Blended Base ${formatDecimal(
+        world.blendedClothPrice ?? 2,
+        2
       )} | Demand ${formatNumber(world.clothAnnualDemand ?? 0)} | Reserve ${formatNumber(
         world.clothReserve ?? 0
       )}`
     ),
+    statItem(
+      'Cloth Supply Breakdown',
+      `Local Coarse ${formatNumber(world.coarseClothOutput ?? 0)} | Local Fine ${formatNumber(
+        world.fineClothOutput ?? 0
+      )} | Imported ${formatNumber(world.clothTradeReceived ?? 0)} | Total ${formatNumber(
+        world.totalClothSupply ?? 0
+      )}`
+    ),
+    statItem('Local Cloth Self-Sufficiency', localClothRatioText),
+    statItem('Cloth Import Substitution Status', clothImportAttitudeText),
     statItem('Purchasing Power Index', purchasingPowerText),
     statItem('Coupon Backing Ratio', formatDecimal(world.backingRatio ?? 1, 2)),
     statItem('Inflation Rate', inflationRateHtml),
