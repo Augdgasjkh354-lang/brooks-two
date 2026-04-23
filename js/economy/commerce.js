@@ -2,6 +2,7 @@
 
 export const SHOP_BUILD_COST_GRAIN = 1500000;
 export const DEFAULT_MONEYLENDER_LICENSE_FEE = 5000000;
+export const DEFAULT_SCHOOL_LICENSE_FEE = 2000000;
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -140,6 +141,65 @@ export function approveMoneylenderLicenses(world, targetApproved) {
     totalApproved: target,
     totalCost,
     paidCurrency: world.grainCouponsUnlocked ? 'coupon' : 'grain',
+  };
+}
+
+function canLicenseCommercialPrimary(world) {
+  return Boolean(world?.techBonuses?.bureaucracyUnlocked);
+}
+
+function canLicenseCommercialSecondary(world) {
+  return Boolean(world?.techBonuses?.scholarClass);
+}
+
+export function approveCommercialSchoolLicenses(world, schoolType, targetCount) {
+  const isPrimary = schoolType === 'primary';
+  const unlockOk = isPrimary ? canLicenseCommercialPrimary(world) : canLicenseCommercialSecondary(world);
+  if (!unlockOk) {
+    return { success: false, reason: 'Commercial school type not unlocked yet.' };
+  }
+
+  const key = isPrimary ? 'commercialPrimarySchools' : 'commercialSecondarySchools';
+  const currentCount = Math.max(0, Math.floor(Number(world[key] ?? 0)));
+  const target = Math.max(0, Math.floor(Number(targetCount ?? 0)));
+  const fee = Math.max(0, Math.floor(Number(world.schoolLicenseFee ?? DEFAULT_SCHOOL_LICENSE_FEE)));
+
+  if (target <= currentCount) {
+    world[key] = target;
+    return {
+      success: true,
+      added: 0,
+      removed: target < currentCount,
+      totalApproved: target,
+      totalCost: 0,
+      schoolType,
+    };
+  }
+
+  const toAdd = target - currentCount;
+  const totalCost = toAdd * fee;
+
+  if (world.grainCouponsUnlocked) {
+    if (clampMoney(world.couponTreasury) < totalCost) {
+      return { success: false, reason: `Not enough coupon treasury (need ${totalCost}).` };
+    }
+    world.couponTreasury = clampMoney(world.couponTreasury) - totalCost;
+  } else {
+    if (clampMoney(world.grainTreasury) < totalCost) {
+      return { success: false, reason: `Not enough grain treasury (need ${totalCost}).` };
+    }
+    world.grainTreasury = clampMoney(world.grainTreasury) - totalCost;
+  }
+
+  world[key] = target;
+
+  return {
+    success: true,
+    added: toAdd,
+    totalApproved: target,
+    totalCost,
+    paidCurrency: world.grainCouponsUnlocked ? 'coupon' : 'grain',
+    schoolType,
   };
 }
 

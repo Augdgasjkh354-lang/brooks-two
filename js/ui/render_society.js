@@ -141,6 +141,91 @@ function bindBureaucracyPolicyEvents(state, rerender) {
   });
 }
 
+function getSchoolControlsHtml(world) {
+  if (!world?.techBonuses?.bureaucracyUnlocked) {
+    return '<div class="muted">需先解锁官僚体系（造纸术）后才能建设学校。</div>';
+  }
+
+  const licenseFee = formatNumber(world.schoolLicenseFee ?? 2000000);
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>商办学校牌照</strong></div>
+        <div class="muted">每所牌照费：${licenseFee}（优先使用${world.grainCouponsUnlocked ? '粮劵' : '粮食'}）</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>商办蒙学数量</label>
+          <input id="commercial-primary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.commercialPrimarySchools ?? 0)))}" />
+          <button id="set-commercial-primary-btn">设置商办蒙学</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>商办私塾数量</label>
+          <input id="commercial-secondary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.commercialSecondarySchools ?? 0)))}" />
+          <button id="set-commercial-secondary-btn" ${(world.techBonuses?.scholarClass ? '' : 'disabled')}>设置商办私塾</button>
+        </div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label"><strong>官办学校容量（每年）</strong></div>
+        <div class="muted">年成本/生：人均GDP的20%</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>官办蒙学容量</label>
+          <input id="gov-primary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govPrimaryCapacity ?? 0)))}" />
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>官办县学容量</label>
+          <input id="gov-secondary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govSecondaryCapacity ?? 0)))}" ${(world.techBonuses?.scholarClass ? '' : 'disabled')} />
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>官办书院容量</label>
+          <input id="gov-higher-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govHigherCapacity ?? 0)))}" ${(world.higherSchoolUnlocked ? '' : 'disabled')} />
+        </div>
+      </div>
+
+      ${(world.secondaryGraduates ?? 0) >= 100 ? `
+      <div class="stat-item">
+        <div class="stat-label"><strong>学子下乡</strong></div>
+        <div class="muted">每人年成本：人均GDP的150%；每100人提升农民识字率成长与上限</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label>下乡人数</label>
+          <input id="students-down-input" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.studentsDownToVillage ?? 0)))}" />
+          <button id="set-students-down-btn">设置下乡人数</button>
+        </div>
+      </div>
+      ` : '<div class="muted">学子下乡未解锁（需要累计县学/私塾毕业生 >= 100）</div>'}
+    </div>
+  `;
+}
+
+function bindSchoolEvents(state) {
+  const triggerCommercial = (type, inputId) => {
+    const input = document.getElementById(inputId);
+    const target = Math.max(0, Math.floor(Number(input?.value ?? 0)));
+    document.dispatchEvent(new CustomEvent('school:commercial-license', { detail: { type, target } }));
+  };
+
+  const primaryBtn = document.getElementById('set-commercial-primary-btn');
+  const secondaryBtn = document.getElementById('set-commercial-secondary-btn');
+  if (primaryBtn) primaryBtn.addEventListener('click', () => triggerCommercial('primary', 'commercial-primary-target'));
+  if (secondaryBtn) secondaryBtn.addEventListener('click', () => triggerCommercial('secondary', 'commercial-secondary-target'));
+
+  const govPrimary = document.getElementById('gov-primary-capacity');
+  const govSecondary = document.getElementById('gov-secondary-capacity');
+  const govHigher = document.getElementById('gov-higher-capacity');
+
+  if (govPrimary) govPrimary.addEventListener('input', () => { state.world.govPrimaryCapacity = Math.max(0, Math.floor(Number(govPrimary.value ?? 0))); });
+  if (govSecondary) govSecondary.addEventListener('input', () => { state.world.govSecondaryCapacity = Math.max(0, Math.floor(Number(govSecondary.value ?? 0))); });
+  if (govHigher) govHigher.addEventListener('input', () => { state.world.govHigherCapacity = Math.max(0, Math.floor(Number(govHigher.value ?? 0))); });
+
+  const downBtn = document.getElementById('set-students-down-btn');
+  if (downBtn) {
+    downBtn.addEventListener('click', () => {
+      const input = document.getElementById('students-down-input');
+      const target = Math.max(0, Math.floor(Number(input?.value ?? 0)));
+      document.dispatchEvent(new CustomEvent('school:students-down', { detail: { target } }));
+    });
+  }
+}
+
 export function getCreditCrisisControlsHtml(world) {
   if (!world.creditCrisis) {
     return '<span style="color: #1b8a3b; font-weight: 700;">No active credit crisis</span>';
@@ -170,10 +255,6 @@ export function bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRede
   if (recirculationBtn) recirculationBtn.addEventListener('click', onEmergencyRecirculation);
   if (redemptionBtn) redemptionBtn.addEventListener('click', onEmergencyRedemption);
 }
-
-
-
-
 
 function getMoneylenderPolicyControlsHtml(world) {
   if (!canUseMoneylenderSystem(world)) {
@@ -240,7 +321,6 @@ function bindLandRentEvents(state) {
   });
 }
 
-
 function formatLiteracyPercent(value) {
   return `${formatDecimal((Number(value ?? 0) || 0) * 100, 1)}%`;
 }
@@ -295,11 +375,15 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Official Literacy', `${formatLiteracyPercent(world.officialLiteracy ?? 0)} (${literacyEffects.official})`)}
       ${statItem('Worker Literacy', `${formatLiteracyPercent(world.workerLiteracy ?? 0)} (${literacyEffects.worker})`)}
       ${statItem('Landlord Literacy', `${formatLiteracyPercent(world.landlordLiteracy ?? 0)} (${literacyEffects.landlord})`)}
+      ${statItem('Literacy Caps (F/M/O/W/L)', `${formatLiteracyPercent(world.literacyCaps?.farmer ?? 0.15)} / ${formatLiteracyPercent(world.literacyCaps?.merchant ?? 0.4)} / ${formatLiteracyPercent(world.literacyCaps?.official ?? 0.7)} / ${formatLiteracyPercent(world.literacyCaps?.worker ?? 0.2)} / ${formatLiteracyPercent(world.literacyCaps?.landlord ?? 0.35)}`)}
       ${statItem('Class Population (F/M/O/W/L)', `${formatNumber(world.farmerPopulation ?? 0)} / ${formatNumber(world.merchantPopulation ?? 0)} / ${formatNumber(world.officialPopulation ?? 0)} / ${formatNumber(world.workerPopulation ?? 0)} / ${formatNumber(world.landlordPopulation ?? 0)}`)}
       ${statItem('Graduates (P/S/H)', `${formatNumber(world.primaryGraduates ?? 0)} / ${formatNumber(world.secondaryGraduates ?? 0)} / ${formatNumber(world.higherGraduates ?? 0)}`)}
+      ${statItem('Annual Grads (P/S/H)', `${formatNumber(world.annualPrimaryGrads ?? 0)} / ${formatNumber(world.annualSecondaryGrads ?? 0)} / ${formatNumber(world.annualHigherGrads ?? 0)}`)}
+      ${statItem('Current Enrollment (P/S/H)', `${formatNumber(world.primaryEnrolled ?? 0)} / ${formatNumber(world.secondaryEnrolled ?? 0)} / ${formatNumber(world.higherEnrolled ?? 0)}`)}
       ${statItem('Higher School Unlock', world.higherSchoolUnlocked ? 'Unlocked' : 'Locked')}
     </div></section>
 
+    <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender Policy</h2>${getMoneylenderPolicyControlsHtml(world)}</section>
@@ -334,4 +418,5 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
   bindLandRentEvents(state);
   bindMoneylenderPolicyEvents(state);
+  bindSchoolEvents(state);
 }

@@ -8,6 +8,36 @@ function clampRatio(value) {
   return Math.max(0, Math.min(1, Number(value ?? 0)));
 }
 
+export function updateLiteracyCaps(world) {
+  const baseCaps = {
+    farmer: 0.15,
+    merchant: 0.4,
+    official: 0.7,
+    worker: 0.2,
+    landlord: 0.35,
+  };
+
+  const primarySchoolCount =
+    Math.max(0, Number(world.commercialPrimarySchools ?? 0)) +
+    (Number(world.govPrimaryCapacity ?? 0) > 0 ? 1 : 0);
+  const secondarySchoolCount =
+    Math.max(0, Number(world.commercialSecondarySchools ?? 0)) +
+    (Number(world.govSecondaryCapacity ?? 0) > 0 ? 1 : 0);
+  const higherSchoolCount = Number(world.govHigherCapacity ?? 0) > 0 ? 1 : 0;
+  const downVillageGroups = Math.floor(Math.max(0, Number(world.studentsDownToVillage ?? 0)) / 100);
+
+  const caps = {
+    farmer: baseCaps.farmer + primarySchoolCount * 0.05 + higherSchoolCount * 0.15 + downVillageGroups * 0.03,
+    merchant: baseCaps.merchant + secondarySchoolCount * 0.1 + higherSchoolCount * 0.15,
+    official: baseCaps.official + secondarySchoolCount * 0.1 + higherSchoolCount * 0.15,
+    worker: baseCaps.worker + primarySchoolCount * 0.03 + higherSchoolCount * 0.15,
+    landlord: baseCaps.landlord + secondarySchoolCount * 0.08 + higherSchoolCount * 0.15,
+  };
+
+  world.literacyCaps = caps;
+  return caps;
+}
+
 export function getLiteracyEffects(world) {
   const farmerLiteracy = clampRatio(world.farmerLiteracy ?? 0.05);
   const merchantLiteracy = clampRatio(world.merchantLiteracy ?? 0);
@@ -39,6 +69,7 @@ export function getLiteracyEffects(world) {
 }
 
 export function applyLiteracyEffectsToWorld(world) {
+  updateLiteracyCaps(world);
   const effects = getLiteracyEffects(world);
 
   world.policyExecutionEfficiency = effects.policyExecutionEfficiency;
