@@ -239,6 +239,29 @@ function bindLandRentEvents(state) {
     value.textContent = `Current: ${formatDecimal(next, 1)} jin/mu/year`;
   });
 }
+
+
+function formatLiteracyPercent(value) {
+  return `${formatDecimal((Number(value ?? 0) || 0) * 100, 1)}%`;
+}
+
+function getLiteracyEffectsSummary(world) {
+  const farmerBonus = Math.max(0, Number(world.farmerLiteracyEfficiencyBonus ?? 0));
+  const merchantBonus = Math.max(0, Number(world.merchantLiteracyEfficiencyBonus ?? 0));
+  const officialEfficiency = Math.max(1, Number(world.policyExecutionEfficiency ?? 1));
+  const stabilityReduction = Math.max(0, Number(world.stabilityPenaltyLiteracyReduction ?? 0));
+  const textileBonus = Math.max(0, Number(world.textileOutputLiteracyBonus ?? 0));
+  const landReclaimEfficiency = Math.max(1, Number(world.landReclaimEfficiency ?? 1));
+
+  return {
+    farmer: `农业效率 +${formatDecimal(farmerBonus * 100, 1)}%`,
+    merchant: `商业效率 +${formatDecimal(merchantBonus * 100, 1)}%`,
+    official: `政策执行效率 ${formatDecimal(officialEfficiency * 100, 1)}% / 稳定惩罚减免 ${formatDecimal(stabilityReduction * 100, 1)}%`,
+    worker: `纺织产出 +${formatDecimal(textileBonus * 100, 1)}%`,
+    landlord: `开荒效率 ${formatDecimal(landReclaimEfficiency * 100, 1)}%`,
+  };
+}
+
 export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
   const world = state.world;
   const mount = document.getElementById('society-tab-content');
@@ -248,6 +271,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   const factors = getClassSatisfactionFactors(world);
   const warnings = getActiveBehaviorWarnings(world);
   const growth = getPopulationGrowthDisplayDetails(world);
+  const literacyEffects = getLiteracyEffectsSummary(world);
 
   const sat = (value) => {
     const d = getSatisfactionDisplay(value ?? 70);
@@ -263,6 +287,19 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Growth Modifiers', growth.modifiersText)}
       ${statItem('Policy Intervention', getStabilityPolicyControlsHtml(world))}
     </div></section>
+
+    <section class="panel"><h2>Literacy</h2><div class="tab-grid">
+      ${statItem('Overall Literacy', formatLiteracyPercent(world.overallLiteracy ?? 0.05))}
+      ${statItem('Farmer Literacy', `${formatLiteracyPercent(world.farmerLiteracy ?? 0.05)} (${literacyEffects.farmer})`)}
+      ${statItem('Merchant Literacy', `${formatLiteracyPercent(world.merchantLiteracy ?? 0)} (${literacyEffects.merchant})`)}
+      ${statItem('Official Literacy', `${formatLiteracyPercent(world.officialLiteracy ?? 0)} (${literacyEffects.official})`)}
+      ${statItem('Worker Literacy', `${formatLiteracyPercent(world.workerLiteracy ?? 0)} (${literacyEffects.worker})`)}
+      ${statItem('Landlord Literacy', `${formatLiteracyPercent(world.landlordLiteracy ?? 0)} (${literacyEffects.landlord})`)}
+      ${statItem('Class Population (F/M/O/W/L)', `${formatNumber(world.farmerPopulation ?? 0)} / ${formatNumber(world.merchantPopulation ?? 0)} / ${formatNumber(world.officialPopulation ?? 0)} / ${formatNumber(world.workerPopulation ?? 0)} / ${formatNumber(world.landlordPopulation ?? 0)}`)}
+      ${statItem('Graduates (P/S/H)', `${formatNumber(world.primaryGraduates ?? 0)} / ${formatNumber(world.secondaryGraduates ?? 0)} / ${formatNumber(world.higherGraduates ?? 0)}`)}
+      ${statItem('Higher School Unlock', world.higherSchoolUnlocked ? 'Unlocked' : 'Locked')}
+    </div></section>
+
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender Policy</h2>${getMoneylenderPolicyControlsHtml(world)}</section>

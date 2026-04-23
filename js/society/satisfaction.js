@@ -4,6 +4,53 @@ export function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function clampRatio(value) {
+  return Math.max(0, Math.min(1, Number(value ?? 0)));
+}
+
+export function getLiteracyEffects(world) {
+  const farmerLiteracy = clampRatio(world.farmerLiteracy ?? 0.05);
+  const merchantLiteracy = clampRatio(world.merchantLiteracy ?? 0);
+  const officialLiteracy = clampRatio(world.officialLiteracy ?? 0);
+  const workerLiteracy = clampRatio(world.workerLiteracy ?? 0);
+  const landlordLiteracy = clampRatio(world.landlordLiteracy ?? 0);
+
+  const farmerStep = Math.floor((farmerLiteracy * 100) / 5);
+  const merchantStep = Math.floor((merchantLiteracy * 100) / 10);
+  const officialStep = Math.floor((officialLiteracy * 100) / 10);
+  const workerStep = Math.floor((workerLiteracy * 100) / 10);
+  const landlordStep = Math.floor((landlordLiteracy * 100) / 10);
+
+  const farmerEfficiencyBonus = Math.min(farmerStep * 0.01, 0.05);
+  const merchantGDPMultiplierBonus = Math.min(merchantStep * 0.02, 0.1);
+  const policyExecutionEfficiency = 1 + officialStep * 0.02;
+  const stabilityPenaltyReduction = officialStep * 0.02;
+  const textileOutputBonus = workerStep * 0.02;
+  const landReclaimEfficiencyBonus = landlordStep * 0.01;
+
+  return {
+    farmerEfficiencyBonus,
+    merchantGDPMultiplierBonus,
+    policyExecutionEfficiency,
+    stabilityPenaltyReduction,
+    textileOutputBonus,
+    landReclaimEfficiencyBonus,
+  };
+}
+
+export function applyLiteracyEffectsToWorld(world) {
+  const effects = getLiteracyEffects(world);
+
+  world.policyExecutionEfficiency = effects.policyExecutionEfficiency;
+  world.stabilityPenaltyLiteracyReduction = effects.stabilityPenaltyReduction;
+  world.textileOutputLiteracyBonus = effects.textileOutputBonus;
+  world.landReclaimEfficiency = 1 + effects.landReclaimEfficiencyBonus;
+  world.farmerLiteracyEfficiencyBonus = effects.farmerEfficiencyBonus;
+  world.merchantLiteracyEfficiencyBonus = effects.merchantGDPMultiplierBonus;
+
+  return effects;
+}
+
 export function calculateClassSatisfaction(world) {
   const saltAffordability = (world.saltPrice ?? 4) / 4.0;
   const clothAffordability = (world.clothPrice ?? 2) / 2.0;
@@ -61,4 +108,3 @@ export function calculateClassSatisfaction(world) {
     landlordSatisfaction: clampPercentIndex(landlordSatisfaction),
   };
 }
-

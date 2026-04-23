@@ -173,6 +173,38 @@ export const initialState = {
 
     saltTradeUsed: false,
     clothTradeUsed: false,
+
+    farmerLiteracy: 0.05,
+    merchantLiteracy: 0,
+    officialLiteracy: 0,
+    workerLiteracy: 0,
+    landlordLiteracy: 0,
+    overallLiteracy: 0.05,
+
+    farmerPopulation: 3000,
+    merchantPopulation: 0,
+    officialPopulation: 0,
+    workerPopulation: 0,
+    landlordPopulation: 0,
+
+    literacyClassFlags: {
+      merchantActive: false,
+      officialActive: false,
+      workerActive: false,
+      landlordActive: false,
+    },
+
+    primaryGraduates: 0,
+    secondaryGraduates: 0,
+    higherGraduates: 0,
+    higherSchoolUnlocked: false,
+
+    policyExecutionEfficiency: 1,
+    stabilityPenaltyLiteracyReduction: 0,
+    textileOutputLiteracyBonus: 0,
+    landReclaimEfficiency: 1,
+    farmerLiteracyEfficiencyBonus: 0,
+    merchantLiteracyEfficiencyBonus: 0,
   },
   xikou: {
     population: 3000,
@@ -238,7 +270,9 @@ export const initialState = {
 
 export function createGameState() {
   const state = structuredClone(initialState);
-  state.world.xikou = state.xikou;
+
   state.world.techBonuses = state.techBonuses;
+  state.world.pendingMulberryProjects = [];
+
   return state;
 }
