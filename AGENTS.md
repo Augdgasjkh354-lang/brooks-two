@@ -1926,3 +1926,75 @@ js/diplomacy/ js/tech/research.js files
 - No content lost (everything still renders)
 - Smooth tab switching (no page reload)
 - Works on mobile portrait screen
+## Phase 6A-2 Scope (Current)
+
+UI refactor complete. Now implementing 6A-2 only.
+
+**Goal:** Tech research effects now actually apply to game
+state when a tech is completed. Connect techBonuses to
+real calculations.
+
+**Rules:**
+
+When a tech completes, applyTechEffect() runs:
+
+Agriculture bonuses:
+- intensive_farming: grainYieldPerMu += 50 (500→550)
+- crop_rotation: grainYieldPerMu += 50 (→600)
+  AND droughtResistance = true (placeholder for now)
+- irrigation: grainYieldPerMu += 75 (→675)
+  capped at 800 absolute max
+
+Commerce bonuses:
+- contract_law: merchantSatisfaction permanent +10
+  (added as flat bonus each year)
+- weights_measures: tradeEfficiency += 0.1
+  (Xikou trade gives 10% more goods)
+
+Society bonuses:
+- codified_law: stabilityIndex base += 10
+  (base changes from 80 to 90)
+- basic_medicine: populationGrowthRate += 0.005
+  (2% → 2.5%)
+- papermaking: bureaucracyUnlocked = true
+  (enables new policy options, placeholder for now)
+
+Military bonuses:
+- weapon_forging: combatPower += 0.2
+  (placeholder, no military system yet)
+
+All bonuses are permanent and cumulative.
+Store applied bonuses in state.techBonuses:
+- grainYieldBonus: 0 (added to grainYieldPerMu)
+- stabilityBase: 80 (modified by codified_law)
+- populationGrowthBonus: 0
+- tradeEfficiency: 0
+- combatPower: 0
+- bureaucracyUnlocked: false
+
+Apply techBonuses in calculations:
+- agriculture.js: effectiveYield =
+  grainYieldPerMu + techBonuses.grainYieldBonus
+- population.js: growth rate +=
+  techBonuses.populationGrowthBonus
+- stability.js: base stability =
+  techBonuses.stabilityBase
+- diplomacy/xikou.js: trade output *=
+  (1 + techBonuses.tradeEfficiency)
+
+**Files to modify:** js/tech/research.js,
+js/economy/agriculture.js, js/society/population.js,
+js/society/stability.js, js/diplomacy/xikou.js,
+js/state.js
+**Do NOT touch:** unlocks.js, policies.js,
+any ui/ files
+
+**Definition of Done (Phase 6A-2):**
+- Completed techs apply real bonuses to state
+- grainYieldPerMu increases after farming techs
+- Population growth rate increases after medicine
+- Stability base increases after codified law
+- Trade efficiency applies to Xikou trade
+- Tech panel shows applied bonus values
+- yearLog records when tech completes and what
+  bonus was applied
