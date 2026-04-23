@@ -1998,3 +1998,77 @@ any ui/ files
 - Tech panel shows applied bonus values
 - yearLog records when tech completes and what
   bonus was applied
+## Phase 5D-2 Scope (Current)
+
+Phase 6A-2 is complete. Now implementing 5D-2 only.
+
+**Goal:** Hemp land produces three types of byproducts
+automatically each year. All byproducts have real effects.
+
+**Rules:**
+
+Byproduct calculation (per year, from hempLandMu):
+- paperMaterial = hempLandMu * 20
+  (jin of scrap hemp fiber, usable for paper)
+- hempStalks = hempLandMu * 200
+  (jin of dried stalks, usable as fuel)
+- buildingFiber = hempLandMu * 10
+  (jin of fiber for wall reinforcement)
+
+All three auto-calculated each year, no player input.
+
+Papermaking (requires bureaucracyUnlocked = false,
+this phase just accumulates material):
+- paperMaterialReserve += paperMaterial each year
+- paperMaterialReserve capped at hempLandMu * 100
+  (can't stockpile indefinitely)
+- When bureaucracyUnlocked = true (from papermaking tech):
+  paperOutput = paperMaterialReserve / 50
+  (50 jin material = 1 unit of paper)
+  officialSatisfaction += min(paperOutput * 0.01, 10)
+
+Fuel (hemp stalks):
+- fuelBonus reduces construction costs
+- hempLandMu >= 500: constructionCostReduction = 0.05
+- hempLandMu >= 2000: constructionCostReduction = 0.10
+- hempLandMu >= 5000: constructionCostReduction = 0.15
+- Apply to: farmland reclamation cost
+  hemp/mulberry reclamation cost
+- constructionCostReduction capped at 0.15
+
+Building fiber:
+- buildingFiberReserve += buildingFiber each year
+- When reserve >= farmlandAreaMu * 5:
+  structuralBonus = true
+  farmerSatisfaction += 3
+  laborEfficiency += 0.02 (2% boost to all labor output)
+- structuralBonus resets if reserve drops below threshold
+
+State additions needed in world{}:
+- paperMaterial: 0
+- paperMaterialReserve: 0
+- paperOutput: 0
+- hempStalks: 0
+- constructionCostReduction: 0
+- buildingFiber: 0
+- buildingFiberReserve: 0
+- structuralBonus: false
+- laborEfficiency: 1.0
+
+**Files to modify:** state.js,
+js/economy/agriculture.js,
+js/ui/render_economy.js
+**Do NOT touch:** unlocks.js, policies.js,
+js/tech/research.js, any society/ diplomacy/ files
+
+**Definition of Done (Phase 5D-2):**
+- All three byproducts calculated each year
+- paperMaterialReserve accumulates over time
+- Paper output activates when bureaucracyUnlocked
+- constructionCostReduction applied to reclamation costs
+- structuralBonus triggers at correct threshold
+- laborEfficiency applied to labor calculations
+- UI shows byproduct panel in 农业 tab:
+  paper material / hemp stalks / building fiber
+  construction cost reduction %
+  structural bonus status
