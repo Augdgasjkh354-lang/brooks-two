@@ -169,6 +169,18 @@ export const initialState = {
     antiCounterfeitResearched: false,
     grainCouponsUnlocked: false,
   },
+  research: {
+    currentTech: null,
+    yearsRemaining: 0,
+    completed: [],
+    available: ['basic_farming', 'folk_trade', 'written_records', 'herbalism', 'militia'],
+  },
+  techBonuses: {
+    grainYieldBonus: 0,
+    tradeEfficiency: 0,
+    droughtResistance: 0,
+    combatPower: 0,
+  },
   policyHistory: [],
   yearLog: [],
   economyHistory: [],

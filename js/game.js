@@ -6,6 +6,7 @@ import { executeOfficialSaltSale } from './economy/market.js';
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
+import { initResearch, startResearch, updateResearch } from './tech/research.js';
 
 const state = createGameState();
 
@@ -142,6 +143,7 @@ function nextYear() {
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
+  const completedTech = updateResearch(state);
 
   if ((state.world.landlordSatisfaction ?? 70) < 40) {
     const blockedFarmland = Math.max(0, state.world.pendingFarmlandMu ?? 0);
@@ -173,6 +175,24 @@ function nextYear() {
     state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
   });
 
+  if (completedTech) {
+    state.yearLog.unshift(`Year ${state.world.year}: 技术研究完成 - ${completedTech.name}。`);
+  }
+
+  render();
+}
+
+function startResearchById(techId) {
+  const result = startResearch(state, techId);
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.world.year}: 技术研究启动失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 启动技术研究「${result.tech.name}」，耗费 粮食${result.cost.grain} / 布匹${result.cost.cloth} / 粮劵${result.cost.coupon}，预计${result.tech.researchYears}年完成。`
+  );
   render();
 }
 
@@ -615,11 +635,13 @@ function render() {
     setDungImportQuota,
     executeOfficialSaltSaleFromInput,
     openHempLand,
-    openMulberryLand
+    openMulberryLand,
+    startResearchById
   );
 }
 
 function init() {
+  initResearch(state);
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
   bindEvents();
