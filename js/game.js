@@ -516,6 +516,33 @@ function tradeGrainForCloth() {
   render();
 }
 
+function setDungImportQuota() {
+  const input = document.getElementById('dung-import-input');
+  const quota = Math.max(0, Math.floor(Number(input?.value ?? 0)));
+  const xikou = state.xikou;
+
+  if (!xikou?.diplomaticContact) {
+    state.yearLog.unshift(`Year ${state.world.year}: 设置蚕沙进口失败 - 尚未建立外交关系。`);
+    render();
+    return;
+  }
+
+  const available = Math.max(0, Math.floor(xikou.silkwormDungAvailable ?? 0));
+  if (quota > available) {
+    state.yearLog.unshift(`Year ${state.world.year}: 设置蚕沙进口失败 - 超过溪口本年可供上限（${available}斤）。`);
+    render();
+    return;
+  }
+
+  state.world.dungImportQuota = quota;
+  const currencyLabel = state.world.grainCouponsUnlocked ? '粮劵' : '粮食';
+  const estimatedCost = Math.ceil(quota / 100);
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 已设置蚕沙进口配额为${quota}斤（预计成本${estimatedCost}${currencyLabel}，次年结算）。`
+  );
+  render();
+}
+
 function executeOfficialSaltSaleFromInput() {
   const priceInput = document.getElementById('official-salt-price-input');
   const amountInput = document.getElementById('official-salt-amount-input');
@@ -583,6 +610,7 @@ function render() {
     sendEnvoyToXikou,
     tradeGrainForSalt,
     tradeGrainForCloth,
+    setDungImportQuota,
     executeOfficialSaltSaleFromInput,
     openHempLand,
     openMulberryLand

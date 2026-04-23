@@ -305,6 +305,36 @@ function bindTradeEvents(onTradeSalt, onTradeCloth) {
   }
 }
 
+function getDungImportControlsHtml(world, xikou) {
+  if (!xikou?.diplomaticContact) {
+    return '<span class="muted">需先建立外交关系</span>';
+  }
+
+  const availableDung = Math.max(0, Math.floor(xikou.silkwormDungAvailable ?? 0));
+  const defaultQuota = Math.max(0, Math.floor(world.dungImportQuota ?? 0));
+  const minValue = availableDung > 0 ? 1000 : 0;
+  const disabled = availableDung <= 0;
+  const currencyLabel = world.grainCouponsUnlocked ? '粮劵' : '粮食';
+  const estimatedCost = Math.ceil(defaultQuota / 100);
+
+  return `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div><strong>蚕沙进口</strong>（100斤蚕沙 = 1${currencyLabel}）</div>
+      <div class="muted">溪口本年可供：${formatNumber(availableDung)} 斤</div>
+      <input id="dung-import-input" type="number" min="${minValue}" step="1000" value="${defaultQuota}" ${disabled ? 'disabled' : ''}/>
+      <div class="muted">当前配额预估成本：${formatNumber(estimatedCost)}${currencyLabel}</div>
+      <button id="set-dung-import-btn" ${disabled ? 'disabled' : ''}>设置蚕沙进口配额（次年结算）</button>
+    </div>
+  `;
+}
+
+function bindDungImportEvents(onSetDungImportQuota) {
+  const button = document.getElementById('set-dung-import-btn');
+  if (button && typeof onSetDungImportQuota === 'function') {
+    button.addEventListener('click', onSetDungImportQuota);
+  }
+}
+
 function getXikouVillagePanelHtml(state) {
   const xikou = state.xikou ?? state.world?.xikou;
   if (!xikou) {
@@ -671,6 +701,7 @@ export function renderCoreStats(
   onSendEnvoy,
   onTradeSalt,
   onTradeCloth,
+  onSetDungImportQuota,
   onOfficialSaltSale,
   onOpenHempLand,
   onOpenMulberryLand
@@ -798,6 +829,7 @@ export function renderCoreStats(
     statItem('溪口村', getXikouVillagePanelHtml(state)),
     statItem('溪口外交操作', getDiplomacyControlsHtml(world, state.xikou)),
     statItem('溪口贸易操作', getTradeControlsHtml(world, state.xikou)),
+    statItem('蚕沙进口操作', getDungImportControlsHtml(world, state.xikou)),
     statItem('Credit Crisis Status', world.creditCrisis ? 'Active' : 'None'),
     statItem('Credit Crisis Controls', getCreditCrisisControlsHtml(world)),
     statItem('Total Population', formatNumber(world.totalPopulation)),
@@ -844,6 +876,13 @@ export function renderCoreStats(
     statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0)),
     statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0)),
     statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0)),
+    statItem(
+      '蚕沙肥（自有/进口/总量）',
+      `${formatNumber(world.playerSilkwormDung ?? 0)} / ${formatNumber(world.importedDung ?? 0)} / ${formatNumber(world.totalDung ?? 0)} 斤`
+    ),
+    statItem('蚕沙覆盖率', `${formatDecimal((world.dungCoverage ?? 0) * 100, 1)}%`),
+    statItem('蚕沙增产加成', `${formatDecimal(((world.fertilizerBonus ?? 1) - 1) * 100, 1)}%`),
+    statItem('当前亩产上限', `${formatNumber(Math.round((world.baseGrainYieldPerMu ?? 500) * (world.fertilizerBonus ?? 1)))} 斤/亩`),
     statItem('Shop Count', formatNumber(world.shopCount ?? 0)),
     statItem(
       'Operating / Idle Shops',
@@ -958,6 +997,7 @@ export function renderCoreStats(
   bindCreditCrisisEvents(onEmergencyRecirculation, onEmergencyRedemption);
   bindDiplomacyEvents(onSendEnvoy);
   bindTradeEvents(onTradeSalt, onTradeCloth);
+  bindDungImportEvents(onSetDungImportQuota);
   bindSaltImportQuotaEvents(state);
   bindOfficialSaltSaleEvents(state, onOfficialSaltSale);
   bindLandDevelopmentEvents(onOpenHempLand, onOpenMulberryLand);
@@ -1058,6 +1098,7 @@ export function renderAll(
   onSendEnvoy,
   onTradeSalt,
   onTradeCloth,
+  onSetDungImportQuota,
   onOfficialSaltSale,
   onOpenHempLand,
   onOpenMulberryLand
@@ -1071,6 +1112,7 @@ export function renderAll(
     onSendEnvoy,
     onTradeSalt,
     onTradeCloth,
+    onSetDungImportQuota,
     onOfficialSaltSale,
     onOpenHempLand,
     onOpenMulberryLand
