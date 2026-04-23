@@ -1336,3 +1336,96 @@ game.js
 - Satisfaction effects applied correctly
 - Button disabled after use until next year
 - yearLog records sale price, amount, and subsidy cost
+## Phase 5C-1 Scope (Current)
+
+Phase 5B-2 is complete. Now implementing Phase 5C-1 only.
+
+**Goal:** Player can open mulberry and hemp land.
+Each has its own production chain and cost flow.
+All costs enter economic circulation, not lost.
+
+**Rules:**
+
+Land reclamation minimums:
+- Hemp land: minimum 100 mu per order
+- Mulberry land: minimum 100 mu per order
+- Both take 1 year (available next year-advance)
+  except mulberry trees take 2 years to first harvest
+
+Hemp land cost: 8 grain per mu
+- 100% flows to farmerIncome
+- farmerSatisfaction += 2 per reclamation order
+
+Mulberry land cost: 15 grain per mu
+- 10 grain per mu → farmerIncome
+- 5 grain per mu → commerceGDP
+  (buying saplings through merchants)
+- farmerSatisfaction += 2 per order
+- merchantSatisfaction += 1 per order
+- attitudeToPlayer += 1 (buying saplings from Xikou)
+
+Hemp production chain (per mu per year):
+- 100 jin hemp fiber
+- → 5 bolts coarse cloth
+- Requires 1 labor per 10 mu (same as farmland)
+- hempLaborRequired = hempLandMu / 10
+
+Mulberry/silk production chain (per mu per year):
+- 1000 jin mulberry leaves
+- ÷ 20 = 50 jin fresh cocoons
+- ÷ 10 = 5 jin raw silk
+- Raw silk: 1 jin = 3 bolts fine cloth
+- Requires 1 labor per 5 mu (more intensive)
+- mulberryLaborRequired = mulberryLandMu / 5
+
+Cloth output:
+- coarseClothOutput = hempLandMu * 5 (bolts per year)
+- fineClothOutput = mulberryLandMu * 15 (bolts per year)
+  (only after 2-year maturation period)
+- totalClothOutput = coarseCloth + fineCloth
+- Added to clothReserve each year-advance
+
+Labor priority order:
+1. Farming
+2. Salt mines (if any)
+3. Hemp land
+4. Mulberry land
+5. Commerce
+6. Merchants
+7. Idle
+
+Pending land tracking:
+- pendingHempLandMu: 0 (added next year)
+- pendingMulberryLandMu: 0 (added after 2 years)
+- mulberryMaturationYear: 0 (year when mulberry matures)
+
+State additions needed in world{}:
+- hempLandMu: 0
+- mulberryLandMu: 0
+- pendingHempLandMu: 0
+- pendingMulberryLandMu: 0
+- mulberryMaturationYear: 0
+- hempLaborRequired: 0
+- mulberryLaborRequired: 0
+- coarseClothOutput: 0
+- fineClothOutput: 0
+- rawSilkOutput: 0
+
+**Files to modify:** state.js, economy.js, render.js,
+game.js
+**Do NOT touch:** unlocks.js, policies.js, population.js
+
+**Definition of Done (Phase 5C-1):**
+- Two reclamation buttons: Open Hemp Land / Open Mulberry Land
+- Each shows cost preview before confirming
+- Minimum 100 mu enforced
+- Costs deducted from grainTreasury immediately
+- Cost flows correctly to farmer/commerce income
+- Hemp land available next year
+- Mulberry land available after 2 years
+- Cloth output calculated each year from both land types
+- Labor requirements calculated and displayed
+- UI shows land holdings:
+  hemp land / mulberry land / pending
+- UI shows annual cloth production breakdown
+- yearLog records reclamation and first harvest events
