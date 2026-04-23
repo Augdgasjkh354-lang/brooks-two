@@ -134,6 +134,8 @@ function nextYear() {
   state.world.saltTradeUsed = false;
   state.world.clothTradeUsed = false;
   state.world.officialSaltSaleUsed = false;
+  state.world.hempReclamationUsedThisYear = false;
+  state.world.mulberryReclamationUsedThisYear = false;
 
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
@@ -169,6 +171,95 @@ function nextYear() {
     state.yearLog.unshift(`Year ${state.world.year}: ${message}`);
   });
 
+  render();
+}
+
+function openHempLand() {
+  const input = document.getElementById('hemp-land-input');
+  const mu = Math.floor(Number(input?.value ?? 0));
+  const costPerMu = 8;
+  const minOrderMu = 100;
+
+  if (mu < minOrderMu) {
+    state.yearLog.unshift(`Year ${state.world.year}: 开垦麻田失败 - 最低开垦${minOrderMu}亩。`);
+    render();
+    return;
+  }
+
+  const totalCost = mu * costPerMu;
+  if ((state.world.grainTreasury ?? 0) < totalCost) {
+    state.yearLog.unshift(`Year ${state.world.year}: 开垦麻田失败 - 粮仓不足（需要${totalCost}粮）。`);
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= totalCost;
+  state.world.pendingHempLandMu = (state.world.pendingHempLandMu ?? 0) + mu;
+  state.world.landDevelopmentFarmerIncomeBoost =
+    (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + totalCost;
+  state.world.farmerSatisfaction = Math.min(100, (state.world.farmerSatisfaction ?? 70) + 2);
+  state.world.hempReclamationUsedThisYear = true;
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 下令开垦麻田${mu}亩（花费${totalCost}粮，次年可投入生产，农民满意度+2）。`
+  );
+  if (input) input.value = '';
+  render();
+}
+
+function openMulberryLand() {
+  const input = document.getElementById('mulberry-land-input');
+  const mu = Math.floor(Number(input?.value ?? 0));
+  const costPerMu = 15;
+  const minOrderMu = 100;
+
+  if (mu < minOrderMu) {
+    state.yearLog.unshift(`Year ${state.world.year}: 开垦桑田失败 - 最低开垦${minOrderMu}亩。`);
+    render();
+    return;
+  }
+
+  const totalCost = mu * costPerMu;
+  if ((state.world.grainTreasury ?? 0) < totalCost) {
+    state.yearLog.unshift(`Year ${state.world.year}: 开垦桑田失败 - 粮仓不足（需要${totalCost}粮）。`);
+    render();
+    return;
+  }
+
+  const farmerShare = mu * 10;
+  const commerceShare = mu * 5;
+  const maturesOnYear = (state.world.year ?? 1) + 2;
+  const pendingProjects = Array.isArray(state.world.pendingMulberryProjects)
+    ? state.world.pendingMulberryProjects
+    : [];
+  pendingProjects.push({ mu, maturesOnYear });
+
+  state.world.grainTreasury -= totalCost;
+  state.world.pendingMulberryProjects = pendingProjects;
+  state.world.pendingMulberryLandMu = (state.world.pendingMulberryLandMu ?? 0) + mu;
+  state.world.mulberryMaturationYear =
+    state.world.mulberryMaturationYear > 0
+      ? Math.min(state.world.mulberryMaturationYear, maturesOnYear)
+      : maturesOnYear;
+  state.world.landDevelopmentFarmerIncomeBoost =
+    (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + farmerShare;
+  state.world.landDevelopmentCommerceBoost =
+    (state.world.landDevelopmentCommerceBoost ?? 0) + commerceShare;
+  state.world.farmerSatisfaction = Math.min(100, (state.world.farmerSatisfaction ?? 70) + 2);
+  state.world.merchantSatisfaction = Math.min(100, (state.world.merchantSatisfaction ?? 70) + 1);
+  state.world.mulberryReclamationUsedThisYear = true;
+
+  if (state.xikou) {
+    state.xikou.attitudeToPlayer = Math.max(
+      -100,
+      Math.min(100, (state.xikou.attitudeToPlayer ?? 0) + 1)
+    );
+  }
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 下令开垦桑田${mu}亩（花费${totalCost}粮；农户收益${farmerShare}，商贸收益${commerceShare}；预计Year ${maturesOnYear}首收，农民满意度+2、商人满意度+1、溪口态度+1）。`
+  );
+  if (input) input.value = '';
   render();
 }
 
@@ -492,7 +583,9 @@ function render() {
     sendEnvoyToXikou,
     tradeGrainForSalt,
     tradeGrainForCloth,
-    executeOfficialSaltSaleFromInput
+    executeOfficialSaltSaleFromInput,
+    openHempLand,
+    openMulberryLand
   );
 }
 

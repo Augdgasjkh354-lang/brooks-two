@@ -11,21 +11,46 @@ function calculateLaborAllocation(world) {
   const farmingLaborAllocated = Math.min(world.laborForce, requiredFarmingLabor);
 
   const remainingAfterFarming = Math.max(0, world.laborForce - farmingLaborAllocated);
-  const commerceLaborDemand = (world.shopCount ?? 0) * 5;
-  const laborAssignedCommerce = Math.min(remainingAfterFarming, commerceLaborDemand);
+  const saltMineLaborRequired = Math.max(0, world.saltMineWorkers ?? 0);
+  const saltMineLaborAllocated = Math.min(remainingAfterFarming, saltMineLaborRequired);
 
-  const idleLabor = Math.max(0, remainingAfterFarming - laborAssignedCommerce);
+  const remainingAfterSalt = Math.max(0, remainingAfterFarming - saltMineLaborAllocated);
+  const hempLaborRequired = Math.max(0, (world.hempLandMu ?? 0) / 10);
+  const hempLaborAllocated = Math.min(remainingAfterSalt, hempLaborRequired);
+
+  const remainingAfterHemp = Math.max(0, remainingAfterSalt - hempLaborAllocated);
+  const mulberryLaborRequired = Math.max(0, (world.mulberryLandMu ?? 0) / 5);
+  const mulberryLaborAllocated = Math.min(remainingAfterHemp, mulberryLaborRequired);
+
+  const remainingAfterMulberry = Math.max(0, remainingAfterHemp - mulberryLaborAllocated);
+  const commerceLaborDemand = (world.shopCount ?? 0) * 5;
+  const laborAssignedCommerce = Math.min(remainingAfterMulberry, commerceLaborDemand);
+
+  const idleLabor = Math.max(0, remainingAfterMulberry - laborAssignedCommerce);
   const farmEfficiency =
     requiredFarmingLabor > 0 ? clampRatio(farmingLaborAllocated / requiredFarmingLabor) : 1;
+  const hempEfficiency = hempLaborRequired > 0 ? clampRatio(hempLaborAllocated / hempLaborRequired) : 1;
+  const mulberryEfficiency =
+    mulberryLaborRequired > 0 ? clampRatio(mulberryLaborAllocated / mulberryLaborRequired) : 1;
 
   world.farmingLaborRequired = clamp(requiredFarmingLabor);
   world.farmingLaborAllocated = clamp(farmingLaborAllocated);
+  world.hempLaborRequired = clamp(hempLaborRequired);
+  world.mulberryLaborRequired = clamp(mulberryLaborRequired);
+  world.hempLaborAllocated = clamp(hempLaborAllocated);
+  world.mulberryLaborAllocated = clamp(mulberryLaborAllocated);
   world.laborAssignedCommerce = clamp(laborAssignedCommerce);
   world.idleLabor = clamp(idleLabor);
   world.farmEfficiency = farmEfficiency;
+  world.hempEfficiency = hempEfficiency;
+  world.mulberryEfficiency = mulberryEfficiency;
   world.landUtilizationPercent = farmEfficiency * 100;
 
-  return farmEfficiency;
+  return {
+    farmEfficiency,
+    hempEfficiency,
+    mulberryEfficiency,
+  };
 }
 
 function getFoodSecurityStatus(grainCoverageRatio) {
@@ -516,7 +541,45 @@ export function updateEconomy(world, options = {}) {
   updateXikouVillageEconomy(world);
   const diplomacyMessages = updateXikouDiplomacy(world);
 
-  const farmEfficiency = calculateLaborAllocation(world);
+  const behaviorMessages = [];
+  const currentYear = world.year ?? 1;
+
+  const maturedHempLand = Math.max(0, Math.floor(world.pendingHempLandMu ?? 0));
+  if (maturedHempLand > 0) {
+    world.hempLandMu = clamp((world.hempLandMu ?? 0) + maturedHempLand);
+    world.pendingHempLandMu = 0;
+    behaviorMessages.push(`麻田开垦完成：新增${maturedHempLand}亩麻田`);
+  }
+
+  const pendingMulberry = Array.isArray(world.pendingMulberryProjects)
+    ? world.pendingMulberryProjects
+    : [];
+  let maturedMulberryLand = 0;
+  const stillPendingMulberry = [];
+  for (const project of pendingMulberry) {
+    if ((project?.maturesOnYear ?? Number.MAX_SAFE_INTEGER) <= currentYear) {
+      maturedMulberryLand += Math.max(0, Math.floor(project?.mu ?? 0));
+    } else {
+      stillPendingMulberry.push(project);
+    }
+  }
+  world.pendingMulberryProjects = stillPendingMulberry;
+  world.pendingMulberryLandMu = stillPendingMulberry.reduce(
+    (sum, project) => sum + Math.max(0, Math.floor(project?.mu ?? 0)),
+    0
+  );
+  world.mulberryMaturationYear =
+    stillPendingMulberry.length > 0
+      ? Math.min(...stillPendingMulberry.map((project) => project.maturesOnYear))
+      : 0;
+
+  if (maturedMulberryLand > 0) {
+    world.mulberryLandMu = clamp((world.mulberryLandMu ?? 0) + maturedMulberryLand);
+    world.mulberryMatureLandMu = clamp((world.mulberryMatureLandMu ?? 0) + maturedMulberryLand);
+    behaviorMessages.push(`桑田首收：新增成熟桑田${maturedMulberryLand}亩`);
+  }
+
+  const { farmEfficiency, hempEfficiency, mulberryEfficiency } = calculateLaborAllocation(world);
 
   const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
   world.baseGrainYieldPerMu = clamp(baseYield);
@@ -548,17 +611,22 @@ export function updateEconomy(world, options = {}) {
 
   const effectiveCommerceActivityBonus = commerceActivityBonus * inflationCommercePenaltyMultiplier;
 
+  const landDevelopmentFarmerIncomeBoost = Math.max(0, Number(world.landDevelopmentFarmerIncomeBoost ?? 0));
+  const landDevelopmentCommerceBoost = Math.max(0, Number(world.landDevelopmentCommerceBoost ?? 0));
   const preStabilityCommerceGDP = clamp(
-    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus
+    operatingShops * 500 * demandEfficiencyRate * grainSupplyEfficiency * effectiveCommerceActivityBonus +
+      landDevelopmentCommerceBoost
   );
 
   const preStabilityFarmerIncomePerHead =
     (world.farmingLaborAllocated ?? 0) > 0
-      ? (preStabilityGrainOutput * 0.3) / world.farmingLaborAllocated
+      ? (preStabilityGrainOutput * 0.3 + landDevelopmentFarmerIncomeBoost) / world.farmingLaborAllocated
       : 0;
 
   const preStabilityMerchantIncomePerHead =
-    (world.merchantCount ?? 0) > 0 ? (preStabilityCommerceGDP * 0.5) / world.merchantCount : 0;
+    (world.merchantCount ?? 0) > 0
+      ? ((preStabilityCommerceGDP + landDevelopmentCommerceBoost) * 0.5) / world.merchantCount
+      : 0;
 
   const preStabilityIncomeGap = preStabilityMerchantIncomePerHead - preStabilityFarmerIncomePerHead;
 
@@ -587,6 +655,15 @@ export function updateEconomy(world, options = {}) {
     0,
     Number(world.previousClothReserveForMarket ?? world.clothReserve ?? 0)
   );
+
+  const coarseClothOutput = clamp((world.hempLandMu ?? 0) * 5 * hempEfficiency);
+  const rawSilkOutput = clamp((world.mulberryMatureLandMu ?? 0) * 5 * mulberryEfficiency);
+  const fineClothOutput = clamp(rawSilkOutput * 3);
+  const totalClothOutput = clamp(coarseClothOutput + fineClothOutput);
+  world.coarseClothOutput = coarseClothOutput;
+  world.rawSilkOutput = rawSilkOutput;
+  world.fineClothOutput = fineClothOutput;
+  world.clothReserve = clamp((world.clothReserve ?? 0) + totalClothOutput);
 
   const saltReserveBeforeImport = Math.max(0, Number(world.saltReserve ?? 0));
   const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
@@ -707,7 +784,6 @@ export function updateEconomy(world, options = {}) {
   world.landlordSatisfaction = satisfaction.landlordSatisfaction;
 
   const activeBehaviorWarnings = [];
-  const behaviorMessages = [];
 
   if (saltImportExecuted > 0) {
     if (xikou) {
@@ -823,7 +899,7 @@ export function updateEconomy(world, options = {}) {
 
   const farmerIncomePerHead =
     (world.farmingLaborAllocated ?? 0) > 0
-      ? (adjustedGrainOutput * 0.3) / world.farmingLaborAllocated
+      ? (adjustedGrainOutput * 0.3 + landDevelopmentFarmerIncomeBoost) / world.farmingLaborAllocated
       : 0;
 
   const merchantIncomePerHead =
@@ -903,6 +979,10 @@ export function updateEconomy(world, options = {}) {
   world.saltReserve = clamp(saltReserve);
   world.previousSaltReserveForMarket = saltReserve;
   world.previousClothReserveForMarket = clothReserve;
+  world.landDevelopmentFarmerIncomeBoost = 0;
+  world.landDevelopmentCommerceBoost = 0;
+  world.hempReclamationUsedThisYear = false;
+  world.mulberryReclamationUsedThisYear = false;
 
   return {
     grainOutput: adjustedGrainOutput,
