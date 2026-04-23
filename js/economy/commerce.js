@@ -280,3 +280,10 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
     moneylenderEfficiencyMultiplier,
   };
 }
+
+
+export function applyPoliceCommerceEffects(world, policeEffects) {
+  if (!world || !policeEffects) return;
+  const multiplier = Math.max(0, Number(policeEffects.commerceMultiplier ?? 1));
+  world.commerceGDP = clampMoney(Number(world.commerceGDP ?? 0) * multiplier);
+}

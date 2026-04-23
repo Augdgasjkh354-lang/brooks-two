@@ -459,6 +459,56 @@ function getGovernmentPanelHtml(world) {
   `;
 }
 
+
+
+function getPoliceRatioLabel(policeRatio) {
+  if (policeRatio < 1 / 1000) return '极度短缺';
+  if (policeRatio < 1 / 500) return '短缺';
+  if (policeRatio < 1 / 200) return '适中';
+  if (policeRatio < 1 / 100) return '良好';
+  return '过剩';
+}
+
+function getPolicePanelHtml(world) {
+  const unlocked = Boolean(world.policeEstablished) || (Boolean(world.governmentEstablished) && Number(world.adminTalent ?? 0) >= 100);
+  const established = Boolean(world.policeEstablished);
+
+  if (!unlocked) {
+    return '<div class="muted">需先满足条件：政府已建立且文官人才≥100。</div>';
+  }
+
+  const ratio = Number(world.policeRatio ?? 0);
+  const ratioPerThousand = ratio * 1000;
+  const status = world.policeStatusLabel || getPoliceRatioLabel(ratio);
+  const effects = world.policeEffectsSummary || '无';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="stat-item">
+        <div class="stat-label"><strong>警务机构状态</strong></div>
+        <div class="stat-value">${established ? '<span style="color:#1b8a3b;font-weight:700;">已建立</span>' : '<span style="color:#b28704;font-weight:700;">待建立</span>'}</div>
+        <div class="muted">警民比：${formatDecimal(ratioPerThousand, 3)} / 千人（${status}）</div>
+      </div>
+
+      <div class="stat-item" style="display:grid;grid-template-columns:160px 1fr 1fr;gap:8px;align-items:center;">
+        <div>警员人数</div>
+        <input class="gov-config" data-key="policeOfficerCount" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.policeOfficerCount ?? 0)))}" />
+        <div class="muted">文官池占用：${formatNumber(world.adminTalentDeployedPolice ?? 0)}</div>
+
+        <div>警员工资</div>
+        <input class="gov-config" data-key="officerWage" type="number" min="0" step="1" value="${Math.max(0, Number(world.officerWage ?? 0)).toFixed(0)}" />
+        <div class="muted">年成本：${formatNumber(world.policeAnnualCost ?? 0)}</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="muted">警务效率：${formatDecimal(world.policeEfficiency ?? 0, 1)}%</div>
+        <div class="muted">效率分解：人才${formatDecimal(world.policeEfficiencyTalent ?? 0, 1)}% / 纸张${formatDecimal(world.policeEfficiencyPaper ?? 0, 1)}% / 编制${formatDecimal(world.policeEfficiencyStaffing ?? 0, 1)}%</div>
+        <div class="muted">本年效果：${effects}</div>
+      </div>
+    </div>
+  `;
+}
+
 function bindGovernmentPanelEvents() {
   document.querySelectorAll('.gov-config').forEach((el) => {
     el.addEventListener('input', () => {
@@ -534,6 +584,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     </div></section>
 
     <section class="panel"><h2>Government Institution</h2>${getGovernmentPanelHtml(world)}</section>
+    <section class="panel"><h2>Police Bureau</h2>${getPolicePanelHtml(world)}</section>
     <section class="panel"><h2>School System</h2>${getSchoolControlsHtml(world)}</section>
     <section class="panel"><h2>Bureaucracy Policies</h2>${getBureaucracyPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
