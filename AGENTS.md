@@ -3491,3 +3491,180 @@ economy/commerce.js
   active health factors (positive/negative)
   consecutive low health year counter
 - yearLog records health milestones and disease
+## Phase 7C: Court + Tax Bureau (Current)
+
+Phase 7B-4 complete. Implementing court and tax
+bureau together in one phase.
+
+**COURT SYSTEM (法院):**
+
+Unlock conditions:
+- adminTalent >= 200
+- governmentEstablished = true
+- codifiedLawCompleted = true (律法成文 tech)
+
+Court setup:
+- playerSets: judgeCount
+- judgeWage: playerAdjustable
+  default: gdpPerCapita * 2.0
+- Annual cost → officialIncomePool
+- Paper consumption: paperOutput * 15% per year
+
+Court efficiency:
+- Same 3-dimension framework
+- Low efficiency = court backlog
+
+Court effects:
+- courtEstablished = true:
+  fireLeakageRate -= 2% (already in 7B-1)
+
+- courtEfficiency >= 80%:
+  merchantLifeQuality += 8
+  fireLeakageRate -= 2% additional
+  commerceGDP *= 1.05
+  creditRating improved by 1 tier
+  yearLog: "法院运作良好，商业纠纷大减"
+
+- courtEfficiency 50-79%:
+  merchantLifeQuality += 3
+  no fire leakage bonus
+
+- courtEfficiency < 30%:
+  merchantLifeQuality -= 10
+  farmerLifeQuality -= 5
+  yearLog: "法院效率低下，民间积案严重"
+
+Civil dispute system:
+- disputeRate = 1.0 - courtEfficiency
+  (higher efficiency = fewer unresolved disputes)
+- disputeRate > 0.5:
+  commerceGDP *= 0.95
+  merchantSatisfaction -= 10
+  yearLog: "商业纠纷频发，影响市场秩序"
+
+Credit rating (信用评级):
+- creditRating: A/B/C/D (default: B)
+- playerCanAdjust: true (policy panel)
+- courtEfficiency >= 80%: max rating = A
+- courtEfficiency 50-79%: max rating = B
+- courtEfficiency < 50%: max rating = C
+- No court: max rating = D
+- Rating affects moneylender interest rates:
+  A: borrowing rate = 3% coupon / 2% grain
+  B: borrowing rate = 5% coupon / 3% grain
+  C: borrowing rate = 8% coupon / 5% grain
+  D: cannot borrow
+
+**TAX BUREAU (税务局):**
+
+Unlock conditions:
+- adminTalent >= 150
+- governmentEstablished = true
+- householdRegistryActive = true (户籍制度 policy)
+
+Tax bureau setup:
+- playerSets: taxOfficerCount
+- taxOfficerWage: playerAdjustable
+  default: gdpPerCapita * 1.0
+- Annual cost → officialIncomePool
+- Paper consumption: paperOutput * 20% per year
+  (most paper-intensive institution)
+
+Tax bureau efficiency:
+- Same 3-dimension framework
+- techTalent deployed here also helps:
+  techTalentDeployedTax * 0.5 counts toward
+  staffing dimension
+
+Tax bureau effects:
+- taxBureauEstablished = true:
+  fireLeakageRate -= 3% (already in 7B-1)
+
+- taxBureauEfficiency >= 80%:
+  actualTaxRevenue *= 1.10 (10% more tax collected)
+  fireLeakageRate -= 2% additional
+  yearLog: "税务局运作高效，税收大幅提升"
+
+- taxBureauEfficiency 50-79%:
+  actualTaxRevenue *= 1.05
+  no additional fire leakage reduction
+
+- taxBureauEfficiency < 30%:
+  actualTaxRevenue *= 0.90
+  yearLog: "税务局效率低下，大量漏税"
+
+Advanced tax policies (unlocked by tax bureau):
+All require taxBureauEstablished = true
+
+1. 商业税 (Commerce Tax):
+- commerceTaxRate: 0 (default, playerAdjustable 0-30%)
+- revenue = commerceGDP * commerceTaxRate
+- revenue → couponTreasury/grainTreasury
+- commerceTaxRate > 20%:
+  merchantLifeQuality -= 15
+  commerceGDP *= 0.9
+- flows: 100% → government treasury
+
+2. 钱庄税 (Moneylender Tax):
+- Already implemented in 6B-2
+- Now officially managed by tax bureau
+- taxBureauEfficiency bonus applies
+
+3. 土地税 (Land Tax):
+- landTaxRate: 0 (default, playerAdjustable 0-5%)
+- revenue = farmlandAreaMu * landTaxRate
+- separate from farmlandRentRate
+- landTaxRate > 3%:
+  farmerLifeQuality -= 10
+  landlordLifeQuality -= 15
+
+State additions needed in world{}:
+- courtEstablished: false
+- judgeCount: 0
+- judgeWage: 0
+- courtEfficiency: 0
+- disputeRate: 0
+- adminTalentDeployedCourt: 0
+- taxBureauEstablished: false
+- taxOfficerCount: 0
+- taxOfficerWage: 0
+- taxBureauEfficiency: 0
+- adminTalentDeployedTax: 0
+- techTalentDeployedTax: 0
+- commerceTaxRate: 0
+- landTaxRate: 0
+- commerceTaxRevenue: 0
+- landTaxRevenue: 0
+
+**Files to modify:**
+- js/state.js
+- js/society/stability.js (court + tax efficiency)
+- js/society/satisfaction.js (life quality effects)
+- js/economy/commerce.js (commerce tax + court)
+- js/economy/agriculture.js (land tax)
+- js/economy/currency.js (credit rating effects)
+- js/game.js (annual costs for both institutions)
+- js/ui/render_society.js (court + tax panels)
+
+**Do NOT touch:** unlocks.js, policies.js,
+economy/market.js economy/labor.js
+diplomacy/xikou.js tech/research.js
+ui/render_economy.js ui/render_world.js
+ui/render_diplomacy.js ui/render_tech.js
+
+**Definition of Done (Phase 7C):**
+- Court panel appears when conditions met
+- Tax bureau panel appears when conditions met
+- Both institutions have efficiency calculation
+- Court affects credit rating and dispute rate
+- Tax bureau affects fire leakage and tax revenue
+- Commerce tax and land tax adjustable in UI
+- Credit rating affects moneylender rates
+- Annual costs deducted for both institutions
+- UI shows both panels in 社会 tab:
+  court: judge count / wage / efficiency /
+    dispute rate / credit rating
+  tax bureau: officer count / wage / efficiency /
+    commerce tax rate / land tax rate /
+    total tax revenue breakdown
+- yearLog records establishment and efficiency warnings
