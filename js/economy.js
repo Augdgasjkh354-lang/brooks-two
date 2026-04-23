@@ -181,6 +181,55 @@ function calculateClassSatisfaction(world) {
   };
 }
 
+
+function updateXikouVillageEconomy(world) {
+  if (!world || !world.xikou) {
+    return;
+  }
+
+  const xikou = world.xikou;
+  const growthRate = 0.02;
+  const nextPopulation = clamp((xikou.population ?? 0) * (1 + growthRate));
+
+  xikou.population = nextPopulation;
+  xikou.laborForce = clamp(nextPopulation * 0.6);
+  xikou.children = clamp(nextPopulation * 0.2);
+  xikou.elderly = clamp(nextPopulation * 0.2);
+
+  const saltWorkersRequired = Math.max(0, (xikou.saltMines ?? 0) * 10);
+  const saltWorkers = Math.min(xikou.laborForce ?? 0, saltWorkersRequired);
+
+  const laborAfterSalt = Math.max(0, (xikou.laborForce ?? 0) - saltWorkers);
+
+  const farmWorkersRequired = (xikou.farmlandMu ?? 0) / 10;
+  const farmWorkers = Math.min(laborAfterSalt, farmWorkersRequired);
+
+  const laborAfterFarming = Math.max(0, laborAfterSalt - farmWorkers);
+  const mulberryWorkersRequired = (xikou.mulberryLandMu ?? 0) / 10;
+  const mulberryWorkers = Math.min(laborAfterFarming, mulberryWorkersRequired);
+
+  const idleLabor = Math.max(0, laborAfterFarming - mulberryWorkers);
+
+  const farmEfficiency = farmWorkersRequired > 0 ? clampRatio(farmWorkers / farmWorkersRequired) : 1;
+
+  const grainOutput = clamp((xikou.farmlandMu ?? 0) * 500 * farmEfficiency);
+  const clothOutput = clamp((xikou.mulberryLandMu ?? 0) * 50);
+  const saltOutputJin = saltWorkers >= saltWorkersRequired ? 200000 : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * 200000);
+
+  const annualConsumption = clamp((xikou.population ?? 0) * 2);
+  const nextGrainTreasury = Math.max(0, Math.round((xikou.grainTreasury ?? 0) + grainOutput - annualConsumption));
+
+  xikou.saltMineWorkers = clamp(saltWorkers);
+  xikou.farmWorkers = clamp(farmWorkers);
+  xikou.mulberryWorkers = clamp(mulberryWorkers);
+  xikou.idleLabor = clamp(idleLabor);
+  xikou.farmEfficiency = farmEfficiency;
+  xikou.grainOutput = grainOutput;
+  xikou.clothOutput = clothOutput;
+  xikou.saltOutputJin = clamp(saltOutputJin);
+  xikou.grainTreasury = nextGrainTreasury;
+}
+
 function getCouponDenominationBreakdown(issueAmount) {
   const units = [
     { label: '100斤', value: 10000 },
@@ -215,6 +264,7 @@ function getCouponDenominationBreakdown(issueAmount) {
 
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
+  updateXikouVillageEconomy(world);
 
   const farmEfficiency = calculateLaborAllocation(world);
 

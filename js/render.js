@@ -170,6 +170,39 @@ function statItem(label, value) {
   `;
 }
 
+function getXikouAttitudeLabel(attitudeToPlayer) {
+  if (attitudeToPlayer <= -40) return '敌对';
+  if (attitudeToPlayer >= 60) return '依附';
+  if (attitudeToPlayer >= 20) return '友好';
+  return '中立';
+}
+
+function getXikouVillagePanelHtml(state) {
+  const xikou = state.xikou ?? state.world?.xikou;
+  if (!xikou) {
+    return 'Xikou Village data unavailable';
+  }
+
+  const contactStatus = xikou.diplomaticContact ? '已建立外交关系' : '未建立外交关系';
+  const contactBadge = xikou.diplomaticContact
+    ? '<span style="color: #1b8a3b; font-weight: 700;">已建立外交关系</span>'
+    : '<span style="color: #b28704; font-weight: 700;">未建立外交关系</span>';
+
+  return [
+    `状态：${contactBadge}`,
+    `人口：${formatNumber(xikou.population ?? 0)}`,
+    `劳动力：${formatNumber(xikou.laborForce ?? 0)}`,
+    `粮食储备：${formatNumber(xikou.grainTreasury ?? 0)}`,
+    `盐产量：${formatNumber(xikou.saltOutputJin ?? 0)} 斤/年`,
+    `布匹产量：${formatNumber(xikou.clothOutput ?? 0)} 斤/年`,
+    `稳定度：${formatNumber(xikou.stabilityIndex ?? 0)}`,
+    `对我方态度：${getXikouAttitudeLabel(xikou.attitudeToPlayer ?? 0)} (${formatNumber(
+      xikou.attitudeToPlayer ?? 0
+    )})`,
+    `外交：${contactStatus}`,
+  ].join('<br/>');
+}
+
 function getStabilityPolicyControlsHtml(world) {
   const grainRedistributionDisabled =
     world.grainRedistributionUsed || (world.grainTreasury ?? 0) < 5000;
@@ -405,6 +438,7 @@ export function renderCoreStats(
 
   el.innerHTML = [
     statItem('Year', world.year),
+    statItem('溪口村', getXikouVillagePanelHtml(state)),
     statItem('Credit Crisis Status', world.creditCrisis ? 'Active' : 'None'),
     statItem('Credit Crisis Controls', getCreditCrisisControlsHtml(world)),
     statItem('Total Population', formatNumber(world.totalPopulation)),
