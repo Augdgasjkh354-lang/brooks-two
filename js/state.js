@@ -38,6 +38,8 @@ export const initialState = {
     lastAgriculturalTax: 0,
     lastTaxCollectionYear: 0,
     grainTreasury: 15000000,
+    saltReserve: 0,
+    clothReserve: 0,
     couponTreasury: 0,
     couponCirculating: 0,
     couponTotalIssued: 0,
@@ -87,6 +89,8 @@ export const initialState = {
 
     grainRedistributionUsed: false,
     merchantTaxUsed: false,
+    saltTradeUsed: false,
+    clothTradeUsed: false,
   },
   xikou: {
     population: 3000,
@@ -98,6 +102,7 @@ export const initialState = {
     saltMines: 2,
     saltMineWorkers: 20,
     saltOutputJin: 200000,
+    saltReserve: 0,
     grainTreasury: 500000,
     clothOutput: 0,
     stabilityIndex: 75,

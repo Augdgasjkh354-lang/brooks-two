@@ -131,6 +131,8 @@ function resolveByEmergencyRedemption() {
 function nextYear() {
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
+  state.world.saltTradeUsed = false;
+  state.world.clothTradeUsed = false;
 
   state.world.year += 1;
   const popResult = updatePopulation(state.world);
@@ -279,6 +281,149 @@ function sendEnvoyToXikou() {
   render();
 }
 
+function applyDualTradeBonusIfEligible(baseAttitudeGain) {
+  const bothTradesUsed = state.world.saltTradeUsed && state.world.clothTradeUsed;
+  if (bothTradesUsed) {
+    state.xikou.attitudeToPlayer = Math.max(
+      -100,
+      Math.min(100, (state.xikou.attitudeToPlayer ?? 0) + 3)
+    );
+    return baseAttitudeGain + 3;
+  }
+
+  return baseAttitudeGain;
+}
+
+function tradeGrainForSalt() {
+  const xikou = state.xikou;
+  const grainAmount = Math.floor(Number(document.getElementById('salt-trade-input')?.value ?? 0));
+
+  if (!xikou?.diplomaticContact) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 尚未建立外交关系。`);
+    render();
+    return;
+  }
+
+  if ((xikou.attitudeToPlayer ?? 0) < -9) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 溪口态度低于中立。`);
+    render();
+    return;
+  }
+
+  if (state.world.saltTradeUsed) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 本年已完成该交易。`);
+    render();
+    return;
+  }
+
+  if (grainAmount < 10000) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 最低交易量为10000粮。`);
+    render();
+    return;
+  }
+
+  if ((state.world.grainTreasury ?? 0) < grainAmount) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 我方粮仓不足。`);
+    render();
+    return;
+  }
+
+  const saltTradeCapByOutput = Math.floor((xikou.saltOutputJin ?? 0) * 0.5);
+  const saltAvailable = Math.max(0, Math.min(xikou.saltReserve ?? 0, saltTradeCapByOutput));
+  if (saltAvailable <= 0) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮盐交易失败 - 溪口本年无可交易盐。`);
+    render();
+    return;
+  }
+
+  const saltReceived = Math.floor(grainAmount * 0.5);
+  if (saltReceived > saltAvailable) {
+    state.yearLog.unshift(
+      `Year ${state.world.year}: 粮盐交易失败 - 超过本年盐交易上限（最多可换${saltAvailable}斤盐）。`
+    );
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= grainAmount;
+  state.world.saltReserve = (state.world.saltReserve ?? 0) + saltReceived;
+  xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
+  xikou.saltReserve = Math.max(0, (xikou.saltReserve ?? 0) - saltReceived);
+  state.world.saltTradeUsed = true;
+
+  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 3));
+  const totalAttitudeGain = applyDualTradeBonusIfEligible(3);
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 与溪口村完成粮盐交易（支付${grainAmount}粮，获得${saltReceived}斤盐，态度+${totalAttitudeGain}）。`
+  );
+  render();
+}
+
+function tradeGrainForCloth() {
+  const xikou = state.xikou;
+  const grainAmount = Math.floor(Number(document.getElementById('cloth-trade-input')?.value ?? 0));
+
+  if (!xikou?.diplomaticContact) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 尚未建立外交关系。`);
+    render();
+    return;
+  }
+
+  if ((xikou.attitudeToPlayer ?? 0) < -9) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 溪口态度低于中立。`);
+    render();
+    return;
+  }
+
+  if (state.world.clothTradeUsed) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 本年已完成该交易。`);
+    render();
+    return;
+  }
+
+  if (grainAmount < 5000) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 最低交易量为5000粮。`);
+    render();
+    return;
+  }
+
+  if ((state.world.grainTreasury ?? 0) < grainAmount) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 我方粮仓不足。`);
+    render();
+    return;
+  }
+
+  const clothAvailable = Math.max(0, Math.floor(xikou.clothOutput ?? 0));
+  if (clothAvailable <= 0) {
+    state.yearLog.unshift(`Year ${state.world.year}: 粮布交易失败 - 溪口当前无布匹可交易。`);
+    render();
+    return;
+  }
+
+  const clothReceived = Math.floor(grainAmount * 0.3);
+  if (clothReceived > clothAvailable) {
+    state.yearLog.unshift(
+      `Year ${state.world.year}: 粮布交易失败 - 超过本年布匹交易上限（最多可换${clothAvailable}斤布）。`
+    );
+    render();
+    return;
+  }
+
+  state.world.grainTreasury -= grainAmount;
+  state.world.clothReserve = (state.world.clothReserve ?? 0) + clothReceived;
+  xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
+  state.world.clothTradeUsed = true;
+
+  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 2));
+  const totalAttitudeGain = applyDualTradeBonusIfEligible(2);
+
+  state.yearLog.unshift(
+    `Year ${state.world.year}: 与溪口村完成粮布交易（支付${grainAmount}粮，获得${clothReceived}斤布，态度+${totalAttitudeGain}）。`
+  );
+  render();
+}
+
 function issueCouponsFromInput() {
   const input = document.getElementById('coupon-issue-input');
   const amount = Number(input.value);
@@ -313,7 +458,9 @@ function render() {
     useMerchantTax,
     resolveByEmergencyRecirculation,
     resolveByEmergencyRedemption,
-    sendEnvoyToXikou
+    sendEnvoyToXikou,
+    tradeGrainForSalt,
+    tradeGrainForCloth
   );
 }
 
