@@ -40,6 +40,51 @@ function getGrainPrice(supplyRatio) {
   return Math.max(0, supplyRatio);
 }
 
+function getCommodityPriceMultiplier(supplyDemandRatio) {
+  if (supplyDemandRatio >= 1.5) return 0.85;
+  if (supplyDemandRatio >= 1.0) return 1.0;
+  if (supplyDemandRatio >= 0.7) return 1.2;
+  if (supplyDemandRatio >= 0.4) return 1.5;
+  return 2.0;
+}
+
+function calculateCommodityPrice({
+  previousPrice,
+  basePrice,
+  minPrice,
+  maxPrice,
+  annualSupply,
+  annualDemand,
+  reserve,
+}) {
+  const safeDemand = Math.max(1, annualDemand);
+  const supplyDemandRatio = (Math.max(0, annualSupply) + Math.max(0, reserve) * 0.1) / safeDemand;
+  const rawPrice = basePrice * getCommodityPriceMultiplier(supplyDemandRatio);
+  const lowerYearlyBound = previousPrice * 0.7;
+  const upperYearlyBound = previousPrice * 1.3;
+  const yearlyCappedPrice = Math.max(lowerYearlyBound, Math.min(upperYearlyBound, rawPrice));
+  const boundedPrice = Math.max(minPrice, Math.min(maxPrice, yearlyCappedPrice));
+
+  return {
+    supplyDemandRatio,
+    nextPrice: boundedPrice,
+  };
+}
+
+function getPurchasingPowerIndex(world, saltPrice, clothPrice, grainPrice) {
+  const saltAffordability = saltPrice / 4.0;
+  const clothAffordability = clothPrice / 2.0;
+
+  let denominator = saltAffordability * 0.6 + clothAffordability * 0.4;
+  if (world.grainCouponsUnlocked) {
+    const grainAffordability = Math.max(0.1, grainPrice / 1.0);
+    denominator = saltAffordability * 0.3 + clothAffordability * 0.2 + grainAffordability * 0.5;
+  }
+
+  const purchasingPower = denominator > 0 ? 100 / denominator : 150;
+  return Math.max(10, Math.min(150, purchasingPower));
+}
+
 function getStabilityPenaltyFromIncomeGap(incomeGap) {
   if (incomeGap > 2000) {
     return {
@@ -397,6 +442,45 @@ export function updateEconomy(world, options = {}) {
   const supplyRatio = treasuryAfterCommerce / safePopulationDemand;
   const grainPrice = getGrainPrice(supplyRatio);
 
+  const previousSaltReserveSnapshot = Math.max(
+    0,
+    Number(world.previousSaltReserveForMarket ?? world.saltReserve ?? 0)
+  );
+  const previousClothReserveSnapshot = Math.max(
+    0,
+    Number(world.previousClothReserveForMarket ?? world.clothReserve ?? 0)
+  );
+
+  const saltReserve = Math.max(0, Number(world.saltReserve ?? 0));
+  const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
+  const saltAnnualSupply = Math.max(0, saltReserve - previousSaltReserveSnapshot);
+  const clothAnnualSupply = Math.max(0, clothReserve - previousClothReserveSnapshot);
+
+  const saltAnnualDemand = Math.max(0, world.totalPopulation * 15);
+  const clothAnnualDemand = Math.max(0, world.totalPopulation * 0.3);
+
+  const saltPricing = calculateCommodityPrice({
+    previousPrice: Math.max(0.1, Number(world.saltPrice ?? 4.0)),
+    basePrice: 4.0,
+    minPrice: 1.0,
+    maxPrice: 10.0,
+    annualSupply: saltAnnualSupply,
+    annualDemand: saltAnnualDemand,
+    reserve: saltReserve,
+  });
+
+  const clothPricing = calculateCommodityPrice({
+    previousPrice: Math.max(0.1, Number(world.clothPrice ?? 2.0)),
+    basePrice: 2.0,
+    minPrice: 0.8,
+    maxPrice: 5.0,
+    annualSupply: clothAnnualSupply,
+    annualDemand: clothAnnualDemand,
+    reserve: clothReserve,
+  });
+
+  const grainAnnualDemand = Math.max(0, world.totalPopulation * 360);
+
   let adjustedGrainOutput = grainOutput;
   let adjustedCommerceGDP = commerceGDP;
   let additionalStabilityPenalty = 0;
@@ -412,6 +496,13 @@ export function updateEconomy(world, options = {}) {
   world.totalGrainDemand = totalGrainDemand;
   world.grainPrice = grainPrice;
   world.supplyRatio = supplyRatio;
+  world.saltPrice = saltPricing.nextPrice;
+  world.clothPrice = clothPricing.nextPrice;
+  world.saltAnnualSupply = clamp(saltAnnualSupply);
+  world.saltAnnualDemand = clamp(saltAnnualDemand);
+  world.clothAnnualSupply = clamp(clothAnnualSupply);
+  world.clothAnnualDemand = clamp(clothAnnualDemand);
+  world.grainAnnualDemand = clamp(grainAnnualDemand);
   world.circulationRatio = circulationRatio;
   world.commerceActivityBonus = effectiveCommerceActivityBonus;
   world.backingRatio = backingRatio;
@@ -587,6 +678,23 @@ export function updateEconomy(world, options = {}) {
     world.couponSalaryPaymentWarning = couponSalaryPaymentWarning;
     world.lastTaxCollectionYear = world.year;
   }
+
+  world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
+  const severeShortageThreshold = (world.totalPopulation ?? 0) * -100;
+  if (world.grainSurplus < severeShortageThreshold) {
+    world.stabilityIndex = Math.max(0, (world.stabilityIndex ?? 0) - 10);
+    world.stabilityPenalty = (world.stabilityPenalty ?? 0) + 10;
+    world.stabilityPenaltyReason = `${world.stabilityPenaltyReason}; severe grain shortage -10`;
+  }
+
+  world.purchasingPower = getPurchasingPowerIndex(
+    world,
+    world.saltPrice ?? 4,
+    world.clothPrice ?? 2,
+    world.grainPrice ?? 1
+  );
+  world.previousSaltReserveForMarket = saltReserve;
+  world.previousClothReserveForMarket = clothReserve;
 
   return {
     grainOutput: adjustedGrainOutput,
