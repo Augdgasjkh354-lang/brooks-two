@@ -5420,3 +5420,182 @@ any economy/ files except market.js
 - Police low efficiency amplifies negatives
 - Police effects never sign-inverted
 - yearLog records price changes and police warnings
+## Phase 9A: Private Sector + Shop Labor + Unemployment
+(Current)
+
+Bugfix v4 complete. Now implementing three related
+systems together.
+
+---
+
+**PART A: Private sector asset table**
+
+New state object: state.privateSector
+Resets civilian income each year but accumulates
+savings.
+
+state.privateSector = {
+  farmerGrain: 0,
+  farmerCoupons: 0,
+  merchantCoupons: 0,
+  merchantGoods: 0,
+  totalPrivateGrain: 0,
+  totalPrivateCoupons: 0
+}
+
+Initial values:
+- farmerGrain = farmingLaborAllocated *
+  (10 * GRAIN_YIELD_PER_MU * (1 - agriculturalTaxRate))
+  = 3000 * 1500 = 4,500,000 jin
+- farmerCoupons = 0 (before coupon unlock)
+- merchantCoupons = 0
+- merchantGoods = 0
+
+Annual update:
+farmerGrain += farmingLaborAllocated *
+  10 * grainYieldPerMu * (1 - agriculturalTaxRate)
+farmerGrain -= farmingLaborAllocated *
+  GRAIN_CONSUMPTION_PER_PERSON (360)
+farmerGrain -= farmerGrain * saltPrice * 15
+  (salt spending)
+farmerGrain = max(0, farmerGrain)
+
+merchantGoods += commerceGDP * 0.5
+  (merchants hold half their GDP as goods)
+merchantGoods -= merchantGoods * 0.3
+  (goods consumed/sold each year)
+
+Coupon issuance reform:
+OLD (wrong):
+  grainTreasury -= issueAmount
+  lockedGrainReserve += issueAmount
+  couponCirculating += issueAmount
+
+NEW (correct):
+  Government buys grain from farmers with coupons:
+  privateSector.farmerGrain -= issueAmount
+  privateSector.farmerCoupons += issueAmount
+  state.agriculture.grainTreasury += issueAmount
+  state.monetary.lockedGrainReserve += issueAmount
+  state.monetary.couponCirculating += issueAmount
+
+  Cannot issue if farmerGrain < issueAmount
+  maxIssuable = privateSector.farmerGrain
+
+---
+
+**PART B: Shop labor and operation unification**
+
+Current problem:
+- Commerce labor = shopCount * 5
+- Operating shops = min(shopCount, merchantCount)
+- Idle shops still consume labor
+
+Correct model:
+1 operating shop requires:
+  1 merchant (manager)
+  4 workers (from idle labor pool)
+
+operatingShops = min(
+  shopCount,
+  merchantCount,
+  floor(availableCommerceLabor / 4)
+)
+commerceLaborDemand = operatingShops * 4
+idleShops = shopCount - operatingShops
+commerceGDP = operatingShops * SHOP_GDP_PER_UNIT
+  * demandSaturation * commerceActivityBonus
+
+availableCommerceLabor = laborForce
+  - farmingLaborAllocated
+  - hempLaborRequired
+  - mulberryLaborRequired
+  - institutionWorkers
+  - merchantCount
+  (merchants are managers, not workers)
+
+---
+
+**PART C: Unemployment system**
+
+Farming labor locked at 10 mu per person:
+farmingLaborAllocated = floor(farmlandAreaMu / 10)
+Cannot exceed laborForce.
+
+Unemployment calculation:
+institutionWorkers = seniorOfficialCount +
+  midOfficialCount + juniorOfficialCount +
+  policeOfficerCount + judgeCount +
+  taxOfficerCount + tradeOfficerCount +
+  engineerCount + healthOfficerCount +
+  sanitationWorkerCount + cleaningWorkerCount
+
+unemployed = laborForce
+  - farmingLaborAllocated
+  - commerceLaborDemand
+  - merchantCount
+  - hempLaborRequired
+  - mulberryLaborRequired
+  - institutionWorkers
+unemployed = max(0, unemployed)
+
+unemploymentRate = unemployed / laborForce
+
+Unemployment effects:
+- unemploymentRate < 0.05:
+  no effect
+- unemploymentRate 0.05-0.15:
+  farmerLifeQuality -= 5
+  yearLog: "失业率上升，民间压力增大"
+- unemploymentRate 0.15-0.30:
+  farmerLifeQuality -= 15
+  stabilityIndex -= 5
+  yearLog: "失业问题严重，社会不稳"
+- unemploymentRate > 0.30:
+  farmerLifeQuality -= 25
+  stabilityIndex -= 15
+  yearLog: "大规模失业，社会动荡"
+
+Unemployment relief options (player actions):
+- Reclaim farmland: absorbs 1 worker per 10 mu
+- Build shops: absorbs 4 workers per shop
+- Build roads/toilets: temporary absorption
+  roadConstruction absorbs workers proportional
+  to road length ordered
+
+State additions:
+- state.privateSector (new object)
+- world.unemployed: 0
+- world.unemploymentRate: 0
+- world.institutionWorkers: 0
+
+**Files to modify:**
+- js/state.js (add privateSector + new fields)
+- js/economy/agriculture.js (farming labor locked)
+- js/economy/commerce.js (shop labor unified)
+- js/economy/currency.js (coupon issuance reform)
+- js/economy/labor.js (unemployment calculation)
+- js/society/satisfaction.js (unemployment effects)
+- js/ui/render_world.js (unemployment display)
+- js/ui/render_economy.js (private sector panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/stability.js society/population.js
+diplomacy/xikou.js tech/research.js
+ui/render_society.js ui/render_tech.js
+ui/render_diplomacy.js
+
+**Definition of Done (Phase 9A):**
+- privateSector tracks farmer and merchant assets
+- farmerGrain initialized correctly
+- Coupon issuance draws from farmerGrain
+- Cannot issue more coupons than farmerGrain
+- operatingShops limited by merchants AND labor
+- Idle shops produce no GDP and use no labor
+- unemployed calculated correctly each year
+- Unemployment effects applied to lifeQuality
+- UI shows private sector panel in 货币 tab:
+  farmerGrain / farmerCoupons / merchantGoods
+- UI shows unemployment in 总览 tab:
+  unemployed count / unemployment rate / status
+- yearLog records unemployment warnings
