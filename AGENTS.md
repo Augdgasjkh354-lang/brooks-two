@@ -4249,3 +4249,150 @@ state.js
 - Year-end order strictly enforced in nextYear()
 - No direct writes to satisfaction/lifeQuality
   anywhere except designated functions
+## Bugfix v3: Lending + Education Cohort (Current)
+
+Bugfix v2 complete. Now fixing 2 remaining issues.
+Split into two parts, lending first.
+
+---
+
+**PART A: Split civilian lending (commerce.js)**
+
+Current problem:
+- civilianLendingAccumulator used for both:
+  1. Tracking investment progress toward new shop
+  2. Reducing lendingPoolAvailable
+- When shop opens, accumulator resets
+- This makes lendingPool "refill" after shop opens
+- Not realistic: loans don't disappear when shop opens
+
+Correct model:
+
+Two separate variables:
+- civilianLoanOutstanding: total unpaid civilian loans
+  (reduces lendingPoolAvailable permanently until repaid)
+- civilianInvestmentProgress: cumulative investment
+  toward next shop (never resets lendingPool)
+
+Civilian lending each year:
+- availableForCivilian = lendingPoolAvailable * 0.3
+- newCivilianLoan = availableForCivilian
+- civilianLoanOutstanding += newCivilianLoan
+- civilianInvestmentProgress += newCivilianLoan
+- lendingPoolAvailable -= newCivilianLoan
+
+Shop opening:
+- When civilianInvestmentProgress >= 50,000,000:
+  shopCount += 1
+  civilianInvestmentProgress -= 50,000,000
+  (progress resets but loan stays outstanding)
+
+Loan repayment (each year):
+- annualRepayment = civilianLoanOutstanding * 0.1
+  (10% repaid per year automatically)
+- civilianLoanOutstanding -= annualRepayment
+- lendingPoolAvailable += annualRepayment
+  (repaid loans return to pool)
+
+Interest income:
+- civilianInterest = civilianLoanOutstanding * 0.08
+- 50% → merchantIncomePool
+- 50% → couponTreasury
+
+lendingPoolAvailable recalculated each year:
+- lendingPoolAvailable = lendingPoolSize
+  - governmentDebt
+  - civilianLoanOutstanding
+
+State changes:
+- REMOVE: civilianLendingAccumulator
+- ADD: civilianLoanOutstanding: 0
+- ADD: civilianInvestmentProgress: 0
+
+---
+
+**PART B: Education cohort model (population.js)**
+
+Current problem:
+- primaryGraduates/secondaryGraduates/higherGraduates
+  are cumulative totals
+- Secondary eligibility = primaryGraduates * 0.4
+  (same graduates re-eligible every year)
+- People never age out of eligibility
+
+Correct cohort model:
+
+Each year produces a graduate cohort:
+- primaryCohort this year = annualPrimaryGrads
+- secondaryCohort this year = annualSecondaryGrads
+- higherCohort this year = annualHigherGrads
+
+Eligibility pool (people who CAN enroll):
+- secondaryEligiblePool: people who graduated
+  primary but haven't enrolled in secondary yet
+- higherEligiblePool: people who graduated
+  secondary but haven't enrolled in higher yet
+
+Each year:
+- secondaryEligiblePool += annualPrimaryGrads
+- secondaryEligiblePool -= newSecondaryEnrollment
+- secondaryEligiblePool *= 0.95
+  (5% age out / give up each year)
+
+- higherEligiblePool += annualSecondaryGrads
+- higherEligiblePool -= newHigherEnrollment
+- higherEligiblePool *= 0.95
+
+Enrollment capped by eligible pool:
+- actualSecondaryEnrollment = min(
+    govSecondaryCapacity + commercialSecondaryCapacity,
+    secondaryEligiblePool)
+- actualHigherEnrollment = min(
+    govHigherCapacity,
+    higherEligiblePool)
+
+Cumulative totals still tracked but with decay:
+- primaryGraduates += annualPrimaryGrads
+- primaryGraduates *= 0.97 (already implemented)
+- Same for secondary and higher
+
+higherSchoolUnlock check:
+- secondaryGraduates >= 2000 AND world.year >= 100
+  (unchanged, uses cumulative total)
+
+scholarPool derived from living graduates:
+- scholarPool = higherGraduates * 0.4
+  (unchanged logic, but now higherGraduates decays
+  so pool naturally shrinks without new graduates)
+
+State additions needed in world{}:
+- secondaryEligiblePool: 0
+- higherEligiblePool: 0
+- REMOVE: no fields removed, only additions
+
+**Files to modify:**
+- js/economy/commerce.js (Part A)
+- js/society/population.js (Part B)
+- js/state.js (state field changes)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any ui/ files, diplomacy/xikou.js,
+economy/market.js economy/labor.js
+economy/agriculture.js economy/currency.js
+tech/research.js society/satisfaction.js
+society/stability.js game.js
+
+**Definition of Done (Bugfix v3):**
+- civilianLoanOutstanding separate from
+  civilianInvestmentProgress
+- Loan repayment returns liquidity to pool
+- lendingPoolAvailable correctly reflects
+  all outstanding loans
+- Shop opening doesn't reset loan outstanding
+- secondaryEligiblePool tracks unmatriculated
+  primary graduates
+- higherEligiblePool tracks unmatriculated
+  secondary graduates
+- Enrollment capped by eligible pool size
+- Eligible pools decay 5% annually
+- yearLog records pool sizes and enrollment
