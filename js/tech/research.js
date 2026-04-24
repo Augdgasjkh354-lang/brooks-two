@@ -408,6 +408,8 @@ export function startResearch(state, techId) {
   state.world.couponTreasury -= cost.coupon;
 
   const totalResearchSpend = Math.max(0, (cost.grain ?? 0) + (cost.cloth ?? 0) + (cost.coupon ?? 0));
+  if (!state.world.ledger) state.world.ledger = {};
+  state.world.ledger.researchCost = Math.max(0, Number(state.world.ledger.researchCost ?? 0)) + totalResearchSpend;
   const merchantShare = totalResearchSpend * 0.6;
   const officialShare = totalResearchSpend - merchantShare;
   state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0) + merchantShare);

@@ -50,6 +50,8 @@ export const BUREAUCRACY_POLICY_DEFS = {
 function routeOfficialIncome(world, amount) {
   const safeAmount = Math.max(0, Number(amount ?? 0));
   world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + safeAmount);
+  if (!world.ledger) world.ledger = {};
+  world.ledger.officialGrossIncome = Math.max(0, Number(world.ledger.officialGrossIncome ?? 0)) + safeAmount;
   return safeAmount;
 }
 export function ensureBureaucracyPolicyState(world) {
@@ -100,6 +102,8 @@ export function activateBureaucracyPolicy(world, policyKey) {
 
   world.grainTreasury = Math.max(0, (world.grainTreasury ?? 0) - def.oneTimeCost);
   routeOfficialIncome(world, def.oneTimeCost);
+  if (!world.ledger) world.ledger = {};
+  world.ledger.constructionCost = Math.max(0, Number(world.ledger.constructionCost ?? 0)) + Math.max(0, Number(def.oneTimeCost ?? 0));
   world[activeField] = true;
 
   return {
@@ -122,6 +126,8 @@ export function applyBureaucracyAnnualMaintenance(world) {
 
   world.grainTreasury = available - paid;
   routeOfficialIncome(world, paid);
+  if (!world.ledger) world.ledger = {};
+  world.ledger.constructionCost = Math.max(0, Number(world.ledger.constructionCost ?? 0)) + Math.max(0, Number(paid ?? 0));
   world.bureaucracyMaintenancePaid = paid;
   world.bureaucracyMaintenanceMissing = Math.max(0, expected - paid);
 

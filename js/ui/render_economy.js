@@ -382,6 +382,9 @@ export function renderCurrencyTab(state, onOfficialSaltSale) {
   if (!mount) return;
 
   const inflationDisplay = getInflationDisplay(world.inflationRate ?? 0);
+  const ledger = world.ledger ?? state.ledger ?? {};
+  const ledgerHistory = state.ledgerHistory ?? [];
+  const netColor = Number(ledger.netBalance ?? 0) >= 0 ? '#1b8a3d' : '#b42318';
   mount.innerHTML = `
     <section class="panel"><h2>Treasury</h2><div class="tab-grid">
       ${statItem('Grain Treasury', formatNumber(world.grainTreasury ?? 0))}
@@ -398,6 +401,19 @@ export function renderCurrencyTab(state, onOfficialSaltSale) {
     <section class="panel"><h2>Salt Policy</h2>
       ${getOfficialSaltSaleControlsHtml(world)}
     </section>
+    <section class="panel"><h2>Annual Account Ledger（年度账本）</h2><div class="tab-grid">
+      ${statItem('Gov Income: Tax/Rent/Commerce/Land', `${formatNumber(ledger.taxRevenue ?? 0)} / ${formatNumber(ledger.rentRevenue ?? 0)} / ${formatNumber(ledger.commerceTaxRevenue ?? 0)} / ${formatNumber(ledger.landTaxRevenue ?? 0)}`)}
+      ${statItem('Gov Income: Moneylender/CouponTax/Trade/Debt', `${formatNumber(ledger.moneylenderTaxRevenue ?? 0)} / ${formatNumber(ledger.couponTaxRevenue ?? 0)} / ${formatNumber(ledger.tradeRevenue ?? 0)} / ${formatNumber(ledger.debtBorrowed ?? 0)}`)}
+      ${statItem('Gov Expense: Wage/Research/Construction/Education', `${formatNumber(ledger.wageBill ?? 0)} / ${formatNumber(ledger.researchCost ?? 0)} / ${formatNumber(ledger.constructionCost ?? 0)} / ${formatNumber(ledger.educationCost ?? 0)}`)}
+      ${statItem('Gov Expense: Import/Subsidy/Repayment/Interest', `${formatNumber(ledger.importCost ?? 0)} / ${formatNumber(ledger.subsidyCost ?? 0)} / ${formatNumber(ledger.debtRepayment ?? 0)} / ${formatNumber(ledger.debtInterest ?? 0)}`)}
+      ${statItem('Gov Total Income', formatNumber(ledger.totalIncome ?? 0))}
+      ${statItem('Gov Total Expense', formatNumber(ledger.totalExpense ?? 0))}
+      ${statItem('Gov Net Balance', `<span style="color:${netColor};font-weight:700;">${formatNumber(ledger.netBalance ?? 0)}</span>`)}
+      ${statItem('Farmer G/T/N/Consume/SaveΔ', `${formatNumber(ledger.farmerGrossIncome ?? 0)} / ${formatNumber(ledger.farmerTaxPaid ?? 0)} / ${formatNumber(ledger.farmerNetIncome ?? 0)} / ${formatNumber(ledger.farmerConsumption ?? 0)} / ${formatNumber(ledger.farmerSavingsChange ?? 0)}`)}
+      ${statItem('Merchant G/T/N/Consume/SaveΔ', `${formatNumber(ledger.merchantGrossIncome ?? 0)} / ${formatNumber(ledger.merchantTaxPaid ?? 0)} / ${formatNumber(ledger.merchantNetIncome ?? 0)} / ${formatNumber(ledger.merchantConsumption ?? 0)} / ${formatNumber(ledger.merchantSavingsChange ?? 0)}`)}
+      ${statItem('Official Gross/Net/SaveΔ', `${formatNumber(ledger.officialGrossIncome ?? 0)} / ${formatNumber(ledger.officialNetIncome ?? 0)} / ${formatNumber(ledger.officialSavingsChange ?? 0)}`)}
+      ${statItem('Last 10y Net Balance', ledgerHistory.length > 0 ? ledgerHistory.map((item) => `Y${item.year}: ${formatNumber(item.netBalance ?? 0)}`).join(' | ') : 'No history yet')}
+    </div></section>
   `;
 
   bindOfficialSaltSaleEvents(state, onOfficialSaltSale);

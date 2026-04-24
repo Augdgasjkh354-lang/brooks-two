@@ -25,6 +25,16 @@ function clampPercent(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, n));
 }
 
+function ensureLedger(world) {
+  if (!world) return null;
+  if (!world.ledger) world.ledger = {};
+  const keys = ['moneylenderTaxRevenue', 'merchantGrossIncome', 'merchantTaxPaid', 'subsidyCost'];
+  keys.forEach((key) => {
+    world.ledger[key] = Math.max(0, Number(world.ledger[key] ?? 0));
+  });
+  return world.ledger;
+}
+
 
 export function calculateGdpPerCapita(world, gdpOverride = null) {
   const totalPopulation = Math.max(1, Number(world?.totalPopulation ?? 0));
@@ -273,6 +283,7 @@ export function processCivilianLending(world) {
 }
 
 export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
+  const ledger = ensureLedger(world);
   syncMoneylenderCaps(world);
   const civilian = processCivilianLending(world);
 
@@ -295,6 +306,12 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
     world.couponTreasury = clampMoney(world.couponTreasury) + treasuryShare;
   } else {
     world.grainTreasury = clampMoney(world.grainTreasury) + treasuryShare;
+  }
+
+  if (ledger) {
+    ledger.moneylenderTaxRevenue += Math.max(0, Number(moneylenderTax ?? 0));
+    ledger.merchantTaxPaid += Math.max(0, Number(moneylenderTax ?? 0));
+    ledger.merchantGrossIncome += Math.max(0, Number(merchantShare ?? 0));
   }
 
   return {
@@ -357,6 +374,7 @@ export function applyTradeBureauCommerceEffects(world, tradeEffects) {
 }
 
 export function applyTradePolicySettings(world) {
+  const ledger = ensureLedger(world);
   if (!world) {
     return {
       subsidyRate: 0,
@@ -397,6 +415,10 @@ export function applyTradePolicySettings(world) {
     } else {
       world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - subsidyCost);
     }
+  }
+
+  if (ledger) {
+    ledger.subsidyCost += Math.max(0, Number(subsidyCost ?? 0));
   }
 
   return {

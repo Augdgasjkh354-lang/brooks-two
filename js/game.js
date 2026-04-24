@@ -14,6 +14,47 @@ import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calcula
 
 const state = createGameState();
 
+const LEDGER_DEFAULTS = {
+  taxRevenue: 0, rentRevenue: 0, commerceTaxRevenue: 0, landTaxRevenue: 0, moneylenderTaxRevenue: 0,
+  couponTaxRevenue: 0, tradeRevenue: 0, debtBorrowed: 0, totalIncome: 0, wageBill: 0, researchCost: 0,
+  constructionCost: 0, educationCost: 0, importCost: 0, subsidyCost: 0, debtRepayment: 0, debtInterest: 0,
+  totalExpense: 0, netBalance: 0, farmerGrossIncome: 0, farmerTaxPaid: 0, farmerNetIncome: 0,
+  farmerConsumption: 0, farmerSavingsChange: 0, merchantGrossIncome: 0, merchantTaxPaid: 0,
+  merchantNetIncome: 0, merchantConsumption: 0, merchantSavingsChange: 0, officialGrossIncome: 0,
+  officialNetIncome: 0, officialSavingsChange: 0,
+};
+
+function ensureLedgerState() {
+  state.ledger = { ...LEDGER_DEFAULTS, ...(state.ledger ?? {}) };
+  state.world.ledger = state.ledger;
+  if (!Array.isArray(state.ledgerHistory)) state.ledgerHistory = [];
+}
+
+function resetLedgerForYear() {
+  state.ledger = { ...LEDGER_DEFAULTS };
+  state.world.ledger = state.ledger;
+}
+
+function finalizeLedgerForYear() {
+  ensureLedgerState();
+  const incomeFields = ['taxRevenue', 'rentRevenue', 'commerceTaxRevenue', 'landTaxRevenue', 'moneylenderTaxRevenue', 'couponTaxRevenue', 'tradeRevenue', 'debtBorrowed'];
+  const expenseFields = ['wageBill', 'researchCost', 'constructionCost', 'educationCost', 'importCost', 'subsidyCost', 'debtRepayment', 'debtInterest'];
+  state.ledger.totalIncome = incomeFields.reduce((sum, key) => sum + Math.max(0, Number(state.ledger[key] ?? 0)), 0);
+  state.ledger.totalExpense = expenseFields.reduce((sum, key) => sum + Math.max(0, Number(state.ledger[key] ?? 0)), 0);
+  state.ledger.netBalance = state.ledger.totalIncome - state.ledger.totalExpense;
+  state.ledger.farmerNetIncome = Math.max(0, Number(state.ledger.farmerGrossIncome ?? 0) - Number(state.ledger.farmerTaxPaid ?? 0));
+  state.ledger.merchantNetIncome = Math.max(0, Number(state.ledger.merchantGrossIncome ?? 0) - Number(state.ledger.merchantTaxPaid ?? 0));
+  state.ledger.officialNetIncome = Math.max(0, Number(state.ledger.officialGrossIncome ?? 0) - Number(state.ledger.officialSavingsChange ?? 0));
+
+  state.ledgerHistory.unshift({ year: state.world.year, ...structuredClone(state.ledger) });
+  if (state.ledgerHistory.length > 10) state.ledgerHistory.length = 10;
+
+  const balanceLabel = state.ledger.netBalance >= 0 ? '财政盈余' : '财政赤字';
+  state.yearLog.unshift(`Year ${state.world.year}: 年度账本结算：${balanceLabel} ${Math.round(state.ledger.netBalance)}。`);
+}
+
+ensureLedgerState();
+
 function getPolicyById(policyId) {
   return policies.find((policy) => policy.id === policyId);
 }
@@ -174,6 +215,7 @@ function setStudentsDownToVillage(target) {
 }
 
 function settleEducationYear() {
+  ensureLedgerState();
   const edu = processEducationYear(state.world);
   const gdpPerCapita = Math.max(1, edu.gdpPerCapita);
 
@@ -196,6 +238,7 @@ function settleEducationYear() {
   } else {
     state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - govCost);
   }
+  state.ledger.educationCost += Math.max(0, Number(govCost ?? 0));
 
   const downStudents = Math.max(0, Math.floor(Number(state.world.studentsDownToVillage ?? 0)));
   const downCost = downStudents * gdpPerCapita * 1.5;
@@ -207,6 +250,7 @@ function settleEducationYear() {
   } else {
     state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - downCost);
   }
+  state.ledger.educationCost += Math.max(0, Number(downCost ?? 0));
   state.world.farmerIncomePool = (state.world.farmerIncomePool ?? 0) + downCost;
 
   return { commercialTuition, govCost, downCost, edu };
@@ -341,6 +385,8 @@ function runEngineeringProject(type) {
       return;
     }
     w.grainTreasury -= cost;
+    ensureLedgerState();
+    state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
     const finishYear = (w.year ?? 1) + 2;
     w.pendingIrrigationCanals = Math.max(0, Number(w.pendingIrrigationCanals ?? 0)) + 1;
     if (!Array.isArray(w.pendingCanals)) w.pendingCanals = [];
@@ -365,6 +411,8 @@ function runEngineeringProject(type) {
       return;
     }
     w.grainTreasury -= cost;
+    ensureLedgerState();
+    state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
     w.wallReinforced = true;
     w.defenseRating = Math.max(0, Number(w.defenseRating ?? 0)) + 0.3;
     w.stabilityIndex = Math.min(100, Number(w.stabilityIndex ?? 0) + 5);
@@ -379,6 +427,8 @@ function runEngineeringProject(type) {
       return;
     }
     w.grainTreasury -= cost;
+    ensureLedgerState();
+    state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
     w.grainStorageExpansions = Math.max(0, Number(w.grainStorageExpansions ?? 0)) + 1;
     w.grainStorageCapacity = Math.max(0, Number(w.grainStorageCapacity ?? 50000000)) + 10000000;
     w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.8;
@@ -390,6 +440,8 @@ function runEngineeringProject(type) {
 }
 
 function nextYear() {
+  ensureLedgerState();
+  resetLedgerForYear();
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
   state.world.saltTradeUsed = false;
@@ -599,6 +651,8 @@ function nextYear() {
     });
   }
 
+  finalizeLedgerForYear();
+
   saveGame(state, { auto: true });
   render();
 }
@@ -638,6 +692,8 @@ function openHempLand() {
   }
 
   state.world.grainTreasury -= totalCost;
+  ensureLedgerState();
+  state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.pendingHempLandMu = (state.world.pendingHempLandMu ?? 0) + mu;
   state.world.landDevelopmentFarmerIncomeBoost =
     (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + totalCost;
@@ -680,6 +736,8 @@ function openMulberryLand() {
   pendingProjects.push({ mu, maturesOnYear });
 
   state.world.grainTreasury -= totalCost;
+  ensureLedgerState();
+  state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.pendingMulberryProjects = pendingProjects;
   state.world.pendingMulberryLandMu = (state.world.pendingMulberryLandMu ?? 0) + mu;
   state.world.mulberryMaturationYear =
@@ -727,6 +785,8 @@ function buildPublicToilets() {
   }
 
   state.world.grainTreasury -= totalCost;
+  ensureLedgerState();
+  state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.publicToilets = Math.max(0, Number(state.world.publicToilets ?? 0)) + count;
   state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.8;
   state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.2;
@@ -754,6 +814,8 @@ function buildRoads() {
   }
 
   state.world.grainTreasury -= totalCost;
+  ensureLedgerState();
+  state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.roadLength = Math.max(0, Number(state.world.roadLength ?? 0)) + li;
   state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.7;
   state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.3;
@@ -794,6 +856,8 @@ function useGrainRedistribution() {
   const stabilityGain = Math.round(15 * policyEffectMultiplier);
 
   state.world.grainTreasury -= 5000;
+  ensureLedgerState();
+  state.ledger.subsidyCost += 5000;
   state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
   state.world.grainRedistributionUsed = true;
 
@@ -830,6 +894,8 @@ function useMerchantTax() {
 
   const taxGain = Math.round((state.world.merchantCount ?? 0) * treasuryGainPerMerchant);
   state.world.grainTreasury += taxGain;
+  ensureLedgerState();
+  state.ledger.taxRevenue += Math.max(0, Number(taxGain ?? 0));
   state.world.merchantTaxUsed = true;
 
   state.yearLog.unshift(

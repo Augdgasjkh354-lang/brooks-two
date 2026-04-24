@@ -18,6 +18,14 @@ function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
 }
 
+function ensureLedger(world) {
+  if (!world) return null;
+  if (!world.ledger) world.ledger = {};
+  world.ledger.tradeRevenue = Math.max(0, Number(world.ledger.tradeRevenue ?? 0));
+  world.ledger.subsidyCost = Math.max(0, Number(world.ledger.subsidyCost ?? 0));
+  return world.ledger;
+}
+
 export function getGrainPrice(supplyRatio) {
   if (supplyRatio > 2) return 1.2;
   if (supplyRatio >= 1) return 1.0;
@@ -140,6 +148,7 @@ export function previewOfficialSaltSale(world, officialSaltPrice, officialSaltAm
 }
 
 export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAmount) {
+  const ledger = ensureLedger(world);
   if (world.officialSaltSaleUsed) {
     return { success: false, reason: 'Official salt sale already used this year.' };
   }
@@ -176,6 +185,10 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     world.couponTreasury = clamp((world.couponTreasury ?? 0) + revenue);
   } else {
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + revenue);
+  }
+  if (ledger) {
+    ledger.tradeRevenue += Math.max(0, Number(revenue ?? 0));
+    ledger.subsidyCost += Math.max(0, Number(subsidyLoss ?? 0));
   }
 
   let farmerLifeQualityGain = 0;

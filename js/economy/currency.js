@@ -19,6 +19,15 @@ function clampIndex(value) {
   return Math.max(0, Math.min(100, Number(value ?? 0)));
 }
 
+function ensureLedger(world) {
+  if (!world) return null;
+  if (!world.ledger) world.ledger = {};
+  ['debtBorrowed', 'debtRepayment', 'debtInterest'].forEach((field) => {
+    world.ledger[field] = Math.max(0, Number(world.ledger[field] ?? 0));
+  });
+  return world.ledger;
+}
+
 
 function getBorrowingRateByCredit(creditRating = 'B') {
   const rating = String(creditRating || 'B').toUpperCase();
@@ -144,6 +153,7 @@ export function issueGrainCoupons(state, amount) {
 }
 
 export function borrowGovernmentDebt(world, amount) {
+  const ledger = ensureLedger(world);
   const borrowAmount = Math.floor(clampMoney(amount));
   const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
   const currentDebt = clampMoney(world.governmentDebt ?? 0);
@@ -189,6 +199,9 @@ export function borrowGovernmentDebt(world, amount) {
   world.governmentDebt = projectedDebt;
   world.governmentDebtCurrency = debtCurrency;
   world.lendingPoolAvailable = Math.max(0, lendingPoolAvailable - borrowAmount);
+  if (ledger) {
+    ledger.debtBorrowed += Math.max(0, Number(borrowAmount ?? 0));
+  }
 
   return {
     success: true,
@@ -199,6 +212,7 @@ export function borrowGovernmentDebt(world, amount) {
 }
 
 export function processGovernmentDebtYear(world) {
+  const ledger = ensureLedger(world);
   const debt = clampMoney(world.governmentDebt ?? 0);
   const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
   const currency = world.governmentDebtCurrency === 'grain' ? 'grain' : 'coupon';
@@ -218,6 +232,9 @@ export function processGovernmentDebtYear(world) {
   const rawRate = getBorrowingRateByCredit(world.creditRating ?? 'B')[currency];
   const interestRate = Number.isFinite(rawRate) ? rawRate : (currency === 'coupon' ? 0.08 : 0.05);
   const interestDue = debt * interestRate;
+  if (ledger) {
+    ledger.debtInterest += Math.max(0, Number(interestDue ?? 0));
+  }
 
   world.governmentDebtInterest = interestDue;
   world.governmentDebt = debt + interestDue;
@@ -237,6 +254,9 @@ export function processGovernmentDebtYear(world) {
     }
 
     world.governmentDebt = Math.max(0, world.governmentDebt - repaymentPaid);
+    if (ledger) {
+      ledger.debtRepayment += Math.max(0, Number(repaymentPaid ?? 0));
+    }
   }
 
   const penaltyMessages = [];
