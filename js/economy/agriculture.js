@@ -46,6 +46,23 @@ export const AGRICULTURE_RECLAMATION_COSTS = {
   hempPerMu: HEMP_RECLAIM_COST_PER_MU,
   mulberryPerMu: MULBERRY_RECLAIM_COST_PER_MU,
 };
+
+function ensureLedger(world) {
+  if (!world.ledger) world.ledger = {};
+  const defaults = [
+    'taxRevenue', 'rentRevenue', 'commerceTaxRevenue', 'landTaxRevenue', 'moneylenderTaxRevenue',
+    'couponTaxRevenue', 'tradeRevenue', 'debtBorrowed', 'totalIncome', 'wageBill', 'researchCost',
+    'constructionCost', 'educationCost', 'importCost', 'subsidyCost', 'debtRepayment', 'debtInterest',
+    'totalExpense', 'netBalance', 'farmerGrossIncome', 'farmerTaxPaid', 'farmerNetIncome',
+    'farmerConsumption', 'farmerSavingsChange', 'merchantGrossIncome', 'merchantTaxPaid',
+    'merchantNetIncome', 'merchantConsumption', 'merchantSavingsChange', 'officialGrossIncome',
+    'officialNetIncome', 'officialSavingsChange',
+  ];
+  defaults.forEach((key) => {
+    world.ledger[key] = Math.max(0, Number(world.ledger[key] ?? 0));
+  });
+  return world.ledger;
+}
 export function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
   if (grainCoverageRatio >= 0.85) return 'Strained';
@@ -63,6 +80,12 @@ export function getFertilizerBonus(dungCoverage) {
 
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
+  const ledger = ensureLedger(world);
+  const savingsStart = {
+    farmer: Math.max(0, Number(world.farmerSavings ?? 0)),
+    merchant: Math.max(0, Number(world.merchantSavings ?? 0)),
+    official: Math.max(0, Number(world.officialSavings ?? 0)),
+  };
   updateXikouVillageEconomy(world);
   const diplomacyMessages = updateXikouDiplomacy(world);
 
@@ -312,6 +335,7 @@ export function updateEconomy(world, options = {}) {
   }
 
   if (importedDung > 0) {
+    ledger.importCost += Math.max(0, Number(dungImportCostPaid ?? 0));
     if (xikou) {
       xikou.attitudeToPlayer = clampAttitude((xikou.attitudeToPlayer ?? 0) + 1);
     }
@@ -548,6 +572,9 @@ export function updateEconomy(world, options = {}) {
   }
 
   if (saltImportExecuted > 0) {
+    ledger.importCost += Math.max(0, Number(saltImportCostPaid ?? 0));
+    ledger.farmerConsumption += Math.max(0, Number(saltImportCostPaid ?? 0) * 0.6);
+    ledger.merchantConsumption += Math.max(0, Number(saltImportCostPaid ?? 0) * 0.4);
     if (xikou) {
       xikou.grainTreasury = clamp((xikou.grainTreasury ?? 0) + saltImportCostPaid);
       xikou.attitudeToPlayer = clampAttitude((xikou.attitudeToPlayer ?? 0) + 1);
@@ -797,6 +824,16 @@ export function updateEconomy(world, options = {}) {
     world.lastFarmlandRentCollected = clamp(farmlandRentCollected);
     world.landTaxRevenue = clamp(landTaxCollected);
     world.lastTaxCollectionYear = world.year;
+    ledger.taxRevenue += Math.max(0, Number(agriculturalTax ?? 0));
+    ledger.commerceTaxRevenue += Math.max(0, Number(commerceTaxCollected ?? 0));
+    ledger.landTaxRevenue += Math.max(0, Number(landTaxCollected ?? 0));
+    ledger.rentRevenue += Math.max(0, Number(farmlandRentCollected ?? 0));
+    ledger.couponTaxRevenue += Math.max(0, Number(taxToCoupon + rentToCoupon + landTaxToCoupon));
+    ledger.wageBill += Math.max(0, Number(actualCouponSalary + actualGrainSalary));
+    ledger.officialGrossIncome += Math.max(0, Number(actualCouponSalary + actualGrainSalary));
+    ledger.subsidyCost += Math.max(0, Number(tradePolicyResult.subsidyCost ?? 0));
+    ledger.farmerTaxPaid += Math.max(0, Number(agriculturalTax + farmlandRentCollected + landTaxCollected));
+    ledger.merchantTaxPaid += Math.max(0, Number(commerceTaxCollected));
 
     if ((world.fireLeakageRate ?? 0) > 0.25) {
       world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) - 20);
@@ -872,6 +909,19 @@ export function updateEconomy(world, options = {}) {
       `收入拉动需求：食盐+${incomePoolEffects.saltDemandIncrease.toFixed(2)}，布匹+${incomePoolEffects.clothDemandIncrease.toFixed(2)}`
     );
   }
+
+  const farmerGrossIncome = Math.max(0, Number(adjustedGrainOutput * 0.3 + landDevelopmentFarmerIncomeBoost + farmerIncomePool));
+  const merchantGrossIncome = Math.max(0, Number(adjustedCommerceGDP * 0.5 + merchantIncomePool));
+  const officialGrossIncome = Math.max(0, Number(world.totalSalaryCost ?? 0) + officialIncomePool);
+  ledger.farmerGrossIncome += farmerGrossIncome;
+  ledger.merchantGrossIncome += merchantGrossIncome;
+  ledger.officialGrossIncome += officialGrossIncome;
+  ledger.farmerNetIncome = Math.max(0, ledger.farmerGrossIncome - ledger.farmerTaxPaid);
+  ledger.merchantNetIncome = Math.max(0, ledger.merchantGrossIncome - ledger.merchantTaxPaid);
+  ledger.officialNetIncome = Math.max(0, ledger.officialGrossIncome);
+  ledger.farmerSavingsChange += Math.max(0, Number(world.farmerSavings ?? 0) - savingsStart.farmer);
+  ledger.merchantSavingsChange += Math.max(0, Number(world.merchantSavings ?? 0) - savingsStart.merchant);
+  ledger.officialSavingsChange += Math.max(0, Number(world.officialSavings ?? 0) - savingsStart.official);
 
   world.farmerIncomePool = 0;
   world.merchantIncomePool = 0;

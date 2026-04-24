@@ -471,6 +471,46 @@ export const initialState = {
     officialSatisfactionBonus: 0,
     farmerSatisfactionBonus: 0,
   },
+  ledger: {
+    taxRevenue: 0,
+    rentRevenue: 0,
+    commerceTaxRevenue: 0,
+    landTaxRevenue: 0,
+    moneylenderTaxRevenue: 0,
+    couponTaxRevenue: 0,
+    tradeRevenue: 0,
+    debtBorrowed: 0,
+    totalIncome: 0,
+
+    wageBill: 0,
+    researchCost: 0,
+    constructionCost: 0,
+    educationCost: 0,
+    importCost: 0,
+    subsidyCost: 0,
+    debtRepayment: 0,
+    debtInterest: 0,
+    totalExpense: 0,
+
+    netBalance: 0,
+
+    farmerGrossIncome: 0,
+    farmerTaxPaid: 0,
+    farmerNetIncome: 0,
+    farmerConsumption: 0,
+    farmerSavingsChange: 0,
+
+    merchantGrossIncome: 0,
+    merchantTaxPaid: 0,
+    merchantNetIncome: 0,
+    merchantConsumption: 0,
+    merchantSavingsChange: 0,
+
+    officialGrossIncome: 0,
+    officialNetIncome: 0,
+    officialSavingsChange: 0,
+  },
+  ledgerHistory: [],
   policyHistory: [],
   yearLog: [],
   economyHistory: [],
@@ -480,6 +520,7 @@ export function createGameState() {
   const state = structuredClone(initialState);
 
   state.world.techBonuses = state.techBonuses;
+  state.world.ledger = state.ledger;
   state.world.pendingMulberryProjects = [];
 
   return state;
