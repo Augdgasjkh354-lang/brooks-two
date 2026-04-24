@@ -5180,3 +5180,134 @@ for all migrated fields.**
 - All fields correctly moved
 - Backward compatibility getters maintained
 - Game runs identically after refactor
+## Phase 8D-4: State Refactor - Classes + Education
++ Institutions (Current)
+
+Phase 8D-3 complete. Final batch of state refactor.
+
+**New structure:**
+
+state.classes = {
+  farmerLifeQuality: 50,
+  merchantLifeQuality: 50,
+  officialLifeQuality: 50,
+  landlordLifeQuality: 50,
+  farmerSatisfaction: 50,
+  merchantSatisfaction: 50,
+  officialSatisfaction: 50,
+  landlordSatisfaction: 50,
+  farmerEventModifier: 0,
+  merchantEventModifier: 0,
+  officialEventModifier: 0,
+  landlordEventModifier: 0,
+  farmerSavings: 0,
+  merchantSavings: 0,
+  officialSavings: 0,
+  landlordSavings: 0,
+  farmerSavingsRate: 0,
+  merchantSavingsRate: 0,
+  officialSavingsRate: 0,
+  landlordSavingsRate: 0,
+  farmerIncomePerHead: 0,
+  merchantIncomePerHead: 0,
+  officialIncomePerHead: 0,
+  landlordIncomePerHead: 0,
+  farmerIncomePool: 0,
+  merchantIncomePool: 0,
+  officialIncomePool: 0,
+  incomeGap: 0,
+  stabilityIndex: 80,
+  stabilityPenalty: 0,
+  efficiencyMultiplier: 1.0
+}
+
+state.education = {
+  commercialPrimarySchools: 0,
+  commercialSecondarySchools: 0,
+  govPrimaryCapacity: 0,
+  govSecondaryCapacity: 0,
+  govHigherCapacity: 0,
+  primaryEnrolled: 0,
+  secondaryEnrolled: 0,
+  higherEnrolled: 0,
+  schoolLicenseFee: 2000000,
+  studentsDownToVillage: 0,
+  adminTalentDeployedGov: 0,
+  adminTalentDeployedPolice: 0,
+  adminTalentDeployedCourt: 0,
+  adminTalentDeployedTax: 0,
+  commerceTalentDeployedTrade: 0,
+  techTalentDeployedEngineering: 0,
+  techTalentDeployedTax: 0
+}
+
+state.institutions = {
+  governmentEstablished: false,
+  seniorOfficialCount: 0,
+  midOfficialCount: 0,
+  juniorOfficialCount: 0,
+  professionalCount: 0,
+  governmentEfficiency: 0,
+  policeEstablished: false,
+  policeOfficerCount: 0,
+  policeRatio: 0,
+  policeEfficiency: 0,
+  healthBureauEstablished: false,
+  healthOfficerCount: 0,
+  healthEfficiency: 0,
+  healthIndex: 50,
+  consecutiveLowHealthYears: 0,
+  diseaseOutbreak: false,
+  courtEstablished: false,
+  judgeCount: 0,
+  courtEfficiency: 0,
+  disputeRate: 0,
+  taxBureauEstablished: false,
+  taxOfficerCount: 0,
+  taxBureauEfficiency: 0,
+  tradeBureauEstablished: false,
+  tradeOfficerCount: 0,
+  tradeBureauEfficiency: 0,
+  protectLocalCloth: false,
+  tradeMonopolyGranted: false,
+  newTradePartnerUnlocked: false,
+  engineeringBureauEstablished: false,
+  engineerCount: 0,
+  engineeringBureauEfficiency: 0,
+  irrigationCanalCount: 0,
+  healthBureauPrereqMet: false,
+  defenseRating: 0,
+  bureaucracyUnlocked: false
+}
+
+**Migration rules:**
+- state.world.farmerLifeQuality →
+  state.classes.farmerLifeQuality
+- state.world.governmentEstablished →
+  state.institutions.governmentEstablished
+- state.world.govPrimaryCapacity →
+  state.education.govPrimaryCapacity
+- (and so on for all fields listed above)
+
+**Keep backward compatibility getters in state.world
+for all migrated fields.**
+
+**Files to modify:**
+- js/state.js
+- js/society/satisfaction.js
+- js/society/stability.js
+- js/society/population.js
+- js/society/stability.js
+- js/ui/render_society.js
+- js/game.js
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 8D-4):**
+- state.classes, state.education and
+  state.institutions exist
+- All fields correctly moved
+- Backward compatibility getters maintained
+- Game runs identically after refactor
+- state.world now only contains fields not
+  yet migrated (xikou, research, ledger, logs)
