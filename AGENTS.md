@@ -4994,3 +4994,83 @@ anything.
 - Backward compatibility getters in state.world
 - Game runs identically after refactor
 - No references to old paths broken
+## Phase 8D-2: State Refactor - Agriculture + Land (Current)
+
+Phase 8D-1 complete. Now extracting agriculture
+and land fields from state.world.
+
+**New structure:**
+
+state.land = {
+  farmlandAreaMu: 30000,
+  hempLandMu: 0,
+  mulberryLandMu: 0,
+  pendingFarmlandMu: 0,
+  pendingHempLandMu: 0,
+  pendingMulberryLandMu: 0,
+  mulberryMaturationYear: 0,
+  reclaimedThisYear: 0,
+  publicToilets: 0,
+  roadLength: 0,
+  toiletCoverage: 0,
+  irrigationCanalCount: 0,
+  pendingCanals: [],
+  wallReinforced: false,
+  grainStorageCapacity: 50000000,
+  grainStorageExpansions: 0
+}
+
+state.agriculture = {
+  grainYieldPerMu: 500,
+  baseGrainYieldPerMu: 500,
+  grainTreasury: 15000000,
+  actualGrainOutput: 0,
+  potentialGrainOutput: 0,
+  lostGrainOutput: 0,
+  farmEfficiency: 1.0,
+  landUtilizationPercent: 100,
+  agriculturalTaxRate: 0.7,
+  farmlandRentRate: 0,
+  grainAnnualDemand: 0,
+  grainSurplus: 0,
+  fertilizerBonus: 1.0,
+  dungCoverage: 0,
+  totalDung: 0,
+  playerSilkwormDung: 0,
+  importedDung: 0,
+  dungImportQuota: 0,
+  constructionCostReduction: 0,
+  buildingFiberReserve: 0,
+  structuralBonus: false,
+  laborEfficiency: 1.0,
+  paperMaterialReserve: 0,
+  paperOutput: 0,
+  coarseClothOutput: 0,
+  fineClothOutput: 0,
+  rawSilkOutput: 0,
+  totalClothOutput: 0
+}
+
+**Migration rules:**
+- state.world.farmlandAreaMu → state.land.farmlandAreaMu
+- state.world.grainTreasury → state.agriculture.grainTreasury
+- (and so on for all fields listed above)
+
+**Keep backward compatibility getters in state.world
+for all migrated fields.**
+
+**Files to modify:**
+- js/state.js
+- js/economy/agriculture.js
+- js/economy/labor.js
+- js/ui/render_world.js
+- js/ui/render_economy.js
+- js/game.js
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 8D-2):**
+- state.land and state.agriculture exist
+- All fields correctly moved
+- Backward compatibility getters maintained
+- Game runs identically after refactor
