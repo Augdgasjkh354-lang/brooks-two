@@ -4,6 +4,14 @@ import { canUseMoneylenderSystem } from '../economy/commerce.js';
 
 const GRAIN_REDISTRIBUTION_COST = 3000000;
 
+function getClasses(world) {
+  return world?.__classes ?? world?.classes ?? world;
+}
+
+function getEducation(world) {
+  return world?.__education ?? world?.education ?? world;
+}
+
 export function getStabilityDisplay(stabilityIndex) {
   if (stabilityIndex >= 80) return { label: 'Stable', color: '#1b8a3b' };
   if (stabilityIndex >= 50) return { label: 'Tense', color: '#b28704' };
@@ -17,6 +25,7 @@ export function getLifeQualityDisplay(score) {
 }
 
 export function getClassLifeQualityFactors(world) {
+  const classes = getClasses(world);
   const farmerFactors = [];
   if ((world.agriculturalTaxRate ?? 0) > 0.5) farmerFactors.push('High agricultural tax (>50%)');
   if ((world.inflationRate ?? 0) >= 0.15) farmerFactors.push('Inflation at or above 15%');
@@ -27,18 +36,18 @@ export function getClassLifeQualityFactors(world) {
   if ((world.inflationRate ?? 0) >= 0.15) merchantFactors.push('Inflation at or above 15%');
   if ((world.inflationRate ?? 0) >= 0.3) merchantFactors.push('Additional severe inflation penalty (30%)');
   if ((world.demandSaturation ?? 0) > 1.5) merchantFactors.push('Oversaturated market demand (>150%)');
-  if ((world.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
+  if ((classes.stabilityIndex ?? 80) < 50) merchantFactors.push('Low social stability (<50)');
   if ((world.commerceActivityBonus ?? 1) > 1.0) merchantFactors.push('Commerce activity bonus active');
 
   const officialFactors = [];
   if ((world.salaryGrainRatio ?? 1) < 0.5 && (world.inflationRate ?? 0) >= 0.15) officialFactors.push('Low grain salary share (<50%) with inflation >=15%');
   if ((world.salaryGrainRatio ?? 1) < 0.3 && (world.inflationRate ?? 0) >= 0.05) officialFactors.push('Very low grain salary share (<30%) with inflation >=5%');
-  if ((world.stabilityIndex ?? 80) < 50) officialFactors.push('Low social stability (<50)');
+  if ((classes.stabilityIndex ?? 80) < 50) officialFactors.push('Low social stability (<50)');
 
   const landlordFactors = [];
   if ((world.inflationRate ?? 0) >= 0.15) landlordFactors.push('Inflation at or above 15%');
   if ((world.grainPrice ?? 1) < 0.8) landlordFactors.push('Low grain price (<0.8)');
-  if ((world.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
+  if ((classes.stabilityIndex ?? 80) < 50) landlordFactors.push('Low social stability (<50)');
   if ((world.farmlandAreaMu ?? 0) > 40000) landlordFactors.push('Large estate bonus (>40,000 mu)');
 
   const cached = world.lifeQualityFactors ?? {};
@@ -51,12 +60,13 @@ export function getClassLifeQualityFactors(world) {
 }
 
 export function getActiveBehaviorWarnings(world) {
+  const classes = getClasses(world);
   const warnings = [];
-  if ((world.farmerSatisfaction ?? 70) < 40) warnings.push('农民消极怠工，农业产出下降');
-  if ((world.merchantSatisfaction ?? 70) < 20) warnings.push('商业市场大规模萎缩');
-  else if ((world.merchantSatisfaction ?? 70) < 40) warnings.push('商人拒收粮劵，改用实物交易');
-  if ((world.officialSatisfaction ?? 70) < 40) warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
-  if ((world.landlordSatisfaction ?? 70) < 40) warnings.push('地主抵制开荒，土地扩张受阻');
+  if ((classes.farmerSatisfaction ?? 70) < 40) warnings.push('农民消极怠工，农业产出下降');
+  if ((classes.merchantSatisfaction ?? 70) < 20) warnings.push('商业市场大规模萎缩');
+  else if ((classes.merchantSatisfaction ?? 70) < 40) warnings.push('商人拒收粮劵，改用实物交易');
+  if ((classes.officialSatisfaction ?? 70) < 40) warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
+  if ((classes.landlordSatisfaction ?? 70) < 40) warnings.push('地主抵制开荒，土地扩张受阻');
   return warnings;
 }
 
@@ -143,11 +153,12 @@ function bindBureaucracyPolicyEvents(state, rerender) {
 }
 
 function getSchoolControlsHtml(world) {
+  const education = getEducation(world);
   if (!world?.techBonuses?.bureaucracyUnlocked) {
     return '<div class="muted">需先解锁官僚体系（造纸术）后才能建设学校。</div>';
   }
 
-  const licenseFee = formatNumber(world.schoolLicenseFee ?? 2000000);
+  const licenseFee = formatNumber(education.schoolLicenseFee ?? 2000000);
   return `
     <div style="display:flex;flex-direction:column;gap:10px;">
       <div class="stat-item">
@@ -155,12 +166,12 @@ function getSchoolControlsHtml(world) {
         <div class="muted">每所牌照费：${licenseFee}（优先使用${world.grainCouponsUnlocked ? '粮劵' : '粮食'}）</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>商办蒙学数量</label>
-          <input id="commercial-primary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.commercialPrimarySchools ?? 0)))}" />
+          <input id="commercial-primary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(education.commercialPrimarySchools ?? 0)))}" />
           <button id="set-commercial-primary-btn">设置商办蒙学</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>商办私塾数量</label>
-          <input id="commercial-secondary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(world.commercialSecondarySchools ?? 0)))}" />
+          <input id="commercial-secondary-target" type="number" min="0" step="1" value="${Math.max(0, Math.floor(Number(education.commercialSecondarySchools ?? 0)))}" />
           <button id="set-commercial-secondary-btn" ${(world.techBonuses?.scholarClass ? '' : 'disabled')}>设置商办私塾</button>
         </div>
       </div>
@@ -170,15 +181,15 @@ function getSchoolControlsHtml(world) {
         <div class="muted">年成本/生：人均GDP的20%</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>官办蒙学容量</label>
-          <input id="gov-primary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govPrimaryCapacity ?? 0)))}" />
+          <input id="gov-primary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(education.govPrimaryCapacity ?? 0)))}" />
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>官办县学容量</label>
-          <input id="gov-secondary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govSecondaryCapacity ?? 0)))}" ${(world.techBonuses?.scholarClass ? '' : 'disabled')} />
+          <input id="gov-secondary-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(education.govSecondaryCapacity ?? 0)))}" ${(world.techBonuses?.scholarClass ? '' : 'disabled')} />
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>官办书院容量</label>
-          <input id="gov-higher-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.govHigherCapacity ?? 0)))}" ${(world.higherSchoolUnlocked ? '' : 'disabled')} />
+          <input id="gov-higher-capacity" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(education.govHigherCapacity ?? 0)))}" ${(world.higherSchoolUnlocked ? '' : 'disabled')} />
         </div>
       </div>
 
@@ -188,7 +199,7 @@ function getSchoolControlsHtml(world) {
         <div class="muted">每人年成本：人均GDP的150%；每100人提升农民识字率成长与上限</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <label>下乡人数</label>
-          <input id="students-down-input" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(world.studentsDownToVillage ?? 0)))}" />
+          <input id="students-down-input" type="number" min="0" step="10" value="${Math.max(0, Math.floor(Number(education.studentsDownToVillage ?? 0)))}" />
           <button id="set-students-down-btn">设置下乡人数</button>
         </div>
       </div>
@@ -198,6 +209,7 @@ function getSchoolControlsHtml(world) {
 }
 
 function bindSchoolEvents(state) {
+  const education = state.education ?? state.world.__education ?? state.world;
   const triggerCommercial = (type, inputId) => {
     const input = document.getElementById(inputId);
     const target = Math.max(0, Math.floor(Number(input?.value ?? 0)));
@@ -213,9 +225,9 @@ function bindSchoolEvents(state) {
   const govSecondary = document.getElementById('gov-secondary-capacity');
   const govHigher = document.getElementById('gov-higher-capacity');
 
-  if (govPrimary) govPrimary.addEventListener('input', () => { state.world.govPrimaryCapacity = Math.max(0, Math.floor(Number(govPrimary.value ?? 0))); });
-  if (govSecondary) govSecondary.addEventListener('input', () => { state.world.govSecondaryCapacity = Math.max(0, Math.floor(Number(govSecondary.value ?? 0))); });
-  if (govHigher) govHigher.addEventListener('input', () => { state.world.govHigherCapacity = Math.max(0, Math.floor(Number(govHigher.value ?? 0))); });
+  if (govPrimary) govPrimary.addEventListener('input', () => { education.govPrimaryCapacity = Math.max(0, Math.floor(Number(govPrimary.value ?? 0))); });
+  if (govSecondary) govSecondary.addEventListener('input', () => { education.govSecondaryCapacity = Math.max(0, Math.floor(Number(govSecondary.value ?? 0))); });
+  if (govHigher) govHigher.addEventListener('input', () => { education.govHigherCapacity = Math.max(0, Math.floor(Number(govHigher.value ?? 0))); });
 
   const downBtn = document.getElementById('set-students-down-btn');
   if (downBtn) {
@@ -731,10 +743,12 @@ function bindGovernmentPanelEvents() {
 
 export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
   const world = state.world;
+  const classes = state.classes ?? world.__classes ?? world;
+  const education = state.education ?? world.__education ?? world;
   const mount = document.getElementById('society-tab-content');
   if (!mount) return;
 
-  const stabilityDisplay = getStabilityDisplay(world.stabilityIndex ?? 80);
+  const stabilityDisplay = getStabilityDisplay(classes.stabilityIndex ?? 80);
   const factors = getClassLifeQualityFactors(world);
   const warnings = getActiveBehaviorWarnings(world);
   const growth = getPopulationGrowthDisplayDetails(world);
@@ -747,9 +761,9 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
 
   mount.innerHTML = `
     <section class="panel"><h2>Stability</h2><div class="tab-grid">
-      ${statItem('Stability Index', `<span style="color:${stabilityDisplay.color};font-weight:700;">${formatNumber(world.stabilityIndex ?? 80)}</span> / 100 (${stabilityDisplay.label})`)}
-      ${statItem('Stability Penalty', `-${formatNumber(world.stabilityPenalty ?? 0)}`)}
-      ${statItem('Efficiency Multiplier', `${formatDecimal((world.efficiencyMultiplier ?? 1) * 100, 1)}%`)}
+      ${statItem('Stability Index', `<span style="color:${stabilityDisplay.color};font-weight:700;">${formatNumber(classes.stabilityIndex ?? 80)}</span> / 100 (${stabilityDisplay.label})`)}
+      ${statItem('Stability Penalty', `-${formatNumber(classes.stabilityPenalty ?? 0)}`)}
+      ${statItem('Efficiency Multiplier', `${formatDecimal((classes.efficiencyMultiplier ?? 1) * 100, 1)}%`)}
       ${statItem('Population Growth Rate', `${formatDecimal(growth.effectiveRate * 100, 2)}%`)}
       ${statItem('Growth Modifiers', growth.modifiersText)}
       ${statItem('Policy Intervention', getStabilityPolicyControlsHtml(world))}
@@ -766,7 +780,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Class Population (F/M/O/W/L)', `${formatNumber(world.farmerPopulation ?? 0)} / ${formatNumber(world.merchantPopulation ?? 0)} / ${formatNumber(world.officialPopulation ?? 0)} / ${formatNumber(world.workerPopulation ?? 0)} / ${formatNumber(world.landlordPopulation ?? 0)}`)}
       ${statItem('Graduates (P/S/H)', `${formatNumber(world.primaryGraduates ?? 0)} / ${formatNumber(world.secondaryGraduates ?? 0)} / ${formatNumber(world.higherGraduates ?? 0)}`)}
       ${statItem('Annual Grads (P/S/H)', `${formatNumber(world.annualPrimaryGrads ?? 0)} / ${formatNumber(world.annualSecondaryGrads ?? 0)} / ${formatNumber(world.annualHigherGrads ?? 0)}`)}
-      ${statItem('Current Enrollment (P/S/H)', `${formatNumber(world.primaryEnrolled ?? 0)} / ${formatNumber(world.secondaryEnrolled ?? 0)} / ${formatNumber(world.higherEnrolled ?? 0)}`)}
+      ${statItem('Current Enrollment (P/S/H)', `${formatNumber(education.primaryEnrolled ?? 0)} / ${formatNumber(education.secondaryEnrolled ?? 0)} / ${formatNumber(education.higherEnrolled ?? 0)}`)}
       ${statItem('Higher School Unlock', world.higherSchoolUnlocked ? 'Unlocked' : 'Locked')}
     </div></section>
 
@@ -797,24 +811,24 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     <section class="panel"><h2>Land Rent</h2>${getLandRentControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender Policy</h2>${getMoneylenderPolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Class Life Quality</h2><div class="tab-grid">
-      ${statItem('Farmer Life Quality', life(world.farmerLifeQuality ?? world.farmerSatisfaction))}
-      ${statItem('Farmer Savings Rate', `${formatDecimal((world.farmerSavingsRate ?? 0) * 100, 2)}%`)}
-      ${statItem('Farmer Savings Pool', formatNumber(world.farmerSavings ?? 0))}
+      ${statItem('Farmer Life Quality', life(classes.farmerLifeQuality ?? classes.farmerSatisfaction))}
+      ${statItem('Farmer Savings Rate', `${formatDecimal((classes.farmerSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Farmer Savings Pool', formatNumber(classes.farmerSavings ?? 0))}
       ${statItem('Farmer Factors', factors.farmer)}
 
-      ${statItem('Merchant Life Quality', life(world.merchantLifeQuality ?? world.merchantSatisfaction))}
-      ${statItem('Merchant Savings Rate', `${formatDecimal((world.merchantSavingsRate ?? 0) * 100, 2)}%`)}
-      ${statItem('Merchant Savings Pool', formatNumber(world.merchantSavings ?? 0))}
+      ${statItem('Merchant Life Quality', life(classes.merchantLifeQuality ?? classes.merchantSatisfaction))}
+      ${statItem('Merchant Savings Rate', `${formatDecimal((classes.merchantSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Merchant Savings Pool', formatNumber(classes.merchantSavings ?? 0))}
       ${statItem('Merchant Factors', factors.merchant)}
 
-      ${statItem('Official Life Quality', life(world.officialLifeQuality ?? world.officialSatisfaction))}
-      ${statItem('Official Savings Rate', `${formatDecimal((world.officialSavingsRate ?? 0) * 100, 2)}%`)}
-      ${statItem('Official Savings Pool', formatNumber(world.officialSavings ?? 0))}
+      ${statItem('Official Life Quality', life(classes.officialLifeQuality ?? classes.officialSatisfaction))}
+      ${statItem('Official Savings Rate', `${formatDecimal((classes.officialSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Official Savings Pool', formatNumber(classes.officialSavings ?? 0))}
       ${statItem('Official Factors', factors.official)}
 
-      ${statItem('Landlord Life Quality', life(world.landlordLifeQuality ?? world.landlordSatisfaction))}
-      ${statItem('Landlord Savings Rate', `${formatDecimal((world.landlordSavingsRate ?? 0) * 100, 2)}%`)}
-      ${statItem('Landlord Savings Pool', formatNumber(world.landlordSavings ?? 0))}
+      ${statItem('Landlord Life Quality', life(classes.landlordLifeQuality ?? classes.landlordSatisfaction))}
+      ${statItem('Landlord Savings Rate', `${formatDecimal((classes.landlordSavingsRate ?? 0) * 100, 2)}%`)}
+      ${statItem('Landlord Savings Pool', formatNumber(classes.landlordSavings ?? 0))}
       ${statItem('Landlord Factors', factors.landlord)}
 
       ${statItem('Inequality (Gini Ratio proxy)', formatDecimal(world.giniRatio ?? 0, 2))}
@@ -830,7 +844,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     const beforeUsed = Boolean(state.world.grainRedistributionUsed);
     onUseGrainRedistribution();
     if (!beforeUsed && state.world.grainRedistributionUsed) {
-      state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0) + GRAIN_REDISTRIBUTION_COST);
+      classes.farmerIncomePool = Math.max(0, Number(classes.farmerIncomePool ?? 0) + GRAIN_REDISTRIBUTION_COST);
     }
   };
 

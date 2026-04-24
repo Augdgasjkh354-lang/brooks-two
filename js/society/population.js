@@ -27,6 +27,18 @@ function getCalendarState(world) {
   return world.__calendar ?? world;
 }
 
+function getClassesState(world) {
+  return world.__classes ?? world;
+}
+
+function getEducationState(world) {
+  return world.__education ?? world;
+}
+
+function getInstitutionState(world) {
+  return world.__institutions ?? world;
+}
+
 function updateLaborAllocation(world) {
   const population = getPopulationState(world);
   const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
@@ -50,9 +62,11 @@ function updateLaborAllocation(world) {
 
 function getPopulationGrowthDetails(world) {
   const population = getPopulationState(world);
+  const classes = getClassesState(world);
+  const institutions = getInstitutionState(world);
   const baseGrowthRate = BASE_GROWTH_RATE;
   const commerceProsperityBonus =
-    (world.merchantIncomePerHead ?? 0) > (world.farmerIncomePerHead ?? 0) * 1.5 ? 0.005 : 0;
+    (classes.merchantIncomePerHead ?? 0) > (classes.farmerIncomePerHead ?? 0) * 1.5 ? 0.005 : 0;
   const demandShortfallPenalty = world.demandShortfall ? 0.005 : 0;
 
   const techGrowthBonus = Number(world.techBonuses?.populationGrowthBonus ?? 0);
@@ -61,8 +75,8 @@ function getPopulationGrowthDetails(world) {
   const totalPopulation = Math.max(1, Number(population.totalPopulation ?? 1));
   const famineSeverePenalty = grainSurplus < -totalPopulation * 100 ? 0.02 : 0;
   const famineStressPenalty = !famineSeverePenalty && grainSurplus < -totalPopulation * 50 ? 0.01 : 0;
-  const healthCrisisPenalty = Number(world.healthIndex ?? 50) < 20 ? 0.01 : 0;
-  const stabilityCrisisPenalty = Number(world.stabilityIndex ?? 80) < 30 ? 0.005 : 0;
+  const healthCrisisPenalty = Number(institutions.healthIndex ?? 50) < 20 ? 0.01 : 0;
+  const stabilityCrisisPenalty = Number(classes.stabilityIndex ?? 80) < 30 ? 0.005 : 0;
 
   const calculatedRate =
     baseGrowthRate +
@@ -164,19 +178,20 @@ function getLiteracyCaps(world) {
 
 function applyLiteracyGrowth(world) {
   const population = getPopulationState(world);
+  const education = getEducationState(world);
   const flags = world.literacyClassFlags ?? {};
   const caps = getLiteracyCaps(world);
   const scholarBonus = world.techBonuses?.scholarClass ? 0.005 : 0;
   const baseGrowth = 0.001;
 
   const totalPrimarySchools =
-    Math.max(0, Number(world.commercialPrimarySchools ?? 0)) +
-    (Number(world.govPrimaryCapacity ?? 0) > 0 ? 1 : 0);
+    Math.max(0, Number(education.commercialPrimarySchools ?? 0)) +
+    (Number(education.govPrimaryCapacity ?? 0) > 0 ? 1 : 0);
   const totalSecondarySchools =
-    Math.max(0, Number(world.commercialSecondarySchools ?? 0)) +
-    (Number(world.govSecondaryCapacity ?? 0) > 0 ? 1 : 0);
-  const totalHigherSchools = Number(world.govHigherCapacity ?? 0) > 0 ? 1 : 0;
-  const downVillageBoost = (Math.floor(Math.max(0, Number(world.studentsDownToVillage ?? 0)) / 100)) * 0.01;
+    Math.max(0, Number(education.commercialSecondarySchools ?? 0)) +
+    (Number(education.govSecondaryCapacity ?? 0) > 0 ? 1 : 0);
+  const totalHigherSchools = Number(education.govHigherCapacity ?? 0) > 0 ? 1 : 0;
+  const downVillageBoost = (Math.floor(Math.max(0, Number(education.studentsDownToVillage ?? 0)) / 100)) * 0.01;
 
   let farmerGrowth = baseGrowth + scholarBonus;
   if (world.techBonuses?.bureaucracyUnlocked) farmerGrowth += 0.003;
@@ -274,6 +289,7 @@ function clampTalent(value) {
 
 function updateTalentPools(world) {
   const population = getPopulationState(world);
+  const classes = getClassesState(world);
   const annualPrimaryGrads = Math.max(0, Number(population.annualPrimaryGrads ?? 0));
   const annualSecondaryGrads = Math.max(0, Number(population.annualSecondaryGrads ?? 0));
   const annualHigherGrads = Math.max(0, Number(population.annualHigherGrads ?? 0));
@@ -282,9 +298,9 @@ function updateTalentPools(world) {
   const commerceGrowthBase = annualPrimaryGrads * 0.2 + annualSecondaryGrads * 0.3;
   const techGrowthBase = annualSecondaryGrads * 0.2 + annualHigherGrads * 0.5;
 
-  const merchantGrowthBoost = (world.merchantSatisfaction ?? 70) > 70 ? 0.1 : 0;
-  const officialGrowthBoost = (world.officialSatisfaction ?? 70) > 70 ? 0.1 : 0;
-  const socialUnrestPenalty = (world.farmerSatisfaction ?? 70) < 40 ? 0.1 : 0;
+  const merchantGrowthBoost = (classes.merchantSatisfaction ?? 70) > 70 ? 0.1 : 0;
+  const officialGrowthBoost = (classes.officialSatisfaction ?? 70) > 70 ? 0.1 : 0;
+  const socialUnrestPenalty = (classes.farmerSatisfaction ?? 70) < 40 ? 0.1 : 0;
 
   const adminGrowthMultiplier = Math.max(0, (1 + officialGrowthBoost) * (1 - socialUnrestPenalty));
   const commerceGrowthMultiplier = Math.max(0, (1 + merchantGrowthBoost) * (1 - socialUnrestPenalty));
@@ -315,15 +331,16 @@ function updateTalentPools(world) {
 
 export function processEducationYear(world) {
   const population = getPopulationState(world);
+  const education = getEducationState(world);
   const totalPopulation = Math.max(1, Number(population.totalPopulation ?? 1));
   const childrenPool = Math.max(0, Math.floor(Number(population.children ?? 0) * 0.6));
   const gdpPerCapita = Math.max(1, Number(world.gdpEstimate ?? 0) / totalPopulation);
 
-  const commercialPrimaryCapacity = Math.max(0, Math.floor(Number(world.commercialPrimarySchools ?? 0) * 50));
-  const commercialSecondaryCapacity = Math.max(0, Math.floor(Number(world.commercialSecondarySchools ?? 0) * 30));
-  const governmentPrimaryCapacity = Math.max(0, Math.floor(Number(world.govPrimaryCapacity ?? 0)));
-  const governmentSecondaryCapacity = Math.max(0, Math.floor(Number(world.govSecondaryCapacity ?? 0)));
-  const governmentHigherCapacity = Math.max(0, Math.floor(Number(world.govHigherCapacity ?? 0)));
+  const commercialPrimaryCapacity = Math.max(0, Math.floor(Number(education.commercialPrimarySchools ?? 0) * 50));
+  const commercialSecondaryCapacity = Math.max(0, Math.floor(Number(education.commercialSecondarySchools ?? 0) * 30));
+  const governmentPrimaryCapacity = Math.max(0, Math.floor(Number(education.govPrimaryCapacity ?? 0)));
+  const governmentSecondaryCapacity = Math.max(0, Math.floor(Number(education.govSecondaryCapacity ?? 0)));
+  const governmentHigherCapacity = Math.max(0, Math.floor(Number(education.govHigherCapacity ?? 0)));
 
   const wealthyChildrenPool = Math.floor(childrenPool * 0.15);
   const primaryEnrolled = Math.min(childrenPool, commercialPrimaryCapacity + governmentPrimaryCapacity);
@@ -359,9 +376,9 @@ export function processEducationYear(world) {
     Math.min(secondaryEnrolled, commercialSecondaryCapacity)
   );
 
-  world.primaryEnrolled = primaryEnrolled;
-  world.secondaryEnrolled = secondaryEnrolled;
-  world.higherEnrolled = higherEnrolled;
+  education.primaryEnrolled = primaryEnrolled;
+  education.secondaryEnrolled = secondaryEnrolled;
+  education.higherEnrolled = higherEnrolled;
   population.annualPrimaryGrads = annualPrimaryGrads;
   population.annualSecondaryGrads = annualSecondaryGrads;
   population.annualHigherGrads = annualHigherGrads;

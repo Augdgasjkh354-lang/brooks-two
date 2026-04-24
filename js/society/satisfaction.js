@@ -18,6 +18,14 @@ function toNonNegative(value) {
   return Math.max(0, Number(value ?? 0));
 }
 
+function getClasses(world) {
+  return world?.__classes ?? world?.classes ?? world;
+}
+
+function getEducation(world) {
+  return world?.__education ?? world?.education ?? world;
+}
+
 function applySavingsRateEffect(score, savingsRate) {
   if (savingsRate >= 0.1) return score + 15;
   if (savingsRate >= 0.05) return score + 5;
@@ -82,6 +90,7 @@ function getClassIncomePerHead(world) {
 }
 
 export function updateLiteracyCaps(world) {
+  const education = getEducation(world);
   const baseCaps = {
     farmer: FARMER_INIT_LITERACY * 3,
     merchant: MERCHANT_POP_INIT_LITERACY + 0.15,
@@ -91,13 +100,13 @@ export function updateLiteracyCaps(world) {
   };
 
   const primarySchoolCount =
-    Math.max(0, Number(world.commercialPrimarySchools ?? 0)) +
-    (Number(world.govPrimaryCapacity ?? 0) > 0 ? 1 : 0);
+    Math.max(0, Number(education.commercialPrimarySchools ?? 0)) +
+    (Number(education.govPrimaryCapacity ?? 0) > 0 ? 1 : 0);
   const secondarySchoolCount =
-    Math.max(0, Number(world.commercialSecondarySchools ?? 0)) +
-    (Number(world.govSecondaryCapacity ?? 0) > 0 ? 1 : 0);
-  const higherSchoolCount = Number(world.govHigherCapacity ?? 0) > 0 ? 1 : 0;
-  const downVillageGroups = Math.floor(Math.max(0, Number(world.studentsDownToVillage ?? 0)) / 100);
+    Math.max(0, Number(education.commercialSecondarySchools ?? 0)) +
+    (Number(education.govSecondaryCapacity ?? 0) > 0 ? 1 : 0);
+  const higherSchoolCount = Number(education.govHigherCapacity ?? 0) > 0 ? 1 : 0;
+  const downVillageGroups = Math.floor(Math.max(0, Number(education.studentsDownToVillage ?? 0)) / 100);
 
   const caps = {
     farmer: baseCaps.farmer + primarySchoolCount * 0.05 + higherSchoolCount * 0.15 + downVillageGroups * 0.03,
@@ -169,11 +178,12 @@ export function applyLiteracyEffectsToWorld(world) {
 }
 
 export function calculateLifeQuality(world) {
+  const classes = getClasses(world);
   const previousValues = {
-    farmer: Number(world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50),
-    merchant: Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50),
-    official: Number(world.officialLifeQuality ?? world.officialSatisfaction ?? 50),
-    landlord: Number(world.landlordLifeQuality ?? world.landlordSatisfaction ?? 50),
+    farmer: Number(classes.farmerLifeQuality ?? classes.farmerSatisfaction ?? 50),
+    merchant: Number(classes.merchantLifeQuality ?? classes.merchantSatisfaction ?? 50),
+    official: Number(classes.officialLifeQuality ?? classes.officialSatisfaction ?? 50),
+    landlord: Number(classes.landlordLifeQuality ?? classes.landlordSatisfaction ?? 50),
   };
 
   const cost = calculateLivingCost(world);
@@ -295,15 +305,15 @@ export function calculateLifeQuality(world) {
     return { nextSavings, savingsRate };
   };
 
-  const farmerSavings = computeSavings('farmer', classIncome.farmerIncomePerHead, classPop.farmer, world.farmerSavings);
+  const farmerSavings = computeSavings('farmer', classIncome.farmerIncomePerHead, classPop.farmer, classes.farmerSavings);
   const merchantSavings = computeSavings(
     'merchant',
     classIncome.merchantIncomePerHead,
     classPop.merchant,
-    world.merchantSavings
+    classes.merchantSavings
   );
-  const officialSavings = computeSavings('official', classIncome.officialIncomePerHead, classPop.official, world.officialSavings);
-  const landlordSavings = computeSavings('landlord', classIncome.landlordIncomePerHead, classPop.landlord, world.landlordSavings);
+  const officialSavings = computeSavings('official', classIncome.officialIncomePerHead, classPop.official, classes.officialSavings);
+  const landlordSavings = computeSavings('landlord', classIncome.landlordIncomePerHead, classPop.landlord, classes.landlordSavings);
 
   farmerLifeQuality = applySavingsRateEffect(farmerLifeQuality, farmerSavings.savingsRate);
   merchantLifeQuality = applySavingsRateEffect(merchantLifeQuality, merchantSavings.savingsRate);
@@ -318,15 +328,15 @@ export function calculateLifeQuality(world) {
     factors.farmer.push('农户储蓄池为负');
   }
 
-  world.farmerSavings = farmerSavings.nextSavings;
-  world.merchantSavings = merchantSavings.nextSavings;
-  world.officialSavings = officialSavings.nextSavings;
-  world.landlordSavings = landlordSavings.nextSavings;
+  classes.farmerSavings = farmerSavings.nextSavings;
+  classes.merchantSavings = merchantSavings.nextSavings;
+  classes.officialSavings = officialSavings.nextSavings;
+  classes.landlordSavings = landlordSavings.nextSavings;
 
-  world.farmerSavingsRate = farmerSavings.savingsRate;
-  world.merchantSavingsRate = merchantSavings.savingsRate;
-  world.officialSavingsRate = officialSavings.savingsRate;
-  world.landlordSavingsRate = landlordSavings.savingsRate;
+  classes.farmerSavingsRate = farmerSavings.savingsRate;
+  classes.merchantSavingsRate = merchantSavings.savingsRate;
+  classes.officialSavingsRate = officialSavings.savingsRate;
+  classes.landlordSavingsRate = landlordSavings.savingsRate;
 
   const lifeQualityValues = {
     farmer: farmerLifeQuality,
@@ -337,11 +347,11 @@ export function calculateLifeQuality(world) {
 
   applyHealthLifeQualityEffects(world, lifeQualityValues, factors);
 
-  world.farmerLifeQuality = clampPercentIndex(lifeQualityValues.farmer);
-  world.merchantLifeQuality = clampPercentIndex(lifeQualityValues.merchant);
-  world.officialLifeQuality = clampPercentIndex(lifeQualityValues.official);
-  world.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
-  world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? world.farmerLifeQuality ?? 50));
+  classes.farmerLifeQuality = clampPercentIndex(lifeQualityValues.farmer);
+  classes.merchantLifeQuality = clampPercentIndex(lifeQualityValues.merchant);
+  classes.officialLifeQuality = clampPercentIndex(lifeQualityValues.official);
+  classes.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
+  world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? classes.farmerLifeQuality ?? 50));
 
 
   world.lifeQualityFactors = {
@@ -353,10 +363,10 @@ export function calculateLifeQuality(world) {
 
   const changeNotes = [];
   const changes = {
-    farmer: world.farmerLifeQuality - previousValues.farmer,
-    merchant: world.merchantLifeQuality - previousValues.merchant,
-    official: world.officialLifeQuality - previousValues.official,
-    landlord: world.landlordLifeQuality - previousValues.landlord,
+    farmer: classes.farmerLifeQuality - previousValues.farmer,
+    merchant: classes.merchantLifeQuality - previousValues.merchant,
+    official: classes.officialLifeQuality - previousValues.official,
+    landlord: classes.landlordLifeQuality - previousValues.landlord,
   };
   if (Math.abs(changes.farmer) >= 10) changeNotes.push(`农民生活质量${changes.farmer > 0 ? '上升' : '下降'}${Math.abs(changes.farmer)}点`);
   if (Math.abs(changes.merchant) >= 10) changeNotes.push(`商人生活质量${changes.merchant > 0 ? '上升' : '下降'}${Math.abs(changes.merchant)}点`);
@@ -377,6 +387,7 @@ export function calculateLifeQuality(world) {
 }
 
 export function calculateClassSatisfaction(world) {
+  const classes = getClasses(world);
   if (!world) {
     return {
       farmerSatisfaction: 0,
@@ -386,30 +397,31 @@ export function calculateClassSatisfaction(world) {
     };
   }
 
-  const farmerEventModifier = Number(world.farmerEventModifier ?? 0);
-  const merchantEventModifier = Number(world.merchantEventModifier ?? 0);
-  const officialEventModifier = Number(world.officialEventModifier ?? 0);
-  const landlordEventModifier = Number(world.landlordEventModifier ?? 0);
+  const farmerEventModifier = Number(classes.farmerEventModifier ?? 0);
+  const merchantEventModifier = Number(classes.merchantEventModifier ?? 0);
+  const officialEventModifier = Number(classes.officialEventModifier ?? 0);
+  const landlordEventModifier = Number(classes.landlordEventModifier ?? 0);
 
-  world.farmerSatisfaction = clampPercentIndex(Number(world.farmerLifeQuality ?? 50) + farmerEventModifier);
-  world.merchantSatisfaction = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) + merchantEventModifier);
-  world.officialSatisfaction = clampPercentIndex(Number(world.officialLifeQuality ?? 50) + officialEventModifier);
-  world.landlordSatisfaction = clampPercentIndex(Number(world.landlordLifeQuality ?? 50) + landlordEventModifier);
+  classes.farmerSatisfaction = clampPercentIndex(Number(classes.farmerLifeQuality ?? 50) + farmerEventModifier);
+  classes.merchantSatisfaction = clampPercentIndex(Number(classes.merchantLifeQuality ?? 50) + merchantEventModifier);
+  classes.officialSatisfaction = clampPercentIndex(Number(classes.officialLifeQuality ?? 50) + officialEventModifier);
+  classes.landlordSatisfaction = clampPercentIndex(Number(classes.landlordLifeQuality ?? 50) + landlordEventModifier);
 
   return {
-    farmerSatisfaction: world.farmerSatisfaction,
-    merchantSatisfaction: world.merchantSatisfaction,
-    officialSatisfaction: world.officialSatisfaction,
-    landlordSatisfaction: world.landlordSatisfaction,
+    farmerSatisfaction: classes.farmerSatisfaction,
+    merchantSatisfaction: classes.merchantSatisfaction,
+    officialSatisfaction: classes.officialSatisfaction,
+    landlordSatisfaction: classes.landlordSatisfaction,
   };
 }
 
 export function clearEventModifiers(world) {
+  const classes = getClasses(world);
   if (!world) return;
-  world.farmerEventModifier = 0;
-  world.merchantEventModifier = 0;
-  world.officialEventModifier = 0;
-  world.landlordEventModifier = 0;
+  classes.farmerEventModifier = 0;
+  classes.merchantEventModifier = 0;
+  classes.officialEventModifier = 0;
+  classes.landlordEventModifier = 0;
 }
 
 
@@ -420,11 +432,13 @@ export function applyPoliceLifeQualityEffects(world, policeEffects) {
   const farmerDelta = Number(policeEffects.farmerLifeQualityDelta ?? 0);
 
   if (merchantDelta !== 0) {
-    world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) + merchantDelta;
+    const classes = getClasses(world);
+    classes.merchantEventModifier = Number(classes.merchantEventModifier ?? 0) + merchantDelta;
   }
 
   if (farmerDelta !== 0) {
-    world.farmerEventModifier = Number(world.farmerEventModifier ?? 0) + farmerDelta;
+    const classes = getClasses(world);
+    classes.farmerEventModifier = Number(classes.farmerEventModifier ?? 0) + farmerDelta;
   }
 }
 
@@ -432,20 +446,23 @@ export function applyCourtTaxLifeQualityEffects(world, courtEffects = null) {
   if (!world) return;
 
   if (courtEffects) {
+    const classes = getClasses(world);
     const merchantDelta = Number(courtEffects.merchantLifeQualityDelta ?? 0);
     if (merchantDelta !== 0) {
-      world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) + merchantDelta;
+      classes.merchantEventModifier = Number(classes.merchantEventModifier ?? 0) + merchantDelta;
     }
   }
 
   const commerceTaxRate = Math.max(0, Number(world.commerceTaxRate ?? 0));
   if (commerceTaxRate > 0.2) {
-    world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) - 15;
+    const classes = getClasses(world);
+    classes.merchantEventModifier = Number(classes.merchantEventModifier ?? 0) - 15;
   }
 
   const landTaxRate = Math.max(0, Number(world.landTaxRate ?? 0));
   if (landTaxRate > 3) {
-    world.farmerEventModifier = Number(world.farmerEventModifier ?? 0) - 10;
-    world.landlordEventModifier = Number(world.landlordEventModifier ?? 0) - 15;
+    const classes = getClasses(world);
+    classes.farmerEventModifier = Number(classes.farmerEventModifier ?? 0) - 10;
+    classes.landlordEventModifier = Number(classes.landlordEventModifier ?? 0) - 15;
   }
 }

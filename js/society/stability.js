@@ -16,6 +16,18 @@ function getMonetary(world) {
   return world?.__monetary ?? world?.monetary ?? world;
 }
 
+function getClasses(world) {
+  return world?.__classes ?? world?.classes ?? world;
+}
+
+function getEducation(world) {
+  return world?.__education ?? world?.education ?? world;
+}
+
+function getInstitutions(world) {
+  return world?.__institutions ?? world?.institutions ?? world;
+}
+
 export const BUREAUCRACY_POLICY_DEFS = {
   householdRegistry: {
     key: 'householdRegistry',
@@ -58,7 +70,8 @@ export const BUREAUCRACY_POLICY_DEFS = {
 
 function routeOfficialIncome(world, amount) {
   const safeAmount = Math.max(0, Number(amount ?? 0));
-  world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + safeAmount);
+  const classes = getClasses(world);
+  classes.officialIncomePool = Math.max(0, Number(classes.officialIncomePool ?? 0) + safeAmount);
   if (!world.ledger) world.ledger = {};
   world.ledger.officialGrossIncome = Math.max(0, Number(world.ledger.officialGrossIncome ?? 0)) + safeAmount;
   return safeAmount;
@@ -339,7 +352,7 @@ export function calculateFireLeakage(world) {
     rate += 0.03;
     factors.push('基层官员工资偏低 +3%');
   }
-  if ((world.officialLifeQuality ?? 50) < 50) {
+  if ((getClasses(world).officialLifeQuality ?? 50) < 50) {
     rate += 0.02;
     factors.push('官员生活质量偏低 +2%');
   }
