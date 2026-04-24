@@ -70,12 +70,40 @@ export function calculateGdpPerCapita(world, gdpOverride = null) {
   const totalPopulation = Math.max(1, Number(world?.totalPopulation ?? 0));
   const sourceGdp =
     gdpOverride == null
-      ? Number(world?.agricultureGDP ?? 0) + Number(world?.commerceGDP ?? 0) + Number(world?.constructionGDP ?? 0)
+      ? Number(world?.agricultureGDP ?? 0) +
+        Number(world?.commerceGDP ?? 0) +
+        Number(world?.constructionGDP ?? 0) +
+        Number(world?.governmentGDP ?? 0)
       : Number(gdpOverride ?? 0);
   const safeGdp = Math.max(0, Number.isFinite(sourceGdp) ? sourceGdp : 0);
   const gdpPerCapita = safeGdp / totalPopulation;
   if (world) getFiscal(world).gdpPerCapita = gdpPerCapita;
   return gdpPerCapita;
+}
+
+export function calculateProductionCommerceGDP(world, options = {}) {
+  const operatingShops = Math.max(0, Number(options.operatingShops ?? world?.operatingShops ?? 0));
+  const demandSaturation = Math.max(0, Number(options.demandSaturation ?? world?.demandSaturation ?? 0));
+  const commerceActivityBonus = Math.max(0, Number(options.commerceActivityBonus ?? world?.commerceActivityBonus ?? 1));
+  const tradeEfficiency =
+    Math.max(0, Number(options.tradeEfficiency ?? world?.techBonuses?.tradeEfficiency ?? 0));
+
+  const commerceGDP =
+    operatingShops *
+    SHOP_GDP_PER_UNIT *
+    demandSaturation *
+    commerceActivityBonus *
+    (1 + tradeEfficiency);
+
+  const moneylenderShops = Math.max(0, Number(world?.moneylenderShops ?? 0));
+  const civilianLoanOutstanding = Math.max(0, Number(world?.civilianLoanOutstanding ?? 0));
+  const moneylenderGDP = moneylenderShops * SHOP_GDP_PER_UNIT + civilianLoanOutstanding * 0.08;
+
+  return {
+    commerceGDP: clampMoney(commerceGDP),
+    moneylenderGDP: clampMoney(moneylenderGDP),
+    totalCommerceGDP: clampMoney(commerceGDP + moneylenderGDP),
+  };
 }
 
 export function routeShopConstructionIncome(world, totalCost) {

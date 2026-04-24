@@ -148,9 +148,13 @@ export const initialState = {
     creditCrisis: false,
     creditCrisisResolved: false,
 
+    grainGDP: 0,
+    clothGDP: 0,
     agricultureGDP: 0,
     commerceGDP: 0,
     constructionGDP: 0,
+    governmentGDP: 0,
+    constructionSpendingThisYear: 0,
     gdpEstimate: 18000000,
 
     stabilityPenaltyReason: 'No penalty (income gap below 500)',

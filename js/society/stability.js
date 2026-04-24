@@ -330,6 +330,7 @@ export function calculateGovernmentWageBill(world) {
     Number(world.cleaningWorkerCount ?? 0) * Number(fiscal.cleaningWorkerWage ?? 0);
 
   fiscal.totalWageBill = Math.max(0, total);
+  world.governmentGDP = Math.max(0, fiscal.totalWageBill * 0.8);
   world.totalSalaryCost = fiscal.totalWageBill;
   world.totalOfficials =
     Number(world.seniorOfficialCount ?? 0) +

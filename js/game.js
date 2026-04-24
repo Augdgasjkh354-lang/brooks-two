@@ -75,6 +75,12 @@ function finalizeLedgerForYear() {
   state.yearLog.unshift(`Year ${state.calendar.year}: 年度账本结算：${balanceLabel} ${Math.round(state.ledger.netBalance)}。`);
 }
 
+function addConstructionSpending(amount) {
+  const safeAmount = Math.max(0, Number(amount ?? 0));
+  state.world.constructionSpendingThisYear =
+    Math.max(0, Number(state.world.constructionSpendingThisYear ?? 0)) + safeAmount;
+}
+
 ensureLedgerState();
 
 function getPolicyById(policyId) {
@@ -422,6 +428,7 @@ function runEngineeringProject(type) {
     w.grainTreasury -= cost;
     ensureLedgerState();
     state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
+    addConstructionSpending(cost);
     const finishYear = (w.year ?? 1) + 2;
     w.pendingIrrigationCanals = Math.max(0, Number(w.pendingIrrigationCanals ?? 0)) + 1;
     if (!Array.isArray(w.pendingCanals)) w.pendingCanals = [];
@@ -448,6 +455,7 @@ function runEngineeringProject(type) {
     w.grainTreasury -= cost;
     ensureLedgerState();
     state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
+    addConstructionSpending(cost);
     w.wallReinforced = true;
     w.defenseRating = Math.max(0, Number(w.defenseRating ?? 0)) + 0.3;
     w.stabilityIndex = Math.min(100, Number(w.stabilityIndex ?? 0) + 5);
@@ -464,6 +472,7 @@ function runEngineeringProject(type) {
     w.grainTreasury -= cost;
     ensureLedgerState();
     state.ledger.constructionCost += Math.max(0, Number(cost ?? 0));
+    addConstructionSpending(cost);
     w.grainStorageExpansions = Math.max(0, Number(w.grainStorageExpansions ?? 0)) + 1;
     w.grainStorageCapacity = Math.max(0, Number(w.grainStorageCapacity ?? 50000000)) + 10000000;
     w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.8;
@@ -638,6 +647,9 @@ function nextYear() {
   state.yearLog.unshift(`Year ${state.calendar.year}: 卫生支出结算：卫生员${Math.round(state.world.healthOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.healthAnnualCost ?? 0)}，健康指数 ${Math.round(state.world.healthIndex ?? 50)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 贸易局支出结算：贸易官${Math.round(state.world.tradeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.tradeBureauAnnualCost ?? 0)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 工程局支出结算：工程师${Math.round(state.world.engineerCount ?? 0)}人，年成本 ${Math.round(state.world.engineeringBureauAnnualCost ?? 0)}。`);
+  state.yearLog.unshift(
+    `Year ${state.calendar.year}: GDP构成：农业${Math.round(state.world.agricultureGDP ?? 0)}（粮${Math.round(state.world.grainGDP ?? 0)}/布${Math.round(state.world.clothGDP ?? 0)}），商业${Math.round(state.world.commerceGDP ?? 0)}，建设${Math.round(state.world.constructionGDP ?? 0)}（当年建设支出${Math.round(state.world.constructionSpendingThisYear ?? 0)}），政府${Math.round(state.world.governmentGDP ?? 0)}，总计${Math.round(state.world.gdpEstimate ?? 0)}。`
+  );
 
   if (econResult.creditCrisisTriggered) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 粮劵信用崩塌，市场发生挤兑`);
@@ -689,6 +701,7 @@ function nextYear() {
   }
 
   finalizeLedgerForYear();
+  state.world.constructionSpendingThisYear = 0;
 
   saveGame(state, { auto: true });
   render();
@@ -731,6 +744,7 @@ function openHempLand() {
   state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
+  addConstructionSpending(totalCost);
   state.world.pendingHempLandMu = (state.world.pendingHempLandMu ?? 0) + mu;
   state.world.landDevelopmentFarmerIncomeBoost =
     (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + totalCost;
@@ -775,6 +789,7 @@ function openMulberryLand() {
   state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
+  addConstructionSpending(totalCost);
   state.world.pendingMulberryProjects = pendingProjects;
   state.world.pendingMulberryLandMu = (state.world.pendingMulberryLandMu ?? 0) + mu;
   state.world.mulberryMaturationYear =
@@ -824,6 +839,7 @@ function buildPublicToilets() {
   state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
+  addConstructionSpending(totalCost);
   state.land.publicToilets = Math.max(0, Number(state.land.publicToilets ?? 0)) + count;
   const classes = getClasses();
   classes.farmerIncomePool = Math.max(0, Number(classes.farmerIncomePool ?? 0)) + totalCost * 0.8;
@@ -854,6 +870,7 @@ function buildRoads() {
   state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
+  addConstructionSpending(totalCost);
   state.land.roadLength = Math.max(0, Number(state.land.roadLength ?? 0)) + li;
   const classes = getClasses();
   classes.farmerIncomePool = Math.max(0, Number(classes.farmerIncomePool ?? 0)) + totalCost * 0.7;

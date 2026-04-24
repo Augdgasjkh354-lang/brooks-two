@@ -12,7 +12,7 @@ import {
   clampPercentIndex,
   applyLiteracyEffectsToWorld,
 } from '../society/satisfaction.js';
-import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita, applyTradePolicySettings } from './commerce.js';
+import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita, applyTradePolicySettings, calculateProductionCommerceGDP } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
 import {
   updateXikouVillageEconomy,
@@ -37,7 +37,7 @@ import {
 } from '../society/stability.js';
 import {
   FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
-  MAX_GRAIN_YIELD_PER_MU, SHOP_GDP_PER_UNIT, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
+  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
 } from '../config/constants.js';
 
 
@@ -206,9 +206,6 @@ export function updateEconomy(world, options = {}) {
 
   const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
   const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
-  const demandSaturationFactor = Math.max(0, Math.min(1, demandSaturation));
-  const demandEfficiencyRate = demandSaturation > 1 ? 1 / demandSaturation : 1;
-
   const totalGrainDemand = clamp(operatingShops * 200);
   const availableGrainForCommerce = Math.max(0, agriculture.grainTreasury ?? 0);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
@@ -233,19 +230,19 @@ export function updateEconomy(world, options = {}) {
   constructionCostReduction += Math.max(0, Number(world.engineeringConstructionReduction ?? 0));
   world.constructionCostReduction = constructionCostReduction;
 
-  const tradeEfficiencyMultiplier = 1 + Math.max(0, Number(roadEffects.totalTradeBonus ?? roadEffects.effectiveTradeBonus ?? 0));
+  const { commerceGDP: productionCommerceGDP, moneylenderGDP: baseMoneylenderGDP } =
+    calculateProductionCommerceGDP(world, {
+      operatingShops,
+      demandSaturation,
+      commerceActivityBonus: effectiveCommerceActivityBonus,
+      tradeEfficiency: Number(world.techBonuses?.tradeEfficiency ?? 0),
+    });
 
   const preStabilityCommerceGDP = clamp(
-    operatingShops *
-      SHOP_GDP_PER_UNIT *
-      demandSaturationFactor *
-      demandEfficiencyRate *
+    productionCommerceGDP *
       grainSupplyEfficiency *
-      effectiveCommerceActivityBonus *
       laborEfficiency *
-      merchantLiteracyMultiplier *
-      tradeEfficiencyMultiplier +
-      landDevelopmentCommerceBoost
+      merchantLiteracyMultiplier
   );
 
   const preStabilityFarmerIncomePerHead =
@@ -761,9 +758,13 @@ export function updateEconomy(world, options = {}) {
   }
 
   const lostGrainOutput = clamp(potentialGrainOutput - adjustedGrainOutput);
-  const agricultureGDP = clamp(adjustedGrainOutput * grainPrice);
-  const constructionGDP = clamp(world.constructionGDP ?? 0);
-  const gdpEstimate = clamp(agricultureGDP + adjustedCommerceGDP + constructionGDP);
+  const grainGDP = clamp(adjustedGrainOutput * grainPrice);
+  const clothGDP = clamp(totalClothOutput * blendedClothPrice);
+  const silkGDP = clamp(rawSilkOutput * 3.0);
+  const agricultureGDP = clamp(grainGDP + clothGDP + silkGDP);
+  const constructionSpendingThisYear = clamp(world.constructionSpendingThisYear ?? 0);
+  const constructionGDP = clamp(constructionSpendingThisYear * 0.7);
+  const governmentGDP = clamp((world.totalWageBill ?? 0) * 0.8);
 
   const grainDemandTotal = clamp(world.totalPopulation * (world.grainDemandPerPerson ?? 0));
   const grainBalance = adjustedGrainOutput - grainDemandTotal;
@@ -787,10 +788,11 @@ export function updateEconomy(world, options = {}) {
     (world.farmlandAreaMu ?? 0) > 0 ? clamp(adjustedGrainOutput / world.farmlandAreaMu) : 0;
   world.effectiveGrainYieldPerMu = effectiveYieldPerMu;
   world.lostGrainOutput = lostGrainOutput;
+  world.grainGDP = grainGDP;
+  world.clothGDP = clothGDP;
   world.agricultureGDP = agricultureGDP;
-  world.commerceGDP = clamp(adjustedCommerceGDP);
-  world.gdpEstimate = gdpEstimate;
-  world.gdpPerCapita = calculateGdpPerCapita(world, gdpEstimate);
+  world.constructionGDP = constructionGDP;
+  world.governmentGDP = governmentGDP;
 
   world.grainDemandTotal = grainDemandTotal;
   world.grainBalance = grainBalance;
@@ -914,6 +916,16 @@ export function updateEconomy(world, options = {}) {
     world.landTaxRevenue = 0;
     world.commerceTaxRevenue = 0;
   }
+
+  const moneylenderGDP = clamp(
+    baseMoneylenderGDP * Math.max(0, Number(world.moneylenderEfficiencyBonus ?? 0) + 1)
+  );
+  world.moneylenderGDP = moneylenderGDP;
+  const totalCommerceGDP = clamp(adjustedCommerceGDP + moneylenderGDP);
+  world.commerceGDP = totalCommerceGDP;
+  const gdpEstimate = clamp(agricultureGDP + totalCommerceGDP + constructionGDP + governmentGDP);
+  world.gdpEstimate = gdpEstimate;
+  world.gdpPerCapita = calculateGdpPerCapita(world, gdpEstimate);
 
   const grainStorageCapacity = Math.max(0, Number(world.grainStorageCapacity ?? 50000000));
   if ((world.grainTreasury ?? 0) > grainStorageCapacity) {
