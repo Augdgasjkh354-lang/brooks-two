@@ -29,6 +29,8 @@ import {
   clampBetween,
   getIncomePoolDemandEffects,
   applyRoadMarketEffects,
+  getTotalGrainDemand,
+  getGrainSupplyRatio,
 } from './market.js';
 import {
   getStabilityPenaltyFromIncomeGap,
@@ -37,7 +39,7 @@ import {
 } from '../society/stability.js';
 import {
   FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
-  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO
+  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
 } from '../config/constants.js';
 
 
@@ -236,6 +238,14 @@ export function updateEconomy(world, options = {}) {
 
   const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
   const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
+  const grainAnnualDemand = clamp(
+    getTotalGrainDemand({
+      ...world,
+      totalGrainDemand: Math.max(0, Number(world.totalGrainDemand ?? 0)),
+      grainAnnualDemand: Math.max(0, Number(world.grainAnnualDemand ?? 0)),
+      totalPopulation: Math.max(0, Number(world.totalPopulation ?? 0)),
+    })
+  );
   const commerceGrainDemand = clamp(operatingShops * 200);
   const availableGrainForCommerce = Math.max(0, agriculture.grainTreasury ?? 0);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, commerceGrainDemand);
@@ -260,13 +270,17 @@ export function updateEconomy(world, options = {}) {
   constructionCostReduction += Math.max(0, Number(world.engineeringConstructionReduction ?? 0));
   world.constructionCostReduction = constructionCostReduction;
 
-  const { commerceGDP: productionCommerceGDP, moneylenderGDP: baseMoneylenderGDP } =
-    calculateProductionCommerceGDP(world, {
-      operatingShops,
-      demandSaturation,
-      commerceActivityBonus: effectiveCommerceActivityBonus,
-      tradeEfficiency: Number(world.techBonuses?.tradeEfficiency ?? 0),
-    });
+  const {
+    commerceGDP: productionCommerceGDP,
+    moneylenderGDP: baseMoneylenderGDP,
+    demandEfficiency,
+  } = calculateProductionCommerceGDP(world, {
+    operatingShops,
+    maxMarketDemand,
+    demandSaturation,
+    commerceActivityBonus: effectiveCommerceActivityBonus,
+    tradeEfficiency: Number(world.techBonuses?.tradeEfficiency ?? 0),
+  });
 
   const preStabilityCommerceGDP = clamp(
     productionCommerceGDP *
@@ -304,8 +318,9 @@ export function updateEconomy(world, options = {}) {
     ? availableGrainForCommerce - grainConsumedByCommerce
     : availableGrainForCommerce;
 
-  const safePopulationDemand = Math.max(1, world.totalPopulation * 2);
-  const supplyRatio = treasuryAfterCommerce / safePopulationDemand;
+  const fallbackDemand = Math.max(0, Number(world.totalPopulation ?? 0)) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
+  const effectiveGrainDemand = grainAnnualDemand > 0 ? grainAnnualDemand : fallbackDemand;
+  const supplyRatio = getGrainSupplyRatio(world, treasuryAfterCommerce, effectiveGrainDemand);
   const grainPrice = getGrainPrice(supplyRatio);
 
   const previousSaltReserveSnapshot = Math.max(
@@ -472,7 +487,6 @@ export function updateEconomy(world, options = {}) {
     reserve: clothReserve,
   });
 
-  const grainAnnualDemand = clamp(getPopulationGrainDemand(world));
   const localClothRatio =
     clothAnnualDemand > 0 ? Math.max(0, totalClothOutput / clothAnnualDemand) : 0;
 
@@ -507,6 +521,12 @@ export function updateEconomy(world, options = {}) {
   let adjustedCommerceGDP = commerceGDP;
   let additionalStabilityPenalty = 0;
   const demandShortfall = demandSaturation < 0.5;
+
+  if (operatingShops > 0 && demandEfficiency < 1) {
+    behaviorMessages.push(
+      `商业需求饱和：店铺效率降至${Math.round(demandEfficiency * 100)}%（在营${Math.round(operatingShops)} / 需求上限${Math.round(maxMarketDemand)}）`
+    );
+  }
 
   world.grainYieldPerMu = clamp(effectiveYieldPerMu * effectiveFarmEfficiency * efficiencyMultiplier);
   world.potentialGrainOutput = potentialGrainOutput;
