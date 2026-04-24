@@ -6051,3 +6051,107 @@ state.js game.js
   population * GRAIN_CONSUMPTION_PER_PERSON
 - Grain price based on treasury vs comfort reserve
 - yearLog records commerce efficiency changes
+## Phase 9D: Transfer Ledger Function (Current)
+
+Phase 9C complete. Now adding unified transfer()
+function for core asset movements.
+
+**Goal:** Create transfer.js with unified accounting
+function. Replace 6-8 core direct field modifications
+in economy files with transfer() calls.
+
+**New file: js/economy/transfer.js**
+
+Account mappings:
+- 'government.grain' → state.agriculture.grainTreasury
+- 'government.coupon' → state.monetary.couponTreasury
+- 'monetary.locked' → state.monetary.lockedGrainReserve
+- 'monetary.circulating' → state.monetary.couponCirculating
+- 'private.farmer.grain' → state.privateSector.farmerGrain
+- 'private.farmer.coupon' → state.privateSector.farmerCoupons
+- 'private.merchant.coupon' →
+  state.privateSector.merchantCoupons
+
+transfer() function signature:
+function transfer({ from, to, asset, amount,
+  gdpTreatment, reason }, state)
+
+- Deduct amount from 'from' account
+- Add amount to 'to' account
+- Write to state.ledger based on gdpTreatment:
+  'production': counts toward GDP
+  'transfer': does not count as GDP
+  'none': skip ledger
+- Return false if insufficient balance
+- Never go negative on any account
+
+Replace these specific locations with transfer():
+
+agriculture.js - tax collection:
+transfer({
+  from: 'private.farmer.grain',
+  to: 'government.grain',
+  asset: 'grain',
+  amount: taxAmount,
+  gdpTreatment: 'transfer',
+  reason: 'agricultural_tax'
+}, state)
+
+agriculture.js - farmer grain retention:
+transfer({
+  from: 'private.farmer.grain',
+  to: 'private.farmer.grain',
+  asset: 'grain',
+  amount: retainedGrain,
+  gdpTreatment: 'production',
+  reason: 'farmer_retention'
+}, state)
+
+currency.js - coupon issuance:
+transfer({
+  from: 'private.farmer.grain',
+  to: 'monetary.locked',
+  asset: 'grain',
+  amount: issueAmount,
+  gdpTreatment: 'none',
+  reason: 'coupon_backing'
+}, state)
+transfer({
+  from: 'monetary.circulating',
+  to: 'private.farmer.coupon',
+  asset: 'coupon',
+  amount: issueAmount,
+  gdpTreatment: 'none',
+  reason: 'coupon_issuance'
+}, state)
+
+commerce.js - commerce tax:
+transfer({
+  from: 'private.merchant.coupon',
+  to: 'government.coupon',
+  asset: 'coupon',
+  amount: taxAmount,
+  gdpTreatment: 'transfer',
+  reason: 'commerce_tax'
+}, state)
+
+**Add to index.html:**
+Load js/economy/transfer.js BEFORE all other
+economy/ files.
+
+**Files to modify:**
+- js/economy/transfer.js (new file)
+- js/economy/agriculture.js
+- js/economy/currency.js
+- js/economy/commerce.js
+- index.html
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 9D):**
+- transfer.js exists with account mapping
+- transfer() function handles all account types
+- Never allows negative balances
+- 5 core transactions use transfer()
+- index.html loads transfer.js first
+- Game runs identically after change
