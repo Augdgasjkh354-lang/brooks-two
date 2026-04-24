@@ -5980,3 +5980,74 @@ ui/render_tech.js ui/render_diplomacy.js
   labor flow direction this year
   unemployment count and rate
 - yearLog records significant labor shifts
+## Bugfix v5: Commerce GDP + Grain Supply Ratio (Current)
+
+Fixing 2 remaining logic bugs. No new features.
+
+---
+
+**FIX 1: Commerce GDP demandSaturation reversed
+(commerce.js)**
+
+Current wrong logic:
+- demandSaturation > 1 amplifies commerceGDP
+- More shops than demand = MORE revenue (wrong)
+
+Correct logic:
+- servedDemand = min(operatingShops, maxMarketDemand)
+- demandEfficiency = servedDemand / max(operatingShops, 1)
+- commerceGDP = operatingShops * SHOP_GDP_PER_UNIT
+  * demandEfficiency * commerceActivityBonus
+  * tradeMultiplier
+
+Result:
+- Shops < demand: full efficiency (demandEfficiency = 1)
+- Shops = demand: full efficiency
+- Shops > demand: reduced per-shop revenue
+- Total GDP cannot grow just by adding more shops
+  beyond market capacity
+
+---
+
+**FIX 2: Grain supply ratio still uses population * 2
+(agriculture.js + market.js)**
+
+Current wrong logic:
+- Some places still use: totalPopulation * 2
+- Should use: GRAIN_CONSUMPTION_PER_PERSON * population
+  or totalGrainDemand from cohort model
+
+Correct logic:
+- Replace ALL instances of population * 2 with:
+  world.totalGrainDemand
+  (already calculated by cohort model in 9B-2)
+- If totalGrainDemand = 0 (fallback):
+  use totalPopulation * CONSTANTS.GRAIN_CONSUMPTION_PER_PERSON
+
+Grain price supply ratio:
+- comfortReserve = totalGrainDemand * 2
+  (2 years of grain = comfortable)
+- supplyRatio = grainTreasury / max(comfortReserve, 1)
+- grainPrice = getGrainPrice(supplyRatio)
+
+Also check xikou.js for same population * 2 pattern
+and fix there too.
+
+**Files to modify:**
+- js/economy/commerce.js (fix 1)
+- js/economy/agriculture.js (fix 2)
+- js/economy/market.js (fix 2)
+- js/diplomacy/xikou.js (fix 2)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ ui/ tech/ files
+economy/currency.js economy/labor.js
+state.js game.js
+
+**Definition of Done (Bugfix v5):**
+- Commerce GDP decreases per shop when oversaturated
+- No more population * 2 anywhere for grain demand
+- All grain demand uses totalGrainDemand or
+  population * GRAIN_CONSUMPTION_PER_PERSON
+- Grain price based on treasury vs comfort reserve
+- yearLog records commerce efficiency changes
