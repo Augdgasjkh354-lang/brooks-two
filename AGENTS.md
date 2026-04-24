@@ -4396,3 +4396,79 @@ society/stability.js game.js
 - Enrollment capped by eligible pool size
 - Eligible pools decay 5% annually
 - yearLog records pool sizes and enrollment
+## Phase 8F: Save System (Current)
+
+Phase 7D and all bugfixes complete.
+Now adding localStorage save system.
+
+**Goal:** Player can save, load, export, and import
+game state. Auto-save every year. Reset option.
+
+**Rules:**
+
+Save key: 'brooksTwoSave'
+
+Functions needed in new file js/save.js:
+
+saveGame(state):
+- JSON.stringify(state)
+- localStorage.setItem('brooksTwoSave', serialized)
+- show save confirmation in UI
+
+loadGame():
+- const raw = localStorage.getItem('brooksTwoSave')
+- if null: return null
+- return JSON.parse(raw)
+
+exportSave(state):
+- create JSON blob
+- trigger download as 'brooks-two-save.json'
+
+importSave(file):
+- read uploaded JSON file
+- validate it has state.world and state.research
+- if valid: load into game state
+- if invalid: show error message
+
+resetGame():
+- confirm dialog: "确认重置游戏？所有进度将丢失"
+- if confirmed: localStorage.removeItem('brooksTwoSave')
+- reload page
+
+Auto-save:
+- call saveGame(state) at end of every nextYear()
+- show "自动保存" indicator briefly in UI
+
+On game load:
+- check localStorage for existing save
+- if found: show "发现存档，是否继续？" prompt
+- yes: loadGame() and restore state
+- no: start fresh
+
+UI additions (fixed header area):
+- 💾 Save button
+- 📂 Load button  
+- 📤 Export button
+- 📥 Import button (file input)
+- 🔄 Reset button (with confirm)
+- "自动保存 ✓" indicator (shows briefly after each year)
+
+**New file:** js/save.js
+**Files to modify:**
+- index.html (import save.js, add save UI buttons)
+- js/game.js (call saveGame at end of nextYear)
+- js/render.js (add save buttons to header)
+
+**Do NOT touch:** any economy/ society/ diplomacy/
+tech/ ui/ files, state.js, unlocks.js, policies.js
+
+**Definition of Done (Phase 8F):**
+- Save button works and shows confirmation
+- Load button restores previous save
+- Export downloads valid JSON file
+- Import accepts JSON file and restores state
+- Reset clears save and restarts
+- Auto-save happens every year-advance
+- On page load: detect and offer to restore save
+- All buttons visible in header
+- 自动保存 indicator appears briefly after save
