@@ -35,13 +35,16 @@ import {
   calculateGovernmentEfficiency,
   calculateFireLeakage,
 } from '../society/stability.js';
-
+import {
+  FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
+  MAX_GRAIN_YIELD_PER_MU, SHOP_GDP_PER_UNIT, COUPON_GRAIN_RATIO
+} from '../config/constants.js';
 
 
 export const AGRICULTURE_RECLAMATION_COSTS = {
-  farmlandPerMu: 500,
-  hempPerMu: 800,
-  mulberryPerMu: 1500,
+  farmlandPerMu: FARMLAND_RECLAIM_COST_PER_MU,
+  hempPerMu: HEMP_RECLAIM_COST_PER_MU,
+  mulberryPerMu: MULBERRY_RECLAIM_COST_PER_MU,
 };
 export function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
@@ -152,7 +155,7 @@ export function updateEconomy(world, options = {}) {
   world.baseGrainYieldPerMu = clamp(baseYield);
 
   const techYieldBonus = Math.max(0, Number(world.techBonuses?.grainYieldBonus ?? 0));
-  const effectiveYieldPerMu = Math.min(800, Math.max(0, world.baseGrainYieldPerMu + techYieldBonus));
+  const effectiveYieldPerMu = Math.min(MAX_GRAIN_YIELD_PER_MU, Math.max(0, world.baseGrainYieldPerMu + techYieldBonus));
 
   const potentialGrainOutput = clamp(world.farmlandAreaMu * effectiveYieldPerMu);
   const preStabilityGrainOutput = clamp(potentialGrainOutput * effectiveFarmEfficiency);
@@ -195,7 +198,7 @@ export function updateEconomy(world, options = {}) {
 
   const preStabilityCommerceGDP = clamp(
     operatingShops *
-      500 *
+      SHOP_GDP_PER_UNIT *
       demandEfficiencyRate *
       grainSupplyEfficiency *
       effectiveCommerceActivityBonus *
@@ -207,7 +210,7 @@ export function updateEconomy(world, options = {}) {
 
   const preStabilityFarmerIncomePerHead =
     (world.farmingLaborAllocated ?? 0) > 0
-      ? (preStabilityGrainOutput * 0.3 + landDevelopmentFarmerIncomeBoost) / world.farmingLaborAllocated
+      ? (preStabilityGrainOutput * (COUPON_GRAIN_RATIO * 0.3) + landDevelopmentFarmerIncomeBoost) / world.farmingLaborAllocated
       : 0;
 
   const preStabilityMerchantIncomePerHead =

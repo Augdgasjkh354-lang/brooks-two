@@ -1,5 +1,15 @@
 // Market module: prices, purchasing power, living-cost helpers, salt market
 
+import {
+  GRAIN_CONSUMPTION_PER_PERSON,
+  SALT_BASE_PRICE,
+  CLOTH_BASE_PRICE,
+  SALT_CONSUMPTION_PER_PERSON,
+  CLOTH_CONSUMPTION_PER_PERSON,
+  SALT_PRICE_MIN,
+  SALT_PRICE_MAX,
+} from '../config/constants.js';
+
 function clamp(value, min = 0, max = Number.POSITIVE_INFINITY) {
   return Math.max(min, Math.min(max, Number(value ?? 0)));
 }
@@ -46,15 +56,15 @@ export function calculateCommodityPrice({
 }
 
 export function calculateLivingCost(world) {
-  const saltPrice = Math.max(0, Number(world?.saltPrice ?? 4));
-  const clothPrice = Math.max(0, Number(world?.clothPrice ?? 2));
-  const grainCost = 360;
-  const saltCost = 15 * saltPrice;
-  const clothCost = 0.3 * clothPrice;
+  const saltPrice = Math.max(0, Number(world?.saltPrice ?? SALT_BASE_PRICE));
+  const clothPrice = Math.max(0, Number(world?.clothPrice ?? CLOTH_BASE_PRICE));
+  const grainCost = GRAIN_CONSUMPTION_PER_PERSON;
+  const saltCost = SALT_CONSUMPTION_PER_PERSON * saltPrice;
+  const clothCost = CLOTH_CONSUMPTION_PER_PERSON * clothPrice;
   const totalLivingCost = grainCost + saltCost + clothCost;
 
-  const saltAffordability = saltPrice / 4.0;
-  const clothAffordability = clothPrice / 2.0;
+  const saltAffordability = saltPrice / SALT_BASE_PRICE;
+  const clothAffordability = clothPrice / CLOTH_BASE_PRICE;
 
   world.totalLivingCost = totalLivingCost;
   world.saltAffordability = saltAffordability;
@@ -71,8 +81,8 @@ export function calculateLivingCost(world) {
 }
 
 export function getPurchasingPowerIndex(world, saltPrice, clothPrice, grainPrice) {
-  const saltAffordability = saltPrice / 4.0;
-  const clothAffordability = clothPrice / 2.0;
+  const saltAffordability = saltPrice / SALT_BASE_PRICE;
+  const clothAffordability = clothPrice / CLOTH_BASE_PRICE;
 
   let denominator = saltAffordability * 0.6 + clothAffordability * 0.4;
   if (world.grainCouponsUnlocked) {
@@ -113,9 +123,9 @@ export function previewOfficialSaltSale(world, officialSaltPrice, officialSaltAm
 
   let nextSaltPrice = marketSaltPrice;
   if (releaseRatio >= 0.3) {
-    nextSaltPrice = clampCommodityPrice(marketSaltPrice * 0.85, 1.0, 10.0);
+    nextSaltPrice = clampCommodityPrice(marketSaltPrice * 0.85, SALT_PRICE_MIN, SALT_PRICE_MAX);
   } else if (releaseRatio >= 0.1) {
-    nextSaltPrice = clampCommodityPrice(marketSaltPrice * 0.95, 1.0, 10.0);
+    nextSaltPrice = clampCommodityPrice(marketSaltPrice * 0.95, SALT_PRICE_MIN, SALT_PRICE_MAX);
   }
 
   return {

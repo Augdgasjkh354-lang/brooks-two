@@ -1,7 +1,11 @@
 // Diplomacy module: Xikou village and relations
 import { clamp, clampRatio } from '../economy/labor.js';
+import {
+  BASE_GROWTH_RATE, LABOR_RATIO, CHILDREN_RATIO, ELDERLY_RATIO,
+  LABOR_PER_MU, XIKOU_SALT_OUTPUT, ENVOY_COST
+} from '../config/constants.js';
 
-export const SEND_ENVOY_COST_GRAIN = 5000;
+export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
 
 export function updateXikouVillageEconomy(world) {
   if (!world || !world.xikou) {
@@ -9,24 +13,24 @@ export function updateXikouVillageEconomy(world) {
   }
 
   const xikou = world.xikou;
-  const growthRate = 0.02;
+  const growthRate = BASE_GROWTH_RATE;
   const nextPopulation = clamp((xikou.population ?? 0) * (1 + growthRate));
 
   xikou.population = nextPopulation;
-  xikou.laborForce = clamp(nextPopulation * 0.6);
-  xikou.children = clamp(nextPopulation * 0.2);
-  xikou.elderly = clamp(nextPopulation * 0.2);
+  xikou.laborForce = clamp(nextPopulation * LABOR_RATIO);
+  xikou.children = clamp(nextPopulation * CHILDREN_RATIO);
+  xikou.elderly = clamp(nextPopulation * ELDERLY_RATIO);
 
   const saltWorkersRequired = Math.max(0, (xikou.saltMines ?? 0) * 10);
   const saltWorkers = Math.min(xikou.laborForce ?? 0, saltWorkersRequired);
 
   const laborAfterSalt = Math.max(0, (xikou.laborForce ?? 0) - saltWorkers);
 
-  const farmWorkersRequired = (xikou.farmlandMu ?? 0) / 10;
+  const farmWorkersRequired = (xikou.farmlandMu ?? 0) / LABOR_PER_MU;
   const farmWorkers = Math.min(laborAfterSalt, farmWorkersRequired);
 
   const laborAfterFarming = Math.max(0, laborAfterSalt - farmWorkers);
-  const mulberryWorkersRequired = (xikou.mulberryLandMu ?? 0) / 10;
+  const mulberryWorkersRequired = (xikou.mulberryLandMu ?? 0) / LABOR_PER_MU;
   const mulberryWorkers = Math.min(laborAfterFarming, mulberryWorkersRequired);
 
   const idleLabor = Math.max(0, laborAfterFarming - mulberryWorkers);
@@ -40,8 +44,8 @@ export function updateXikouVillageEconomy(world) {
   const clothOutput = clamp((xikou.mulberryLandMu ?? 0) * 50 * tradeMultiplier);
   const baseSaltOutput =
     saltWorkers >= saltWorkersRequired
-      ? 200000
-      : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * 200000);
+      ? XIKOU_SALT_OUTPUT
+      : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * XIKOU_SALT_OUTPUT);
   const saltOutputJin = clamp(baseSaltOutput * tradeMultiplier);
 
   const annualConsumption = clamp((xikou.population ?? 0) * 2);

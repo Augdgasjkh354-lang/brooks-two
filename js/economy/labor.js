@@ -1,5 +1,7 @@
 // Labor module: labor allocation and shared clamps
 
+import { LABOR_PER_MU, SHOP_LABOR_PER_UNIT } from '../config/constants.js';
+
 export function clamp(value, min = 0) {
   return Math.max(min, Math.round(value));
 }
@@ -9,7 +11,7 @@ export function clampRatio(value) {
 }
 
 export function calculateLaborAllocation(world) {
-  const requiredFarmingLabor = world.farmlandAreaMu / 10;
+  const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
   const farmingLaborAllocated = Math.min(world.laborForce, requiredFarmingLabor);
 
   const remainingAfterFarming = Math.max(0, world.laborForce - farmingLaborAllocated);
@@ -17,15 +19,15 @@ export function calculateLaborAllocation(world) {
   const saltMineLaborAllocated = Math.min(remainingAfterFarming, saltMineLaborRequired);
 
   const remainingAfterSalt = Math.max(0, remainingAfterFarming - saltMineLaborAllocated);
-  const hempLaborRequired = Math.max(0, (world.hempLandMu ?? 0) / 10);
+  const hempLaborRequired = Math.max(0, (world.hempLandMu ?? 0) / LABOR_PER_MU);
   const hempLaborAllocated = Math.min(remainingAfterSalt, hempLaborRequired);
 
   const remainingAfterHemp = Math.max(0, remainingAfterSalt - hempLaborAllocated);
-  const mulberryLaborRequired = Math.max(0, (world.mulberryLandMu ?? 0) / 5);
+  const mulberryLaborRequired = Math.max(0, (world.mulberryLandMu ?? 0) / SHOP_LABOR_PER_UNIT);
   const mulberryLaborAllocated = Math.min(remainingAfterHemp, mulberryLaborRequired);
 
   const remainingAfterMulberry = Math.max(0, remainingAfterHemp - mulberryLaborAllocated);
-  const commerceLaborDemand = (world.shopCount ?? 0) * 5;
+  const commerceLaborDemand = (world.shopCount ?? 0) * SHOP_LABOR_PER_UNIT;
   const laborAssignedCommerce = Math.min(remainingAfterMulberry, commerceLaborDemand);
 
   const idleLabor = Math.max(0, remainingAfterMulberry - laborAssignedCommerce);

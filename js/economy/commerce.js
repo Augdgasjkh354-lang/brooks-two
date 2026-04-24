@@ -1,8 +1,17 @@
 // Commerce module: commerce, demand saturation, and moneylender system
 
-export const SHOP_BUILD_COST_GRAIN = 1500000;
-export const DEFAULT_MONEYLENDER_LICENSE_FEE = 5000000;
-export const DEFAULT_SCHOOL_LICENSE_FEE = 2000000;
+import {
+  SHOP_COST,
+  MONEYLENDER_LICENSE_FEE,
+  SCHOOL_LICENSE_FEE,
+  MONEYLENDER_DEFAULT_TAX,
+  SHOP_GDP_PER_UNIT,
+  MERCHANT_POP_INIT_LITERACY,
+} from '../config/constants.js';
+
+export const SHOP_BUILD_COST_GRAIN = SHOP_COST;
+export const DEFAULT_MONEYLENDER_LICENSE_FEE = MONEYLENDER_LICENSE_FEE;
+export const DEFAULT_SCHOOL_LICENSE_FEE = SCHOOL_LICENSE_FEE;
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -72,7 +81,7 @@ export function getMerchantLiteracyMultiplier(world) {
 
   const literacy = Math.max(0, Math.min(1, Number(world?.merchantLiteracy ?? 0)));
   const step = Math.floor((literacy * 100) / 10);
-  const bonus = Math.min(step * 0.02, 0.1);
+  const bonus = Math.min(step * 0.02, MERCHANT_POP_INIT_LITERACY * 0.4);
   return 1 + bonus;
 }
 
@@ -90,7 +99,7 @@ export function canUseMoneylenderSystem(world) {
 
 export function syncMoneylenderCaps(world) {
   world.licenseFee = Math.max(0, Math.floor(Number(world.licenseFee ?? DEFAULT_MONEYLENDER_LICENSE_FEE)));
-  world.moneylenderTaxRate = clampPercent(world.moneylenderTaxRate ?? 0.01, 0, 0.2);
+  world.moneylenderTaxRate = clampPercent(world.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
 
   const maxAllowed = Math.max(0, Math.floor(Number(world.shopCount ?? 0)));
   const approved = Math.max(0, Math.floor(Number(world.approvedMoneylenders ?? 0)));
@@ -268,12 +277,12 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
   const civilian = processCivilianLending(world);
 
   const totalInterestIncome = clampMoney(civilian.civilianInterestIncome + governmentInterestIncome);
-  const baseMoneylenderGDP = clampMoney((world.moneylenderShops ?? 0) * 500);
+  const baseMoneylenderGDP = clampMoney((world.moneylenderShops ?? 0) * SHOP_GDP_PER_UNIT);
   const moneylenderEfficiencyBonus = Math.max(0, Number(world.moneylenderEfficiencyBonus ?? 0));
   const moneylenderEfficiencyMultiplier = 1 + moneylenderEfficiencyBonus;
   const preTaxGDP = baseMoneylenderGDP + totalInterestIncome;
   const adjustedPreTaxGDP = preTaxGDP * moneylenderEfficiencyMultiplier;
-  const taxRate = clampPercent(world.moneylenderTaxRate ?? 0.01, 0, 0.2);
+  const taxRate = clampPercent(world.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
   const moneylenderTax = adjustedPreTaxGDP * taxRate;
 
   world.moneylenderGDP = adjustedPreTaxGDP;

@@ -1,5 +1,12 @@
 // Society population module
 
+import {
+  BASE_GROWTH_RATE, MIN_GROWTH_RATE, LABOR_PER_MU, CHILDREN_RATIO, ELDERLY_RATIO,
+  LABOR_RATIO, MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY,
+  HIGHER_SCHOOL_GRAD_MIN, HIGHER_SCHOOL_YEAR_MIN, GRADUATE_DECAY_RATE, ELIGIBLE_POOL_DECAY,
+  PRIMARY_PROGRAM_YEARS, SECONDARY_PROGRAM_YEARS, HIGHER_PROGRAM_YEARS
+} from '../config/constants.js';
+
 function clamp(value, min = 0) {
   return Math.max(min, Math.round(value));
 }
@@ -13,7 +20,7 @@ function clampLiteracy(value, cap) {
 }
 
 function updateLaborAllocation(world) {
-  const requiredFarmingLabor = world.farmlandAreaMu / 10;
+  const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
   const farmingLaborAllocated = Math.min(world.laborForce, requiredFarmingLabor);
   const idleLabor = Math.max(0, world.laborForce - farmingLaborAllocated);
   const farmEfficiency =
@@ -31,7 +38,7 @@ function updateLaborAllocation(world) {
 }
 
 function getPopulationGrowthDetails(world) {
-  const baseGrowthRate = 0.02;
+  const baseGrowthRate = BASE_GROWTH_RATE;
   const commerceProsperityBonus =
     (world.merchantIncomePerHead ?? 0) > (world.farmerIncomePerHead ?? 0) * 1.5 ? 0.005 : 0;
   const demandShortfallPenalty = world.demandShortfall ? 0.005 : 0;
@@ -55,7 +62,7 @@ function getPopulationGrowthDetails(world) {
     famineStressPenalty -
     healthCrisisPenalty -
     stabilityCrisisPenalty;
-  const growthRate = Math.max(-0.05, calculatedRate);
+  const growthRate = Math.max(MIN_GROWTH_RATE, calculatedRate);
 
   return {
     growthRate,
@@ -84,25 +91,25 @@ function ensureClassLiteracyActivation(world) {
 
   if (!flags.merchantActive && (world.shopCount ?? 0) > 0) {
     flags.merchantActive = true;
-    world.merchantLiteracy = Math.max(world.merchantLiteracy ?? 0, 0.25);
+    world.merchantLiteracy = Math.max(world.merchantLiteracy ?? 0, MERCHANT_POP_INIT_LITERACY);
     messages.push('商人阶层出现，识字率基准设为25%');
   }
 
   if (!flags.officialActive && world.techBonuses?.bureaucracyUnlocked) {
     flags.officialActive = true;
-    world.officialLiteracy = Math.max(world.officialLiteracy ?? 0, 0.5);
+    world.officialLiteracy = Math.max(world.officialLiteracy ?? 0, OFFICIAL_INIT_LITERACY);
     messages.push('官员阶层出现，识字率基准设为50%');
   }
 
   if (!flags.workerActive && ((world.hempLandMu ?? 0) > 0 || (world.mulberryLandMu ?? 0) > 0)) {
     flags.workerActive = true;
-    world.workerLiteracy = Math.max(world.workerLiteracy ?? 0, 0.08);
+    world.workerLiteracy = Math.max(world.workerLiteracy ?? 0, WORKER_INIT_LITERACY);
     messages.push('工人阶层出现，识字率基准设为8%');
   }
 
   if (!flags.landlordActive && (world.farmlandRentRate ?? 0) > 0) {
     flags.landlordActive = true;
-    world.landlordLiteracy = Math.max(world.landlordLiteracy ?? 0, 0.2);
+    world.landlordLiteracy = Math.max(world.landlordLiteracy ?? 0, LANDLORD_INIT_LITERACY);
     messages.push('地主阶层出现，识字率基准设为20%');
   }
 
@@ -236,8 +243,8 @@ function updateOverallLiteracy(world) {
 function updateHigherSchoolUnlock(world) {
   const alreadyUnlocked = Boolean(world.higherSchoolUnlocked);
   const shouldUnlock =
-    (world.secondaryGraduates ?? 0) >= 2000 &&
-    (world.year ?? 0) >= 100;
+    (world.secondaryGraduates ?? 0) >= HIGHER_SCHOOL_GRAD_MIN &&
+    (world.year ?? 0) >= HIGHER_SCHOOL_YEAR_MIN;
 
   world.higherSchoolUnlocked = alreadyUnlocked || shouldUnlock;
   return !alreadyUnlocked && world.higherSchoolUnlocked;
@@ -268,9 +275,9 @@ function updateTalentPools(world) {
   const commerceGrowth = commerceGrowthBase * commerceGrowthMultiplier;
   const techGrowth = techGrowthBase * techGrowthMultiplier;
 
-  const adminAfterDecay = clampTalent((world.adminTalent ?? 0) * 0.97);
-  const commerceAfterDecay = clampTalent((world.commerceTalent ?? 0) * 0.97);
-  const techAfterDecay = clampTalent((world.techTalent ?? 0) * 0.97);
+  const adminAfterDecay = clampTalent((world.adminTalent ?? 0) * GRADUATE_DECAY_RATE);
+  const commerceAfterDecay = clampTalent((world.commerceTalent ?? 0) * GRADUATE_DECAY_RATE);
+  const techAfterDecay = clampTalent((world.techTalent ?? 0) * GRADUATE_DECAY_RATE);
 
   world.adminTalent = adminAfterDecay + adminGrowth;
   world.commerceTalent = commerceAfterDecay + commerceGrowth;
@@ -300,7 +307,7 @@ export function processEducationYear(world) {
 
   const wealthyChildrenPool = Math.floor(childrenPool * 0.15);
   const primaryEnrolled = Math.min(childrenPool, commercialPrimaryCapacity + governmentPrimaryCapacity);
-  const annualPrimaryGrads = Math.floor(primaryEnrolled / 3);
+  const annualPrimaryGrads = Math.floor(primaryEnrolled / PRIMARY_PROGRAM_YEARS);
 
   const currentSecondaryEligiblePool = Math.max(0, Number(world.secondaryEligiblePool ?? 0));
   const currentHigherEligiblePool = Math.max(0, Number(world.higherEligiblePool ?? 0));
@@ -308,22 +315,22 @@ export function processEducationYear(world) {
   const secondaryCapacity = commercialSecondaryCapacity + governmentSecondaryCapacity;
   const secondaryPoolBeforeEnrollment = currentSecondaryEligiblePool + annualPrimaryGrads;
   const secondaryEnrolled = Math.min(secondaryCapacity, Math.floor(secondaryPoolBeforeEnrollment));
-  const annualSecondaryGrads = Math.floor(secondaryEnrolled / 4);
+  const annualSecondaryGrads = Math.floor(secondaryEnrolled / SECONDARY_PROGRAM_YEARS);
 
   const higherCapacity = governmentHigherCapacity;
   const higherPoolBeforeEnrollment = currentHigherEligiblePool + annualSecondaryGrads;
   const higherEnrolled = world.higherSchoolUnlocked
     ? Math.min(higherCapacity, Math.floor(higherPoolBeforeEnrollment))
     : 0;
-  const annualHigherGrads = Math.floor(higherEnrolled / 3);
+  const annualHigherGrads = Math.floor(higherEnrolled / HIGHER_PROGRAM_YEARS);
 
   const secondaryEligiblePool = Math.max(
     0,
-    (secondaryPoolBeforeEnrollment - secondaryEnrolled) * 0.95
+    (secondaryPoolBeforeEnrollment - secondaryEnrolled) * ELIGIBLE_POOL_DECAY
   );
   const higherEligiblePool = Math.max(
     0,
-    (higherPoolBeforeEnrollment - higherEnrolled) * 0.95
+    (higherPoolBeforeEnrollment - higherEnrolled) * ELIGIBLE_POOL_DECAY
   );
 
   const commercialPrimaryEnrolled = Math.min(wealthyChildrenPool, Math.min(primaryEnrolled, commercialPrimaryCapacity));
@@ -341,9 +348,9 @@ export function processEducationYear(world) {
   world.secondaryEligiblePool = Math.max(0, Math.floor(secondaryEligiblePool));
   world.higherEligiblePool = Math.max(0, Math.floor(higherEligiblePool));
 
-  const decayedPrimary = Math.max(0, Math.floor(Number(world.primaryGraduates ?? 0) * 0.97));
-  const decayedSecondary = Math.max(0, Math.floor(Number(world.secondaryGraduates ?? 0) * 0.97));
-  const decayedHigher = Math.max(0, Math.floor(Number(world.higherGraduates ?? 0) * 0.97));
+  const decayedPrimary = Math.max(0, Math.floor(Number(world.primaryGraduates ?? 0) * GRADUATE_DECAY_RATE));
+  const decayedSecondary = Math.max(0, Math.floor(Number(world.secondaryGraduates ?? 0) * GRADUATE_DECAY_RATE));
+  const decayedHigher = Math.max(0, Math.floor(Number(world.higherGraduates ?? 0) * GRADUATE_DECAY_RATE));
   world.primaryGraduates = Math.max(0, Math.floor(decayedPrimary + annualPrimaryGrads));
   world.secondaryGraduates = Math.max(0, Math.floor(decayedSecondary + annualSecondaryGrads));
   world.higherGraduates = Math.max(0, Math.floor(decayedHigher + annualHigherGrads));
@@ -371,8 +378,8 @@ export function updatePopulation(world) {
   const growthDetails = getPopulationGrowthDetails(world);
 
   const nextTotal = clamp(total * (1 + growthDetails.growthRate));
-  const nextChildren = clamp(nextTotal * 0.2);
-  const nextElderly = clamp(nextTotal * 0.2);
+  const nextChildren = clamp(nextTotal * LANDLORD_INIT_LITERACY);
+  const nextElderly = clamp(nextTotal * LANDLORD_INIT_LITERACY);
   const nextLaborForce = clamp(nextTotal - nextChildren - nextElderly);
 
   world.totalPopulation = nextTotal;
