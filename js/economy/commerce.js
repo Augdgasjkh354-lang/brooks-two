@@ -49,7 +49,13 @@ function ensureLedger(world) {
 export function calculateShopOperationState(world, availableCommerceLabor = 0) {
   const safeShopCount = Math.max(0, Math.floor(Number(world?.shopCount ?? 0)));
   const safeMerchantCount = Math.max(0, Math.floor(Number(world?.merchantCount ?? 0)));
-  const safeAvailableLabor = Math.max(0, Math.floor(Number(availableCommerceLabor ?? 0)));
+  const fallbackLabor = Number(
+    world?.commerceLaborAllocated ??
+      world?.laborAssignedCommerce ??
+      world?.availableCommerceLabor ??
+      0
+  );
+  const safeAvailableLabor = Math.max(0, Math.floor(Number(availableCommerceLabor ?? fallbackLabor)));
 
   const laborLimitedShops = Math.floor(safeAvailableLabor / SHOP_WORKERS_PER_UNIT);
   const operatingShops = Math.min(safeShopCount, safeMerchantCount, laborLimitedShops);

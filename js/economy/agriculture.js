@@ -174,7 +174,12 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push(`桑田首收：新增成熟桑田${maturedMulberryLand}亩`);
   }
 
-  const { farmEfficiency, hempEfficiency, mulberryEfficiency, unemploymentEffectTier } = calculateLaborAllocation(world);
+  const { farmEfficiency, hempEfficiency, mulberryEfficiency, unemploymentEffectTier, wageSignals } = calculateLaborAllocation(world);
+  world.farmingWage = Math.max(0, Number(wageSignals?.farmingWage ?? world.farmingWage ?? 0));
+  world.commerceWagePerWorker = Math.max(0, Number(wageSignals?.commerceWagePerWorker ?? world.commerceWagePerWorker ?? 0));
+  world.hempWage = Math.max(0, Number(wageSignals?.hempWage ?? world.hempWage ?? 0));
+  world.mulberryWage = Math.max(0, Number(wageSignals?.mulberryWage ?? world.mulberryWage ?? 0));
+  world.averageWage = Math.max(0, Number(wageSignals?.averageWage ?? world.averageWage ?? 0));
 
   const literacyEffects = applyLiteracyEffectsToWorld(world);
 
