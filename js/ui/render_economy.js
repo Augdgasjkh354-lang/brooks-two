@@ -3,6 +3,16 @@ import { previewOfficialSaltSale } from '../economy/market.js';
 import { getInflationDisplay } from './render_society.js';
 import { canUseMoneylenderSystem } from '../economy/commerce.js';
 
+
+function getFiscal(stateOrWorld) {
+  return stateOrWorld?.fiscal ?? stateOrWorld?.__fiscal ?? stateOrWorld;
+}
+
+function getMonetary(stateOrWorld) {
+  return stateOrWorld?.monetary ?? stateOrWorld?.__monetary ?? stateOrWorld;
+}
+
+
 export function renderCouponDenominationBreakdown(world) {
   const breakdown = world.lastCouponDenominationBreakdown ?? [];
   if (breakdown.length === 0 || (world.lastCouponIssueAmount ?? 0) <= 0) {
@@ -18,16 +28,17 @@ export function renderRatioValue(value) {
 }
 
 export function getCouponRatioControlsHtml(world) {
+  const fiscal = getFiscal(world);
   return `
     <div class="coupon-controls" style="display: block; margin-top: 12px;">
       <label for="tax-grain-ratio-input">Tax Collection Mix</label>
-      <input id="tax-grain-ratio-input" type="range" min="0" max="1" step="0.05" value="${world.taxGrainRatio ?? 1}" />
-      <div id="tax-grain-ratio-value" class="muted">${renderRatioValue(world.taxGrainRatio ?? 1)}</div>
+      <input id="tax-grain-ratio-input" type="range" min="0" max="1" step="0.05" value="${fiscal.taxGrainRatio ?? 1}" />
+      <div id="tax-grain-ratio-value" class="muted">${renderRatioValue(fiscal.taxGrainRatio ?? 1)}</div>
     </div>
     <div class="coupon-controls" style="display: block; margin-top: 12px;">
       <label for="salary-grain-ratio-input">Official Salary Mix</label>
-      <input id="salary-grain-ratio-input" type="range" min="0" max="1" step="0.05" value="${world.salaryGrainRatio ?? 1}" />
-      <div id="salary-grain-ratio-value" class="muted">${renderRatioValue(world.salaryGrainRatio ?? 1)}</div>
+      <input id="salary-grain-ratio-input" type="range" min="0" max="1" step="0.05" value="${fiscal.salaryGrainRatio ?? 1}" />
+      <div id="salary-grain-ratio-value" class="muted">${renderRatioValue(fiscal.salaryGrainRatio ?? 1)}</div>
     </div>
   `;
 }
@@ -38,7 +49,7 @@ export function bindCouponRatioEvents(state) {
   if (taxInput && taxValue) {
     taxInput.oninput = () => {
       const nextValue = Math.max(0, Math.min(1, Number(taxInput.value)));
-      state.world.taxGrainRatio = nextValue;
+      getFiscal(state).taxGrainRatio = nextValue;
       taxValue.textContent = renderRatioValue(nextValue);
     };
   }
@@ -48,18 +59,19 @@ export function bindCouponRatioEvents(state) {
   if (salaryInput && salaryValue) {
     salaryInput.oninput = () => {
       const nextValue = Math.max(0, Math.min(1, Number(salaryInput.value)));
-      state.world.salaryGrainRatio = nextValue;
+      getFiscal(state).salaryGrainRatio = nextValue;
       salaryValue.textContent = renderRatioValue(nextValue);
     };
   }
 }
 
 export function getSaltImportControlsHtml(world, xikou) {
+  const monetary = getMonetary(world);
   const maxQuota = Math.max(0, Math.floor((xikou?.saltOutputJin ?? 0) * 0.5));
-  const currentQuota = Math.max(0, Math.floor(world.saltImportQuota ?? 0));
+  const currentQuota = Math.max(0, Math.floor(monetary.saltImportQuota ?? 0));
   const clampedQuota = Math.min(currentQuota, maxQuota);
-  const estimatedCost = Math.round(clampedQuota * (world.saltPrice ?? 4));
-  const canAfford = world.grainCouponsUnlocked ? (world.couponTreasury ?? 0) >= estimatedCost : (world.grainTreasury ?? 0) >= estimatedCost;
+  const estimatedCost = Math.round(clampedQuota * (monetary.saltPrice ?? 4));
+  const canAfford = world.grainCouponsUnlocked ? (monetary.couponTreasury ?? 0) >= estimatedCost : (world.grainTreasury ?? 0) >= estimatedCost;
   const currencyLabel = world.grainCouponsUnlocked ? 'coupon' : 'grain';
 
   return `
@@ -79,16 +91,17 @@ export function bindSaltImportQuotaEvents(state) {
   quotaInput.addEventListener('input', () => {
     const maxQuota = Number(quotaInput.max || 0);
     const nextValue = Math.max(0, Math.floor(Number(quotaInput.value || 0)));
-    state.world.saltImportQuota = Math.min(nextValue, Math.max(0, maxQuota));
+    state.monetary.saltImportQuota = Math.min(nextValue, Math.max(0, maxQuota));
   });
 }
 
 export function getOfficialSaltSaleControlsHtml(world) {
-  const marketPrice = Number(world.saltPrice ?? 0);
-  const reserve = Math.max(0, Math.floor(Number(world.saltReserve ?? 0)));
-  const usedThisYear = !!world.officialSaltSaleUsed;
-  const defaultPrice = Number(world.officialSaltPrice ?? marketPrice);
-  const defaultAmount = Math.floor(Number(world.officialSaltAmount ?? 1000));
+  const monetary = getMonetary(world);
+  const marketPrice = Number(monetary.saltPrice ?? 0);
+  const reserve = Math.max(0, Math.floor(Number(monetary.saltReserve ?? 0)));
+  const usedThisYear = !!monetary.officialSaltSaleUsed;
+  const defaultPrice = Number(monetary.officialSaltPrice ?? marketPrice);
+  const defaultAmount = Math.floor(Number(monetary.officialSaltAmount ?? 1000));
   const preview = previewOfficialSaltSale(world, defaultPrice, defaultAmount);
   const canSell = reserve >= 1000 && !usedThisYear;
 
@@ -121,8 +134,9 @@ export function bindOfficialSaltSaleEvents(state, onOfficialSaltSale) {
 
   const refreshPreview = () => {
     if (!priceInput || !amountInput || !previewEl) return;
-    const marketPrice = Number(state.world.saltPrice ?? 0);
-    const reserve = Math.max(0, Math.floor(Number(state.world.saltReserve ?? 0)));
+    const monetary = getMonetary(state);
+    const marketPrice = Number(monetary.saltPrice ?? 0);
+    const reserve = Math.max(0, Math.floor(Number(monetary.saltReserve ?? 0)));
     const inputPrice = Number(priceInput.value ?? 0);
     const inputAmount = Number(amountInput.value ?? 0);
     const preview = previewOfficialSaltSale(state.world, inputPrice, inputAmount);
@@ -197,10 +211,12 @@ export function bindLandDevelopmentEvents(world, onOpenHempLand, onOpenMulberryL
 
 
 function getMoneylenderControlsHtml(world) {
+  const monetary = getMonetary(world);
+  const fiscal = getFiscal(world);
   const enabled = canUseMoneylenderSystem(world);
   const cap = Math.max(0, Number(world.shopCount ?? 0));
-  const approved = Math.max(0, Math.min(cap, Number(world.approvedMoneylenders ?? 0)));
-  const borrowCap = Math.max(0, Math.floor((world.lendingPoolSize ?? 0) * 0.5));
+  const approved = Math.max(0, Math.min(cap, Number(monetary.approvedMoneylenders ?? 0)));
+  const borrowCap = Math.max(0, Math.floor((monetary.lendingPoolSize ?? 0) * 0.5));
 
   if (!enabled) {
     return `<div class="muted">钱庄系统未启用（需要：钱庄技术 + 造纸术官僚体系 + 商铺≥10）。</div>`;
@@ -211,13 +227,13 @@ function getMoneylenderControlsHtml(world) {
       <label for="approved-moneylenders-input">Licensed Moneylenders (max ${formatNumber(cap)})</label>
       <input id="approved-moneylenders-input" type="number" min="0" max="${cap}" step="1" value="${Math.floor(approved)}" />
       <button id="approve-moneylenders-btn">Apply Licenses</button>
-      <div class="muted">License fee per shop: ${formatNumber(Math.floor(world.licenseFee ?? 5000000))} ${world.grainCouponsUnlocked ? 'coupon' : 'grain'}</div>
+      <div class="muted">License fee per shop: ${formatNumber(Math.floor(monetary.licenseFee ?? 5000000))} ${world.grainCouponsUnlocked ? 'coupon' : 'grain'}</div>
       <label for="government-borrow-input">Government Borrow Amount (max per action ${formatNumber(borrowCap)})</label>
       <input id="government-borrow-input" type="number" min="0" step="100000" max="${borrowCap}" value="0" />
       <button id="government-borrow-btn" ${borrowCap <= 0 ? 'disabled' : ''}>Borrow from Lending Pool</button>
       <label for="annual-repayment-input">Annual Debt Repayment</label>
-      <input id="annual-repayment-input" type="number" min="0" step="100000" value="${Math.floor(world.annualRepayment ?? 0)}" />
-      <div class="muted">Debt currency: ${(world.governmentDebtCurrency === 'grain') ? 'grain' : 'coupon'} | Interest due this year: ${formatNumber(Math.round(world.governmentDebtInterest ?? 0))}</div>
+      <input id="annual-repayment-input" type="number" min="0" step="100000" value="${Math.floor(fiscal.annualRepayment ?? 0)}" />
+      <div class="muted">Debt currency: ${(monetary.governmentDebtCurrency === 'grain') ? 'grain' : 'coupon'} | Interest due this year: ${formatNumber(Math.round(monetary.governmentDebtInterest ?? 0))}</div>
     </div>
   `;
 }
@@ -232,7 +248,7 @@ function bindMoneylenderEconomyEvents(state) {
   if (repaymentInput) {
     repaymentInput.addEventListener('input', () => {
       const val = Math.max(0, Math.floor(Number(repaymentInput.value || 0)));
-      state.world.annualRepayment = val;
+      state.fiscal.annualRepayment = val;
     });
   }
 
@@ -261,9 +277,9 @@ function getTradePolicyControlsHtml(world) {
       <label><input id="trade-protect-local-cloth" type="checkbox" ${world.protectLocalCloth ? 'checked' : ''}/> 启用贸易保护（布匹进口上限=本地产量30%）</label>
       <div class="muted">当前保护上限系数：${formatDecimal((world.tradeProtectionQuotaCapRatio ?? 1) * 100, 1)}%</div>
 
-      <label for="trade-subsidy-rate">贸易补贴率：${formatDecimal((world.subsidyRate ?? 0) * 100, 1)}%</label>
-      <input id="trade-subsidy-rate" type="range" min="0" max="0.2" step="0.01" value="${Math.max(0, Math.min(0.2, Number(world.subsidyRate ?? 0)))}" />
-      <div id="trade-subsidy-rate-value" class="muted">预计补贴率：${formatDecimal((world.subsidyRate ?? 0) * 100, 1)}%</div>
+      <label for="trade-subsidy-rate">贸易补贴率：${formatDecimal((getFiscal(world).subsidyRate ?? 0) * 100, 1)}%</label>
+      <input id="trade-subsidy-rate" type="range" min="0" max="0.2" step="0.01" value="${Math.max(0, Math.min(0.2, Number(getFiscal(world).subsidyRate ?? 0)))}" />
+      <div id="trade-subsidy-rate-value" class="muted">预计补贴率：${formatDecimal((getFiscal(world).subsidyRate ?? 0) * 100, 1)}%</div>
 
       <label><input id="trade-monopoly-granted" type="checkbox" ${world.tradeMonopolyGranted ? 'checked' : ''}/> 授予专营权（商业收益+20%，其他商人满意度下降）</label>
       <div class="muted">补贴已支出：${formatNumber(world.tradeSubsidyCost ?? 0)}</div>
@@ -294,6 +310,8 @@ function bindTradePolicyEvents(state) {
 
 export function renderEconomyTab(state) {
   const world = state.world;
+  const fiscal = getFiscal(state);
+  const monetary = getMonetary(state);
   const mount = document.getElementById('economy-tab-content');
   if (!mount) return;
 
@@ -324,11 +342,11 @@ export function renderEconomyTab(state) {
     </div></section>
     <section class="panel"><h2>Trade Policies</h2>${getTradePolicyControlsHtml(world)}</section>
     <section class="panel"><h2>Moneylender & Debt</h2><div class="tab-grid">
-      ${statItem('Moneylender Shops', formatNumber(world.moneylenderShops ?? 0))}
-      ${statItem('Lending Pool Size', formatNumber(world.lendingPoolSize ?? 0))}
-      ${statItem('Moneylender GDP', formatNumber(world.moneylenderGDP ?? 0))}
-      ${statItem('Government Debt', formatNumber(world.governmentDebt ?? 0))}
-      ${statItem('Debt Interest Due', formatNumber(world.governmentDebtInterest ?? 0))}
+      ${statItem('Moneylender Shops', formatNumber(monetary.moneylenderShops ?? 0))}
+      ${statItem('Lending Pool Size', formatNumber(monetary.lendingPoolSize ?? 0))}
+      ${statItem('Moneylender GDP', formatNumber(monetary.moneylenderGDP ?? 0))}
+      ${statItem('Government Debt', formatNumber(monetary.governmentDebt ?? 0))}
+      ${statItem('Debt Interest Due', formatNumber(monetary.governmentDebtInterest ?? 0))}
       ${statItem('Civilian Lending Accumulator', formatNumber(world.civilianLendingAccumulator ?? 0))}
       ${statItem('Controls', getMoneylenderControlsHtml(world))}
     </div></section>
@@ -384,22 +402,24 @@ export function renderCurrencyTab(state, onOfficialSaltSale) {
   const mount = document.getElementById('currency-tab-content');
   if (!mount) return;
 
-  const inflationDisplay = getInflationDisplay(world.inflationRate ?? 0);
+  const monetary = getMonetary(state);
+  const fiscal = getFiscal(state);
+  const inflationDisplay = getInflationDisplay(monetary.inflationRate ?? 0);
   const ledger = world.ledger ?? state.ledger ?? {};
   const ledgerHistory = state.ledgerHistory ?? [];
   const netColor = Number(ledger.netBalance ?? 0) >= 0 ? '#1b8a3d' : '#b42318';
   mount.innerHTML = `
     <section class="panel"><h2>Treasury</h2><div class="tab-grid">
       ${statItem('Grain Treasury', formatNumber(agriculture.grainTreasury ?? 0))}
-      ${statItem('Coupon Treasury', formatNumber(world.couponTreasury ?? 0))}
-      ${statItem('Coupon Circulating', formatNumber(world.couponCirculating ?? 0))}
-      ${statItem('Tax Ratio', renderRatioValue(world.taxGrainRatio ?? 1))}
-      ${statItem('Salary Ratio', renderRatioValue(world.salaryGrainRatio ?? 1))}
+      ${statItem('Coupon Treasury', formatNumber(monetary.couponTreasury ?? 0))}
+      ${statItem('Coupon Circulating', formatNumber(monetary.couponCirculating ?? 0))}
+      ${statItem('Tax Ratio', renderRatioValue(fiscal.taxGrainRatio ?? 1))}
+      ${statItem('Salary Ratio', renderRatioValue(fiscal.salaryGrainRatio ?? 1))}
     </div></section>
     <section class="panel"><h2>Inflation</h2><div class="tab-grid">
-      ${statItem('Backing Ratio', formatDecimal(world.backingRatio ?? 1, 2))}
-      ${statItem('Inflation Rate', `<span style="color:${inflationDisplay.color};font-weight:700;">${formatDecimal((world.inflationRate ?? 0) * 100, 1)}%</span>`)}
-      ${statItem('Credit Crisis', world.creditCrisis ? 'Active' : 'None')}
+      ${statItem('Backing Ratio', formatDecimal(monetary.backingRatio ?? 1, 2))}
+      ${statItem('Inflation Rate', `<span style="color:${inflationDisplay.color};font-weight:700;">${formatDecimal((monetary.inflationRate ?? 0) * 100, 1)}%</span>`)}
+      ${statItem('Credit Crisis', monetary.creditCrisis ? 'Active' : 'None')}
     </div></section>
     <section class="panel"><h2>Salt Policy</h2>
       ${getOfficialSaltSaleControlsHtml(world)}

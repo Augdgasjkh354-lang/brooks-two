@@ -25,6 +25,15 @@ function clampPercent(value, min = 0, max = 1) {
   return Math.max(min, Math.min(max, n));
 }
 
+
+function getFiscal(world) {
+  return world?.__fiscal ?? world?.fiscal ?? world;
+}
+
+function getMonetary(world) {
+  return world?.__monetary ?? world?.monetary ?? world;
+}
+
 function ensureLedger(world) {
   if (!world) return null;
   if (!world.ledger) world.ledger = {};
@@ -44,7 +53,7 @@ export function calculateGdpPerCapita(world, gdpOverride = null) {
       : Number(gdpOverride ?? 0);
   const safeGdp = Math.max(0, Number.isFinite(sourceGdp) ? sourceGdp : 0);
   const gdpPerCapita = safeGdp / totalPopulation;
-  if (world) world.gdpPerCapita = gdpPerCapita;
+  if (world) getFiscal(world).gdpPerCapita = gdpPerCapita;
   return gdpPerCapita;
 }
 
@@ -67,7 +76,7 @@ export function getCommerceActivityBonus(world) {
   if (!world?.grainCouponsUnlocked) return { circulationRatio: 0, commerceActivityBonus: 1.0 };
 
   const totalPopulation = Math.max(1, world.totalPopulation ?? 0);
-  const circulationRatio = Math.max(0, (world.couponCirculating ?? 0) / totalPopulation);
+  const circulationRatio = Math.max(0, (getMonetary(world).couponCirculating ?? 0) / totalPopulation);
 
   if (circulationRatio >= 2.0) {
     return { circulationRatio, commerceActivityBonus: 1.2 };
@@ -108,19 +117,21 @@ export function canUseMoneylenderSystem(world) {
 }
 
 export function syncMoneylenderCaps(world) {
-  world.licenseFee = Math.max(0, Math.floor(Number(world.licenseFee ?? DEFAULT_MONEYLENDER_LICENSE_FEE)));
-  world.moneylenderTaxRate = clampPercent(world.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
+  const monetary = getMonetary(world);
+  const fiscal = getFiscal(world);
+  monetary.licenseFee = Math.max(0, Math.floor(Number(monetary.licenseFee ?? DEFAULT_MONEYLENDER_LICENSE_FEE)));
+  fiscal.moneylenderTaxRate = clampPercent(fiscal.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
 
   const maxAllowed = Math.max(0, Math.floor(Number(world.shopCount ?? 0)));
-  const approved = Math.max(0, Math.floor(Number(world.approvedMoneylenders ?? 0)));
-  world.approvedMoneylenders = Math.min(approved, maxAllowed);
-  world.moneylenderShops = world.approvedMoneylenders;
-  world.lendingPoolSize = clampMoney(world.moneylenderShops * 10000000);
+  const approved = Math.max(0, Math.floor(Number(monetary.approvedMoneylenders ?? 0)));
+  monetary.approvedMoneylenders = Math.min(approved, maxAllowed);
+  monetary.moneylenderShops = monetary.approvedMoneylenders;
+  monetary.lendingPoolSize = clampMoney(monetary.moneylenderShops * 10000000);
 
   return {
     maxAllowed,
-    approved: world.approvedMoneylenders,
-    lendingPoolSize: world.lendingPoolSize,
+    approved: monetary.approvedMoneylenders,
+    lendingPoolSize: monetary.lendingPoolSize,
   };
 }
 
@@ -131,14 +142,16 @@ export function approveMoneylenderLicenses(world, targetApproved) {
 
   const capInfo = syncMoneylenderCaps(world);
   const target = Math.max(0, Math.min(capInfo.maxAllowed, Math.floor(Number(targetApproved ?? 0))));
-  if (target === world.approvedMoneylenders) {
-    return { success: true, added: 0, totalApproved: world.approvedMoneylenders, totalCost: 0 };
+  const monetary = getMonetary(world);
+
+  if (target === monetary.approvedMoneylenders) {
+    return { success: true, added: 0, totalApproved: monetary.approvedMoneylenders, totalCost: 0 };
   }
 
-  if (target < world.approvedMoneylenders) {
-    world.approvedMoneylenders = target;
-    world.moneylenderShops = target;
-    world.lendingPoolSize = clampMoney(target * 10000000);
+  if (target < monetary.approvedMoneylenders) {
+    monetary.approvedMoneylenders = target;
+    monetary.moneylenderShops = target;
+    monetary.lendingPoolSize = clampMoney(target * 10000000);
     return {
       success: true,
       added: 0,
@@ -148,14 +161,14 @@ export function approveMoneylenderLicenses(world, targetApproved) {
     };
   }
 
-  const toAdd = target - world.approvedMoneylenders;
-  const totalCost = toAdd * clampMoney(world.licenseFee);
+  const toAdd = target - monetary.approvedMoneylenders;
+  const totalCost = toAdd * clampMoney(monetary.licenseFee);
 
   if (world.grainCouponsUnlocked) {
-    if (clampMoney(world.couponTreasury) < totalCost) {
+    if (clampMoney(getMonetary(world).couponTreasury) < totalCost) {
       return { success: false, reason: `Not enough coupon treasury (need ${totalCost}).` };
     }
-    world.couponTreasury = clampMoney(world.couponTreasury) - totalCost;
+    getMonetary(world).couponTreasury = clampMoney(getMonetary(world).couponTreasury) - totalCost;
   } else {
     if (clampMoney(world.grainTreasury) < totalCost) {
       return { success: false, reason: `Not enough grain treasury (need ${totalCost}).` };
@@ -163,9 +176,9 @@ export function approveMoneylenderLicenses(world, targetApproved) {
     world.grainTreasury = clampMoney(world.grainTreasury) - totalCost;
   }
 
-  world.approvedMoneylenders = target;
-  world.moneylenderShops = target;
-  world.lendingPoolSize = clampMoney(target * 10000000);
+  monetary.approvedMoneylenders = target;
+  monetary.moneylenderShops = target;
+  monetary.lendingPoolSize = clampMoney(target * 10000000);
 
   return {
     success: true,
@@ -212,10 +225,10 @@ export function approveCommercialSchoolLicenses(world, schoolType, targetCount) 
   const totalCost = toAdd * fee;
 
   if (world.grainCouponsUnlocked) {
-    if (clampMoney(world.couponTreasury) < totalCost) {
+    if (clampMoney(getMonetary(world).couponTreasury) < totalCost) {
       return { success: false, reason: `Not enough coupon treasury (need ${totalCost}).` };
     }
-    world.couponTreasury = clampMoney(world.couponTreasury) - totalCost;
+    getMonetary(world).couponTreasury = clampMoney(getMonetary(world).couponTreasury) - totalCost;
   } else {
     if (clampMoney(world.grainTreasury) < totalCost) {
       return { success: false, reason: `Not enough grain treasury (need ${totalCost}).` };
@@ -238,41 +251,43 @@ export function approveCommercialSchoolLicenses(world, schoolType, targetCount) 
 export function processCivilianLending(world) {
   syncMoneylenderCaps(world);
 
-  const lendingPoolSize = clampMoney(world.lendingPoolSize);
-  const governmentDebt = clampMoney(world.governmentDebt ?? 0);
-  const currentOutstanding = clampMoney(world.civilianLoanOutstanding ?? 0);
+  const monetary = getMonetary(world);
+  const fiscal = getFiscal(world);
+  const lendingPoolSize = clampMoney(monetary.lendingPoolSize);
+  const governmentDebt = clampMoney(monetary.governmentDebt ?? 0);
+  const currentOutstanding = clampMoney(monetary.civilianLoanOutstanding ?? 0);
 
-  world.lendingPoolAvailable = Math.max(0, lendingPoolSize - governmentDebt - currentOutstanding);
+  monetary.lendingPoolAvailable = Math.max(0, lendingPoolSize - governmentDebt - currentOutstanding);
 
-  if ((world.moneylenderShops ?? 0) <= 0) {
-    world.moneylenderGDP = 0;
-    world.civilianLoanOutstanding = currentOutstanding;
-    world.civilianInvestmentProgress = clampMoney(world.civilianInvestmentProgress ?? 0);
-    world.civilianLendingAccumulator = world.civilianLoanOutstanding;
+  if ((monetary.moneylenderShops ?? 0) <= 0) {
+    monetary.moneylenderGDP = 0;
+    monetary.civilianLoanOutstanding = currentOutstanding;
+    monetary.civilianInvestmentProgress = clampMoney(monetary.civilianInvestmentProgress ?? 0);
+    world.civilianLendingAccumulator = monetary.civilianLoanOutstanding;
     return { civilianLending: 0, civilianInterestIncome: 0, annualRepayment: 0, openedShops: 0 };
   }
 
-  const civilianLending = world.lendingPoolAvailable * 0.3;
-  world.civilianLoanOutstanding = currentOutstanding + civilianLending;
-  world.civilianInvestmentProgress = clampMoney(world.civilianInvestmentProgress ?? 0) + civilianLending;
-  world.lendingPoolAvailable = Math.max(0, world.lendingPoolAvailable - civilianLending);
+  const civilianLending = monetary.lendingPoolAvailable * 0.3;
+  monetary.civilianLoanOutstanding = currentOutstanding + civilianLending;
+  monetary.civilianInvestmentProgress = clampMoney(monetary.civilianInvestmentProgress ?? 0) + civilianLending;
+  monetary.lendingPoolAvailable = Math.max(0, monetary.lendingPoolAvailable - civilianLending);
 
   let openedShops = 0;
-  while (world.civilianInvestmentProgress >= 50000000) {
-    world.civilianInvestmentProgress -= 50000000;
+  while (monetary.civilianInvestmentProgress >= 50000000) {
+    monetary.civilianInvestmentProgress -= 50000000;
     world.shopCount = Math.max(0, Math.floor(Number(world.shopCount ?? 0)) + 1);
     openedShops += 1;
   }
 
-  const annualRepayment = world.civilianLoanOutstanding * 0.1;
-  world.civilianLoanOutstanding = Math.max(0, world.civilianLoanOutstanding - annualRepayment);
-  world.lendingPoolAvailable = Math.min(
+  const annualRepayment = monetary.civilianLoanOutstanding * 0.1;
+  monetary.civilianLoanOutstanding = Math.max(0, monetary.civilianLoanOutstanding - annualRepayment);
+  monetary.lendingPoolAvailable = Math.min(
     lendingPoolSize,
-    Math.max(0, world.lendingPoolAvailable + annualRepayment)
+    Math.max(0, monetary.lendingPoolAvailable + annualRepayment)
   );
 
-  const civilianInterestIncome = world.civilianLoanOutstanding * 0.08;
-  world.civilianLendingAccumulator = world.civilianLoanOutstanding;
+  const civilianInterestIncome = monetary.civilianLoanOutstanding * 0.08;
+  world.civilianLendingAccumulator = monetary.civilianLoanOutstanding;
 
   return {
     civilianLending,
@@ -288,22 +303,24 @@ export function finalizeMoneylenderYear(world, governmentInterestIncome = 0) {
   const civilian = processCivilianLending(world);
 
   const totalInterestIncome = clampMoney(civilian.civilianInterestIncome + governmentInterestIncome);
-  const baseMoneylenderGDP = clampMoney((world.moneylenderShops ?? 0) * SHOP_GDP_PER_UNIT);
+  const monetary = getMonetary(world);
+  const fiscal = getFiscal(world);
+  const baseMoneylenderGDP = clampMoney((monetary.moneylenderShops ?? 0) * SHOP_GDP_PER_UNIT);
   const moneylenderEfficiencyBonus = Math.max(0, Number(world.moneylenderEfficiencyBonus ?? 0));
   const moneylenderEfficiencyMultiplier = 1 + moneylenderEfficiencyBonus;
   const preTaxGDP = baseMoneylenderGDP + totalInterestIncome;
   const adjustedPreTaxGDP = preTaxGDP * moneylenderEfficiencyMultiplier;
-  const taxRate = clampPercent(world.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
+  const taxRate = clampPercent(fiscal.moneylenderTaxRate ?? MONEYLENDER_DEFAULT_TAX, 0, 0.2);
   const moneylenderTax = adjustedPreTaxGDP * taxRate;
 
-  world.moneylenderGDP = adjustedPreTaxGDP;
+  monetary.moneylenderGDP = adjustedPreTaxGDP;
 
   const merchantShare = totalInterestIncome * 0.5;
   const treasuryShare = totalInterestIncome * 0.5 + moneylenderTax;
   world.merchantIncomePool = clampMoney(world.merchantIncomePool) + merchantShare;
 
   if (world.grainCouponsUnlocked) {
-    world.couponTreasury = clampMoney(world.couponTreasury) + treasuryShare;
+    monetary.couponTreasury = clampMoney(monetary.couponTreasury) + treasuryShare;
   } else {
     world.grainTreasury = clampMoney(world.grainTreasury) + treasuryShare;
   }
@@ -342,8 +359,9 @@ export function applyCourtCommerceEffects(world, courtEffects) {
 export function applyCommerceTax(world) {
   if (!world) return { revenue: 0, taxRate: 0 };
 
-  const taxRate = clampPercent(Number(world.commerceTaxRate ?? 0), 0, 0.3);
-  world.commerceTaxRate = taxRate;
+  const fiscal = getFiscal(world);
+  const taxRate = clampPercent(Number(fiscal.commerceTaxRate ?? 0), 0, 0.3);
+  fiscal.commerceTaxRate = taxRate;
 
   let taxableGdp = Math.max(0, Number(world.commerceGDP ?? 0));
   if (taxRate > 0.2) {
@@ -384,16 +402,18 @@ export function applyTradePolicySettings(world) {
     };
   }
 
-  const subsidyRate = clampPercent(Number(world.subsidyRate ?? 0), 0, 0.2);
-  world.subsidyRate = subsidyRate;
+  const fiscal = getFiscal(world);
+  const monetary = getMonetary(world);
+  const subsidyRate = clampPercent(Number(fiscal.subsidyRate ?? 0), 0, 0.2);
+  fiscal.subsidyRate = subsidyRate;
 
   const protectLocalCloth = Boolean(world.protectLocalCloth);
   world.protectLocalCloth = protectLocalCloth;
   const clothQuotaCapRatio = protectLocalCloth ? 0.3 : 1;
   world.tradeProtectionQuotaCapRatio = clothQuotaCapRatio;
 
-  const subsidyBase = Math.max(0, Number(world.actualSaltImport ?? 0) * Number(world.saltPrice ?? 0)) +
-    Math.max(0, Number(world.previousClothImportReceived ?? 0) * Number(world.clothPrice ?? 0));
+  const subsidyBase = Math.max(0, Number(monetary.actualSaltImport ?? 0) * Number(monetary.saltPrice ?? 0)) +
+    Math.max(0, Number(world.previousClothImportReceived ?? 0) * Number(monetary.clothPrice ?? 0));
   const subsidyCost = subsidyBase * subsidyRate;
   world.tradeSubsidyCost = subsidyCost;
 
@@ -408,9 +428,9 @@ export function applyTradePolicySettings(world) {
 
   if (subsidyCost > 0) {
     if (world.grainCouponsUnlocked) {
-      const couponAvailable = clampMoney(world.couponTreasury ?? 0);
+      const couponAvailable = clampMoney(monetary.couponTreasury ?? 0);
       const fromCoupon = Math.min(couponAvailable, subsidyCost);
-      world.couponTreasury = couponAvailable - fromCoupon;
+      monetary.couponTreasury = couponAvailable - fromCoupon;
       world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - (subsidyCost - fromCoupon));
     } else {
       world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - subsidyCost);

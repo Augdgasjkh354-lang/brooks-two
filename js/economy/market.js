@@ -18,6 +18,11 @@ function clampPercentIndex(value) {
   return Math.max(0, Math.min(100, Math.round(Number(value ?? 0))));
 }
 
+
+function getMonetary(world) {
+  return world?.__monetary ?? world?.monetary ?? world;
+}
+
 function ensureLedger(world) {
   if (!world) return null;
   if (!world.ledger) world.ledger = {};
@@ -64,8 +69,9 @@ export function calculateCommodityPrice({
 }
 
 export function calculateLivingCost(world) {
-  const saltPrice = Math.max(0, Number(world?.saltPrice ?? SALT_BASE_PRICE));
-  const clothPrice = Math.max(0, Number(world?.clothPrice ?? CLOTH_BASE_PRICE));
+  const monetary = getMonetary(world);
+  const saltPrice = Math.max(0, Number(monetary?.saltPrice ?? SALT_BASE_PRICE));
+  const clothPrice = Math.max(0, Number(monetary?.clothPrice ?? CLOTH_BASE_PRICE));
   const grainCost = GRAIN_CONSUMPTION_PER_PERSON;
   const saltCost = SALT_CONSUMPTION_PER_PERSON * saltPrice;
   const clothCost = CLOTH_CONSUMPTION_PER_PERSON * clothPrice;
@@ -74,7 +80,7 @@ export function calculateLivingCost(world) {
   const saltAffordability = saltPrice / SALT_BASE_PRICE;
   const clothAffordability = clothPrice / CLOTH_BASE_PRICE;
 
-  world.totalLivingCost = totalLivingCost;
+  monetary.totalLivingCost = totalLivingCost;
   world.saltAffordability = saltAffordability;
   world.clothAffordability = clothAffordability;
 
@@ -115,9 +121,10 @@ export function clampCommodityPrice(value, minPrice, maxPrice) {
 }
 
 export function previewOfficialSaltSale(world, officialSaltPrice, officialSaltAmount) {
-  const marketSaltPrice = Math.max(0, Number(world?.saltPrice ?? 0));
-  const availableReserve = Math.max(0, Math.floor(Number(world?.saltReserve ?? 0)));
-  const annualDemand = Math.max(1, Number(world?.saltAnnualDemand ?? 0));
+  const monetary = getMonetary(world);
+  const marketSaltPrice = Math.max(0, Number(monetary?.saltPrice ?? 0));
+  const availableReserve = Math.max(0, Math.floor(Number(monetary?.saltReserve ?? 0)));
+  const annualDemand = Math.max(1, Number(monetary?.saltAnnualDemand ?? 0));
 
   const amount = Math.max(0, Math.floor(Number(officialSaltAmount ?? 0)));
   const cappedAmount = Math.min(amount, availableReserve);
@@ -149,7 +156,9 @@ export function previewOfficialSaltSale(world, officialSaltPrice, officialSaltAm
 
 export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAmount) {
   const ledger = ensureLedger(world);
-  if (world.officialSaltSaleUsed) {
+  const monetary = getMonetary(world);
+
+  if (monetary.officialSaltSaleUsed) {
     return { success: false, reason: 'Official salt sale already used this year.' };
   }
 
@@ -158,7 +167,7 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     return { success: false, reason: 'Official salt release must be at least 1000 jin.' };
   }
 
-  if (amount > (world.saltReserve ?? 0)) {
+  if (amount > (monetary.saltReserve ?? 0)) {
     return { success: false, reason: 'Official salt release cannot exceed current reserve.' };
   }
 
@@ -167,7 +176,7 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     return { success: false, reason: 'Official salt price must be a valid non-negative number.' };
   }
 
-  const marketPrice = Math.max(0, Number(world.saltPrice ?? 0));
+  const marketPrice = Math.max(0, Number(monetary.saltPrice ?? 0));
   if (price > marketPrice) {
     return { success: false, reason: 'Official salt price cannot be above current market salt price.' };
   }
@@ -176,13 +185,13 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
   const revenue = Math.round(preview.revenue);
   const subsidyLoss = Math.round(preview.subsidyLoss);
 
-  world.saltReserve = Math.max(0, Math.floor((world.saltReserve ?? 0) - preview.cappedAmount));
-  world.officialSaltAmount = Math.floor(preview.cappedAmount);
-  world.officialSaltPrice = preview.cappedPrice;
-  world.saltPrice = preview.nextSaltPrice;
+  monetary.saltReserve = Math.max(0, Math.floor((monetary.saltReserve ?? 0) - preview.cappedAmount));
+  monetary.officialSaltAmount = Math.floor(preview.cappedAmount);
+  monetary.officialSaltPrice = preview.cappedPrice;
+  monetary.saltPrice = preview.nextSaltPrice;
 
   if (world.grainCouponsUnlocked) {
-    world.couponTreasury = clamp((world.couponTreasury ?? 0) + revenue);
+    monetary.couponTreasury = clamp((monetary.couponTreasury ?? 0) + revenue);
   } else {
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + revenue);
   }
@@ -206,7 +215,7 @@ export function executeOfficialSaltSale(world, officialSaltPrice, officialSaltAm
     world.farmerSatisfaction = world.farmerLifeQuality;
   }
 
-  world.officialSaltSaleUsed = true;
+  monetary.officialSaltSaleUsed = true;
 
   return {
     success: true,
