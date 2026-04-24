@@ -296,6 +296,20 @@ export function calculateLifeQuality(world) {
     factors.landlord.push('粮食赤字');
   }
 
+  const unemploymentRate = Math.max(0, Number(world.unemploymentRate ?? 0));
+  if (unemploymentRate > 0.3) {
+    farmerLifeQuality -= 25;
+    world.stabilityIndex = Math.max(0, Number(world.stabilityIndex ?? 0) - 15);
+    factors.farmer.push('大规模失业（>30%）');
+  } else if (unemploymentRate >= 0.15) {
+    farmerLifeQuality -= 15;
+    world.stabilityIndex = Math.max(0, Number(world.stabilityIndex ?? 0) - 5);
+    factors.farmer.push('失业问题严重（15%-30%）');
+  } else if (unemploymentRate >= 0.05) {
+    farmerLifeQuality -= 5;
+    factors.farmer.push('失业率上升（5%-15%）');
+  }
+
   const computeSavings = (classKey, incomePerHead, population, currentSavings) => {
     const classIncomeTotal = incomePerHead * population;
     const classExpenditureTotal = totalLivingCost * population;

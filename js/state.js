@@ -116,6 +116,10 @@ export const initialState = {
     inflationRate: 0,
 
     workerLifeQuality: 50,
+    unemployed: 0,
+    unemploymentRate: 0,
+    institutionWorkers: 0,
+    unemploymentStatus: '正常',
 
     lifeQualityFactors: {
       farmer: '',
@@ -284,6 +288,14 @@ export const initialState = {
     landReclaimEfficiency: 1,
     farmerLiteracyEfficiencyBonus: 0,
     merchantLiteracyEfficiencyBonus: 0,
+  },
+  privateSector: {
+    farmerGrain: 4500000,
+    farmerCoupons: 0,
+    merchantCoupons: 0,
+    merchantGoods: 0,
+    totalPrivateGrain: 4500000,
+    totalPrivateCoupons: 0,
   },
   calendar: {
     year: 1,
@@ -1042,6 +1054,12 @@ function defineCompatAccessors(state) {
   });
   Object.defineProperty(state.world, '__institutions', {
     value: state.institutions,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__privateSector', {
+    value: state.privateSector,
     writable: true,
     enumerable: false,
     configurable: true,

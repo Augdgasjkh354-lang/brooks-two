@@ -28,6 +28,10 @@ function getFiscal(world) {
   return world?.__fiscal ?? world?.fiscal ?? world;
 }
 
+function getPrivateSector(state) {
+  return state?.privateSector ?? state?.world?.__privateSector ?? state?.world?.privateSector ?? null;
+}
+
 function ensureLedger(world) {
   if (!world) return null;
   if (!world.ledger) world.ledger = {};
@@ -139,17 +143,29 @@ export function issueGrainCoupons(state, amount) {
     return { success: false, reason: 'Issue amount must be greater than zero.' };
   }
 
-  const maxIssuable = clamp(state.world.grainTreasury ?? 0);
+  const privateSector = getPrivateSector(state);
+  if (!privateSector) {
+    return { success: false, reason: 'Private sector ledger is unavailable.' };
+  }
+
+  const maxIssuable = clamp(privateSector.farmerGrain ?? 0);
   if (issueAmount > maxIssuable) {
     return {
       success: false,
-      reason: `Issue amount exceeds current treasury absorption limit (${maxIssuable}).`,
+      reason: `Issue amount exceeds current farmer grain reserve (${maxIssuable}).`,
     };
   }
 
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
-  state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) - issueAmount;
+  privateSector.farmerGrain = clampMoney(privateSector.farmerGrain ?? 0) - issueAmount;
+  privateSector.farmerCoupons = clampMoney(privateSector.farmerCoupons ?? 0) + issueAmount;
+  privateSector.totalPrivateGrain = clampMoney((privateSector.farmerGrain ?? 0));
+  privateSector.totalPrivateCoupons = clampMoney(
+    (privateSector.farmerCoupons ?? 0) + (privateSector.merchantCoupons ?? 0)
+  );
+
+  state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) + issueAmount;
   const monetary = state.monetary ?? state.world;
   monetary.lockedGrainReserve = clampMoney(monetary.lockedGrainReserve ?? 0) + issueAmount;
   monetary.couponCirculating = clampMoney(monetary.couponCirculating ?? 0) + issueAmount;
