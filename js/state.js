@@ -170,7 +170,8 @@ export const initialState = {
     governmentDebtInterest: 0,
     governmentDebtCurrency: 'coupon',
     annualRepayment: 0,
-    civilianLendingAccumulator: 0,
+    civilianLoanOutstanding: 0,
+    civilianInvestmentProgress: 0,
     moneylenderGDP: 0,
 
     creditCrisis: false,
@@ -246,6 +247,8 @@ export const initialState = {
     annualPrimaryGrads: 0,
     annualSecondaryGrads: 0,
     annualHigherGrads: 0,
+    secondaryEligiblePool: 0,
+    higherEligiblePool: 0,
     scholarPool: 0,
     adminTalent: 0,
     commerceTalent: 0,
