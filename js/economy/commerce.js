@@ -420,6 +420,69 @@ export function applyCourtCommerceEffects(world, courtEffects) {
   world.commerceGDP = clampMoney(Number(world.commerceGDP ?? 0) * mult);
 }
 
+function collectMerchantTaxValue(world, taxValue, reason) {
+  const requiredValue = clampMoney(taxValue);
+  if (requiredValue <= 0) {
+    return {
+      paidValue: 0,
+      couponPaid: 0,
+      grainPaid: 0,
+      remainingValue: 0,
+    };
+  }
+
+  let remainingValue = requiredValue;
+  let couponPaid = 0;
+  let grainPaid = 0;
+
+  const couponAvailable = clampMoney(world?.privateSector?.merchantCoupons ?? 0);
+  const couponToPay = Math.min(remainingValue, couponAvailable);
+  if (couponToPay > 0) {
+    const ok = transfer({
+      from: 'private.merchant.coupon',
+      to: 'government.coupon',
+      asset: 'coupon',
+      amount: couponToPay,
+      gdpTreatment: 'transfer',
+      reason,
+    }, world);
+    if (ok) {
+      couponPaid = couponToPay;
+      remainingValue -= couponToPay;
+    }
+  }
+
+  if (remainingValue > 0) {
+    const grainPrice = Math.max(0.01, Number(world?.grainPrice ?? 1));
+    const merchantGrain = clampMoney(world?.privateSector?.merchantGrain ?? 0);
+    const grainRequired = remainingValue / grainPrice;
+    const grainToPay = Math.min(grainRequired, merchantGrain);
+
+    if (grainToPay > 0) {
+      const ok = transfer({
+        from: 'private.merchant.grain',
+        to: 'government.grain',
+        asset: 'grain',
+        amount: grainToPay,
+        gdpTreatment: 'transfer',
+        reason,
+      }, world);
+      if (ok) {
+        grainPaid = grainToPay;
+        remainingValue = Math.max(0, remainingValue - grainToPay * grainPrice);
+      }
+    }
+  }
+
+  const paidValue = Math.max(0, requiredValue - remainingValue);
+  return {
+    paidValue,
+    couponPaid,
+    grainPaid,
+    remainingValue,
+  };
+}
+
 export function applyCommerceTax(world) {
   if (!world) return { revenue: 0, taxRate: 0 };
 
@@ -433,21 +496,45 @@ export function applyCommerceTax(world) {
     world.commerceGDP = taxableGdp;
   }
 
-  const taxAmount = taxableGdp * taxRate;
-  const taxCollected = transfer({
-    from: 'private.merchant.coupon',
-    to: 'government.coupon',
-    asset: 'coupon',
-    amount: taxAmount,
-    gdpTreatment: 'transfer',
-    reason: 'commerce_tax'
-  }, world)
-    ? taxAmount
-    : 0;
+  const previousArrears = clampMoney(Number(world.merchantTaxArrears ?? 0));
+  const arrearsCollection = collectMerchantTaxValue(world, previousArrears, 'commerce_tax_arrears');
+  const remainingArrears = clampMoney(previousArrears - arrearsCollection.paidValue);
 
+  const taxAmount = taxableGdp * taxRate;
+  const currentCollection = collectMerchantTaxValue(world, taxAmount, 'commerce_tax');
+  const newArrears = clampMoney(taxAmount - currentCollection.paidValue);
+
+  const outstandingArrears = clampMoney(remainingArrears + newArrears);
+  world.merchantTaxArrears = outstandingArrears;
+  world.taxArrearsAccumulated = clampMoney(Number(world.taxArrearsAccumulated ?? 0) + newArrears);
+
+  const taxCollected = clampMoney(arrearsCollection.paidValue + currentCollection.paidValue);
   world.commerceTaxRevenue = taxCollected;
 
-  return { revenue: taxCollected, taxRate, taxableGdp };
+  if (outstandingArrears > 0) {
+    world.taxBureauEfficiency = Math.max(0, Number(world.taxBureauEfficiency ?? 0) - 10);
+    world.merchantLifeQuality = Math.max(0, Number(world.merchantLifeQuality ?? 0) - 5);
+    if (Array.isArray(world.yearLog)) {
+      world.yearLog.push('商业税收欠缴，税务局压力增加');
+    }
+  }
+
+  if (Number(world.taxArrearsAccumulated ?? 0) > taxableGdp * 0.5) {
+    world.merchantSatisfaction = Math.max(0, Number(world.merchantSatisfaction ?? 0) - 10);
+    world.courtEfficiency = Math.max(0, Number(world.courtEfficiency ?? 0) - 5);
+    if (Array.isArray(world.yearLog)) {
+      world.yearLog.push('累计欠税严重，影响营商环境');
+    }
+  }
+
+  return {
+    revenue: taxCollected,
+    taxRate,
+    taxableGdp,
+    arrearsPaid: arrearsCollection.paidValue,
+    currentTaxPaid: currentCollection.paidValue,
+    merchantTaxArrears: outstandingArrears,
+  };
 }
 
 export function applyTradeBureauCommerceEffects(world, tradeEffects) {

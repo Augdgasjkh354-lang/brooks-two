@@ -14,7 +14,7 @@ import {
 } from '../society/satisfaction.js';
 import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita, applyTradePolicySettings, calculateProductionCommerceGDP } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
-import { transfer } from './transfer.js';
+import { transfer, produce, consume } from './transfer.js';
 import {
   updateXikouVillageEconomy,
   updateXikouDiplomacy,
@@ -40,7 +40,8 @@ import {
 } from '../society/stability.js';
 import {
   FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
-  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
+  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR,
+  SALT_CONSUMPTION_PER_PERSON, CLOTH_CONSUMPTION_PER_PERSON
 } from '../config/constants.js';
 
 
@@ -356,7 +357,7 @@ export function updateEconomy(world, options = {}) {
   world.clothReserve = clamp(clothReserveAtYearStart + totalClothOutput);
 
   const saltReserveBeforeImport = Math.max(0, Number(world.saltReserve ?? 0));
-  const clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
+  let clothReserve = Math.max(0, Number(world.clothReserve ?? 0));
   const clothAnnualSupply = totalClothSupply;
 
   const saltAnnualDemand = Math.max(0, world.totalPopulation * 15 + incomePoolEffects.saltDemandIncrease);
@@ -462,7 +463,7 @@ export function updateEconomy(world, options = {}) {
 
   const saltReserveBeforeConsumption = saltReserveBeforeImport + saltImportExecuted;
   const saltConsumed = Math.min(saltAnnualDemand, saltReserveBeforeConsumption);
-  const saltReserve = Math.max(0, saltReserveBeforeConsumption - saltConsumed);
+  let saltReserve = Math.max(0, saltReserveBeforeConsumption - saltConsumed);
   const saltShortfallRatio =
     saltAnnualDemand > 0 ? 1 - saltConsumed / saltAnnualDemand : 0;
 
@@ -493,34 +494,74 @@ export function updateEconomy(world, options = {}) {
 
   const privateSector = getPrivateSectorState(world);
   if (privateSector) {
+    const farmingLabor = Math.max(0, Number(world.farmingLaborAllocated ?? 0));
     const annualFarmerIncome =
-      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) *
+      farmingLabor *
       10 *
       Math.max(0, Number(agriculture.grainYieldPerMu ?? effectiveYieldPerMu)) *
       (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
-    const annualFarmerConsumption =
-      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) * 360;
+    const annualFarmerConsumption = farmingLabor * 360;
+
     const retainedGrain = annualFarmerIncome;
-    const farmerRetentionApplied = transfer({
-      from: 'private.farmer.grain',
+    produce({
       to: 'private.farmer.grain',
       asset: 'grain',
       amount: retainedGrain,
       gdpTreatment: 'production',
-      reason: 'farmer_retention'
+      reason: 'farmer_grain_retention',
     }, world);
-    const saltSpending = Math.max(0, Number(privateSector.farmerGrain ?? 0)) * Math.max(0, Number(saltPricing.nextPrice ?? world.saltPrice ?? 0)) * 15;
 
-    privateSector.farmerGrain = Math.max(
-      0,
-      Number(privateSector.farmerGrain ?? 0) + (farmerRetentionApplied ? retainedGrain : 0) - annualFarmerConsumption - saltSpending
+    consume({
+      from: 'private.farmer.grain',
+      asset: 'grain',
+      amount: annualFarmerConsumption,
+      reason: 'farmer_food_consumption',
+    }, world);
+
+    const saltPrice = Math.max(1, Number(saltPricing.nextPrice ?? world.saltPrice ?? 0));
+    const farmerSaltDemand = farmingLabor * SALT_CONSUMPTION_PER_PERSON;
+    const saltAffordable = Math.max(0, Number(privateSector.farmerGrain ?? 0)) / saltPrice;
+    const saltConsumedByFarmers = Math.min(
+      farmerSaltDemand,
+      Math.max(0, Number(saltReserve ?? 0)),
+      saltAffordable
     );
+    const saltSpending = saltConsumedByFarmers * saltPrice;
+    consume({
+      from: 'private.farmer.grain',
+      asset: 'grain',
+      amount: saltSpending,
+      reason: 'farmer_salt_purchase',
+    }, world);
+    saltReserve = Math.max(0, Number(saltReserve ?? 0) - saltConsumedByFarmers);
+
+    const clothPrice = Math.max(1, Number(clothPricing.nextPrice ?? world.clothPrice ?? 0));
+    const farmerClothDemand = farmingLabor * CLOTH_CONSUMPTION_PER_PERSON;
+    const clothAffordable = Math.max(0, Number(privateSector.farmerGrain ?? 0)) / clothPrice;
+    const clothConsumedByFarmers = Math.min(
+      farmerClothDemand,
+      Math.max(0, Number(clothReserve ?? 0)),
+      clothAffordable
+    );
+    const clothSpending = clothConsumedByFarmers * clothPrice;
+    consume({
+      from: 'private.farmer.grain',
+      asset: 'grain',
+      amount: clothSpending,
+      reason: 'farmer_cloth_purchase',
+    }, world);
+    clothReserve = Math.max(0, Number(clothReserve ?? 0) - clothConsumedByFarmers);
+    world.clothReserve = clothReserve;
+
     privateSector.merchantGoods = Math.max(
       0,
       Number(privateSector.merchantGoods ?? 0) + commerceGDP * 0.5
     );
     privateSector.merchantGoods = Math.max(0, Number(privateSector.merchantGoods ?? 0) - Number(privateSector.merchantGoods ?? 0) * 0.3);
-    privateSector.totalPrivateGrain = Math.max(0, Number(privateSector.farmerGrain ?? 0));
+    privateSector.totalPrivateGrain = Math.max(
+      0,
+      Number(privateSector.farmerGrain ?? 0) + Number(privateSector.merchantGrain ?? 0)
+    );
     privateSector.totalPrivateCoupons = Math.max(
       0,
       Number(privateSector.farmerCoupons ?? 0) + Number(privateSector.merchantCoupons ?? 0)
