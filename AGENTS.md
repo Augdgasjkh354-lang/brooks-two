@@ -5311,3 +5311,112 @@ for all migrated fields.**
 - Game runs identically after refactor
 - state.world now only contains fields not
   yet migrated (xikou, research, ledger, logs)
+## Bugfix v4: Units + Price + Police (Current)
+
+Fixing 3 confirmed logic bugs. No new features.
+
+---
+
+**FIX 1: Grain price direction reversed (market.js)**
+
+Current wrong logic:
+- supplyRatio < 1 (shortage): price = supplyRatio
+  (e.g. ratio=0.3 means price=0.3, CHEAPER when scarce)
+- supplyRatio > 2 (surplus): price = 1.2
+  (MORE expensive when abundant)
+- This is completely backwards
+
+Correct logic:
+- Shortage → price rises
+- Surplus → price falls
+
+New grain price formula:
+if (supplyRatio >= 1.5) grainPrice *= 0.85
+  (abundant supply, price falls)
+else if (supplyRatio >= 1.0) grainPrice unchanged
+  (balanced, stable price)
+else if (supplyRatio >= 0.7) grainPrice *= 1.3
+  (mild shortage, price rises)
+else if (supplyRatio >= 0.4) grainPrice *= 1.8
+  (serious shortage, price rises sharply)
+else grainPrice *= 2.5
+  (severe shortage, price spikes)
+
+Price change capped at 40% per year max.
+grainPrice range: 0.5 - 5.0
+
+Also fix salt and cloth price direction if same
+bug exists in their formulas.
+
+---
+
+**FIX 2: Grain consumption unit unification
+(constants.js + all files)**
+
+Current problem:
+- constants.js: GRAIN_CONSUMPTION_PER_PERSON = 360
+- market.js: uses totalPopulation * 2 (wrong, = 2jin)
+- xikou.js: uses population * 2 (wrong)
+- satisfaction.js: uses grainDemandPerPerson = 400
+
+All must use single standard:
+GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR = 360
+
+Changes needed:
+- constants.js: add GRAIN_COMFORT_RESERVE =
+  GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR * 2
+  (2 years reserve = comfortable)
+- market.js: replace all population * 2 with
+  population * CONSTANTS.GRAIN_CONSUMPTION_PER_PERSON
+- xikou.js: replace population * 2 with same
+- satisfaction.js: replace grainDemandPerPerson = 400
+  with CONSTANTS.GRAIN_CONSUMPTION_PER_PERSON
+- Any other file using population * 2 for grain
+  demand must be updated
+
+---
+
+**FIX 3: Police efficiency sign reversal bug
+(stability.js)**
+
+Current wrong logic:
+- When policeEfficiency < 30:
+  effects.stabilityDelta = -ratioEffects.stabilityDelta
+  (negates the effect, turning -20 into +20)
+- This means critically inefficient police
+  IMPROVES stability, which is wrong
+
+Correct logic:
+- Low efficiency should amplify negative effects
+  and reduce positive effects, never invert them
+
+New logic:
+if (policeEfficiency < 30):
+  positiveEffects *= 0.2 (almost no benefit)
+  negativeEffects *= 1.5 (worse than no police)
+  yearLog: "警察系统效率极低，执法混乱加剧不稳"
+else if (policeEfficiency < 50):
+  positiveEffects *= 0.6
+  negativeEffects *= 1.2
+
+Never negate/invert the sign of any effect.
+
+**Files to modify:**
+- js/config/constants.js (fix 2)
+- js/economy/market.js (fix 1 + fix 2)
+- js/diplomacy/xikou.js (fix 2)
+- js/society/satisfaction.js (fix 2)
+- js/society/stability.js (fix 3)
+
+**Do NOT touch:** any ui/ files, unlocks.js,
+policies.js, game.js, state.js,
+any economy/ files except market.js
+
+**Definition of Done (Bugfix v4):**
+- Grain shortage causes price to rise
+- Grain surplus causes price to fall
+- All grain consumption uses 360 jin/person/year
+- No more population * 2 for grain demand
+- Police low efficiency amplifies negatives
+- Police effects never sign-inverted
+- yearLog records price changes and police warnings
