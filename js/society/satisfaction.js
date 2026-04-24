@@ -67,9 +67,7 @@ function getClassIncomePerHead(world) {
   const farmlandRentRate = Math.max(0, Number(world.farmlandRentRate ?? 0));
   const farmlandAreaMu = Math.max(0, Number(world.farmlandAreaMu ?? 0));
   const landlordPopulation = Math.max(1, Number(world.landlordPopulation ?? 0));
-  const landlordIncomePerHead =
-    (farmlandRentRate * farmlandAreaMu + Math.max(0, Number(world.landlordSatisfaction ?? 0)) * 100) /
-    landlordPopulation;
+  const landlordIncomePerHead = (farmlandRentRate * farmlandAreaMu) / landlordPopulation;
 
   return {
     farmerIncomePerHead,
@@ -341,11 +339,20 @@ export function calculateClassSatisfaction(world) {
   world.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
   world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? world.farmerLifeQuality ?? 50));
 
-  // Backward compatibility for existing triggers.
-  world.farmerSatisfaction = world.farmerLifeQuality;
-  world.merchantSatisfaction = world.merchantLifeQuality;
-  world.officialSatisfaction = world.officialLifeQuality;
-  world.landlordSatisfaction = world.landlordLifeQuality;
+  const farmerEventModifier = Number(world.farmerEventModifier ?? 0);
+  const merchantEventModifier = Number(world.merchantEventModifier ?? 0);
+  const officialEventModifier = Number(world.officialEventModifier ?? 0);
+  const landlordEventModifier = Number(world.landlordEventModifier ?? 0);
+
+  world.farmerSatisfaction = clampPercentIndex(world.farmerLifeQuality + farmerEventModifier);
+  world.merchantSatisfaction = clampPercentIndex(world.merchantLifeQuality + merchantEventModifier);
+  world.officialSatisfaction = clampPercentIndex(world.officialLifeQuality + officialEventModifier);
+  world.landlordSatisfaction = clampPercentIndex(world.landlordLifeQuality + landlordEventModifier);
+
+  world.farmerEventModifier = 0;
+  world.merchantEventModifier = 0;
+  world.officialEventModifier = 0;
+  world.landlordEventModifier = 0;
 
   world.lifeQualityFactors = {
     farmer: factors.farmer.join(' | ') || '无显著因素',
@@ -368,10 +375,10 @@ export function calculateClassSatisfaction(world) {
   world.lifeQualityChangeNotes = changeNotes;
 
   return {
-    farmerSatisfaction: world.farmerLifeQuality,
-    merchantSatisfaction: world.merchantLifeQuality,
-    officialSatisfaction: world.officialLifeQuality,
-    landlordSatisfaction: world.landlordLifeQuality,
+    farmerSatisfaction: world.farmerSatisfaction,
+    merchantSatisfaction: world.merchantSatisfaction,
+    officialSatisfaction: world.officialSatisfaction,
+    landlordSatisfaction: world.landlordSatisfaction,
     farmerLifeQuality: world.farmerLifeQuality,
     merchantLifeQuality: world.merchantLifeQuality,
     officialLifeQuality: world.officialLifeQuality,
@@ -387,13 +394,11 @@ export function applyPoliceLifeQualityEffects(world, policeEffects) {
   const farmerDelta = Number(policeEffects.farmerLifeQualityDelta ?? 0);
 
   if (merchantDelta !== 0) {
-    world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50) + merchantDelta);
-    world.merchantSatisfaction = world.merchantLifeQuality;
+    world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) + merchantDelta;
   }
 
   if (farmerDelta !== 0) {
-    world.farmerLifeQuality = clampPercentIndex(Number(world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50) + farmerDelta);
-    world.farmerSatisfaction = world.farmerLifeQuality;
+    world.farmerEventModifier = Number(world.farmerEventModifier ?? 0) + farmerDelta;
   }
 }
 
@@ -403,22 +408,18 @@ export function applyCourtTaxLifeQualityEffects(world, courtEffects = null) {
   if (courtEffects) {
     const merchantDelta = Number(courtEffects.merchantLifeQualityDelta ?? 0);
     if (merchantDelta !== 0) {
-      world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) + merchantDelta);
-      world.merchantSatisfaction = world.merchantLifeQuality;
+      world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) + merchantDelta;
     }
   }
 
   const commerceTaxRate = Math.max(0, Number(world.commerceTaxRate ?? 0));
   if (commerceTaxRate > 0.2) {
-    world.merchantLifeQuality = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) - 15);
-    world.merchantSatisfaction = world.merchantLifeQuality;
+    world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) - 15;
   }
 
   const landTaxRate = Math.max(0, Number(world.landTaxRate ?? 0));
   if (landTaxRate > 3) {
-    world.farmerLifeQuality = clampPercentIndex(Number(world.farmerLifeQuality ?? 50) - 10);
-    world.landlordLifeQuality = clampPercentIndex(Number(world.landlordLifeQuality ?? 50) - 15);
-    world.farmerSatisfaction = world.farmerLifeQuality;
-    world.landlordSatisfaction = world.landlordLifeQuality;
+    world.farmerEventModifier = Number(world.farmerEventModifier ?? 0) - 10;
+    world.landlordEventModifier = Number(world.landlordEventModifier ?? 0) - 15;
   }
 }

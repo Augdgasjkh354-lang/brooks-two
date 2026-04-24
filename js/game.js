@@ -52,12 +52,13 @@ function updateCreditCrisisResolutionState() {
   const circulating = Math.max(0, state.world.couponCirculating ?? 0);
   if (circulating <= 0) {
     state.world.couponCirculating = 0;
+    state.world.lockedGrainReserve = 0;
     state.world.backingRatio = 1;
     state.world.creditCrisis = false;
     return true;
   }
 
-  state.world.backingRatio = Math.max(0, (state.world.grainTreasury ?? 0) / circulating);
+  state.world.backingRatio = Math.max(0, (state.world.lockedGrainReserve ?? 0) / circulating);
   if (state.world.backingRatio >= 0.6) {
     state.world.creditCrisis = false;
     return true;
@@ -121,6 +122,7 @@ function resolveByEmergencyRedemption() {
 
   state.world.grainTreasury -= 20000;
   state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 20000);
+  state.world.lockedGrainReserve = Math.max(0, (state.world.lockedGrainReserve ?? 0) - 20000);
   state.world.creditCrisisResolved = true;
 
   const resolved = updateCreditCrisisResolutionState();
@@ -338,11 +340,17 @@ function runEngineeringProject(type) {
       return;
     }
     w.grainTreasury -= cost;
+    const finishYear = (w.year ?? 1) + 2;
     w.pendingIrrigationCanals = Math.max(0, Number(w.pendingIrrigationCanals ?? 0)) + 1;
-    w.irrigationCanalYear = (w.year ?? 1) + 2;
+    if (!Array.isArray(w.pendingCanals)) w.pendingCanals = [];
+    w.pendingCanals.push({
+      startYear: w.year ?? 1,
+      finishYear,
+      muCount: 1000,
+    });
     w.farmerIncomePool = Math.max(0, Number(w.farmerIncomePool ?? 0)) + cost * 0.7;
     w.merchantIncomePool = Math.max(0, Number(w.merchantIncomePool ?? 0)) + cost * 0.3;
-    state.yearLog.unshift(`Year ${w.year}: 启动水渠工程（耗资${cost}粮，预计Year ${w.irrigationCanalYear}完工）。`);
+    state.yearLog.unshift(`Year ${w.year}: 启动水渠工程（耗资${cost}粮，预计Year ${finishYear}完工）。`);
   } else if (type === 'wall') {
     if (w.wallReinforced) {
       state.yearLog.unshift(`Year ${w.year}: 城墙已加固，无需重复建设。`);
@@ -472,12 +480,28 @@ function nextYear() {
   if (tradeBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${tradeBureauEffects.message}`);
   if (engineeringBureauEffects.message) state.yearLog.unshift(`Year ${state.world.year}: ${engineeringBureauEffects.message}`);
 
-  if ((state.world.pendingIrrigationCanals ?? 0) > 0 && (state.world.year ?? 0) >= (state.world.irrigationCanalYear ?? Number.MAX_SAFE_INTEGER)) {
-    const completed = Math.floor(Number(state.world.pendingIrrigationCanals ?? 0));
-    state.world.irrigationCanalCount = Math.max(0, Number(state.world.irrigationCanalCount ?? 0)) + completed;
-    state.world.pendingIrrigationCanals = 0;
-    state.world.baseGrainYieldPerMu = Math.max(0, Number(state.world.baseGrainYieldPerMu ?? 500)) + completed * 50;
-    state.yearLog.unshift(`Year ${state.world.year}: 水渠工程完工${completed}条，灌溉能力提升。`);
+  if (Array.isArray(state.world.pendingCanals) && state.world.pendingCanals.length > 0) {
+    const completedCanals = [];
+    const remainingCanals = [];
+    for (const canal of state.world.pendingCanals) {
+      if ((canal?.finishYear ?? Number.MAX_SAFE_INTEGER) <= (state.world.year ?? 0)) {
+        completedCanals.push(canal);
+      } else {
+        remainingCanals.push(canal);
+      }
+    }
+
+    if (completedCanals.length > 0) {
+      const completed = completedCanals.length;
+      const addedMu = completedCanals.reduce((sum, c) => sum + Math.max(0, Number(c?.muCount ?? 0)), 0);
+      state.world.irrigationCanalCount = Math.max(0, Number(state.world.irrigationCanalCount ?? 0)) + completed;
+      state.world.farmlandAreaMu = Math.max(0, Number(state.world.farmlandAreaMu ?? 0)) + addedMu;
+      state.world.baseGrainYieldPerMu = Math.max(0, Number(state.world.baseGrainYieldPerMu ?? 500)) + completed * 50;
+      state.yearLog.unshift(`Year ${state.world.year}: 水渠工程完工${completed}条，新增耕地${Math.round(addedMu)}亩，灌溉能力提升。`);
+    }
+
+    state.world.pendingCanals = remainingCanals;
+    state.world.pendingIrrigationCanals = remainingCanals.length;
   }
 
   if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
