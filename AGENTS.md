@@ -5599,3 +5599,96 @@ ui/render_diplomacy.js
 - UI shows unemployment in 总览 tab:
   unemployed count / unemployment rate / status
 - yearLog records unemployment warnings
+## Phase 9B-1: GDP Recalculation (Current)
+
+Phase 9A complete. Now fixing GDP double-counting.
+No new features. Logic correction only.
+
+**Goal:** GDP only counts value-added production.
+Transfer payments, taxes, subsidies, imports
+do NOT count as GDP.
+
+**Correct GDP formula (production method):**
+
+agricultureGDP:
+- grainGDP = actualGrainOutput * grainPrice
+- clothGDP = totalClothOutput * blendedClothPrice
+- silkGDP = rawSilkOutput * 3.0
+  (silk worth 3x cloth price)
+- agricultureGDP = grainGDP + clothGDP + silkGDP
+
+commerceGDP:
+- = operatingShops * SHOP_GDP_PER_UNIT
+  * demandSaturation * commerceActivityBonus
+  * (1 + techBonuses.tradeEfficiency)
+- moneylenderGDP counted separately:
+  moneylenderGDP = moneylenderShops * SHOP_GDP_PER_UNIT
+  + civilianLoanOutstanding * 0.08
+- totalCommerceGDP = commerceGDP + moneylenderGDP
+
+constructionGDP:
+- Only NEW construction counts
+- = constructionSpendingThisYear * 0.7
+  (70% is labor value-added, 30% is materials)
+- constructionSpendingThisYear resets each year
+- Includes: farmland reclamation, roads, toilets,
+  buildings, canals
+
+governmentGDP:
+- = totalWageBill * 0.8
+  (government services valued at 80% of wage cost)
+- Does NOT include: subsidies, debt, transfers
+
+totalGDP = agricultureGDP + totalCommerceGDP
+  + constructionGDP + governmentGDP
+
+NOT counted as GDP:
+- Tax revenue (transfer payment)
+- Subsidies (transfer payment)
+- Import spending (foreign production)
+- Debt borrowing (liability)
+- Coupon issuance (monetary operation)
+- Wage payments to officials (already in governmentGDP)
+
+New state fields in world{}:
+- grainGDP: 0
+- clothGDP: 0
+- constructionGDP: 0
+- governmentGDP: 0
+- constructionSpendingThisYear: 0
+  (resets each year, accumulates during year)
+
+constructionSpendingThisYear accumulates from:
+- farmland reclamation cost
+- hemp/mulberry reclamation cost
+- road construction cost
+- toilet construction cost
+- canal construction cost
+- shop construction cost
+- school construction cost
+
+**Files to modify:**
+- js/state.js (new fields)
+- js/economy/agriculture.js (agricultureGDP)
+- js/economy/commerce.js (commerceGDP)
+- js/society/stability.js (governmentGDP)
+- js/game.js (constructionSpending tracking,
+  reset each year)
+- js/ui/render_economy.js (GDP breakdown panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ diplomacy/ ui/render_society.js
+ui/render_world.js ui/render_tech.js
+ui/render_diplomacy.js
+
+**Definition of Done (Phase 9B-1):**
+- agricultureGDP includes grain + cloth + silk
+- commerceGDP only counts operating shops
+- constructionGDP = 70% of new construction spending
+- governmentGDP = 80% of wage bill
+- No transfer payments counted as GDP
+- constructionSpendingThisYear tracked and reset
+- UI shows GDP breakdown in 经济 tab:
+  agriculture / commerce / construction / government
+  total GDP
+- yearLog records GDP components each year
