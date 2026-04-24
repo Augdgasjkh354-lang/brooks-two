@@ -5074,3 +5074,109 @@ for all migrated fields.**
 - All fields correctly moved
 - Backward compatibility getters maintained
 - Game runs identically after refactor
+## Phase 8D-3: State Refactor - Fiscal + Monetary (Current)
+
+Phase 8D-2 complete. Now extracting fiscal and
+monetary fields from state.world.
+
+**New structure:**
+
+state.fiscal = {
+  agriculturalTaxRate: 0.7,
+  taxGrainRatio: 1.0,
+  salaryGrainRatio: 1.0,
+  farmlandRentRate: 0,
+  landTaxRate: 0,
+  commerceTaxRate: 0,
+  moneylenderTaxRate: 0.01,
+  fireLeakageRate: 0.05,
+  actualTaxRevenue: 0,
+  theoreticalTaxRevenue: 0,
+  gdpPerCapita: 0,
+  totalWageBill: 0,
+  seniorOfficialWage: 0,
+  midOfficialWage: 0,
+  juniorOfficialWage: 0,
+  professionalWage: 0,
+  sanitationWorkerWage: 0,
+  cleaningWorkerWage: 0,
+  officerWage: 0,
+  judgeWage: 0,
+  taxOfficerWage: 0,
+  tradeOfficerWage: 0,
+  engineerWage: 0,
+  healthOfficerWage: 0,
+  subsidyRate: 0,
+  annualRepayment: 0
+}
+
+state.monetary = {
+  couponTreasury: 0,
+  couponCirculating: 0,
+  couponTotalIssued: 0,
+  lockedGrainReserve: 0,
+  backingRatio: 1.0,
+  inflationRate: 0,
+  supplyRatio: 1.0,
+  creditCrisis: false,
+  creditCrisisResolved: false,
+  creditRating: 'B',
+  governmentDebt: 0,
+  governmentDebtInterest: 0,
+  lendingPoolSize: 0,
+  lendingPoolAvailable: 0,
+  civilianLoanOutstanding: 0,
+  civilianInvestmentProgress: 0,
+  moneylenderShops: 0,
+  approvedMoneylenders: 0,
+  licenseFee: 5000000,
+  moneylenderGDP: 0,
+  saltPrice: 4.0,
+  clothPrice: 2.0,
+  saltReserve: 0,
+  clothReserve: 0,
+  saltAnnualSupply: 0,
+  saltAnnualDemand: 0,
+  clothAnnualSupply: 0,
+  clothAnnualDemand: 0,
+  saltImportQuota: 0,
+  actualSaltImport: 0,
+  saltConsumed: 0,
+  saltShortfallRatio: 0,
+  officialSaltPrice: 0,
+  officialSaltAmount: 0,
+  officialSaltSaleUsed: false,
+  clothImportQuota: 0,
+  localClothRatio: 0,
+  blendedClothPrice: 2.0,
+  purchasingPower: 100,
+  totalLivingCost: 0,
+  giniRatio: 0
+}
+
+**Migration rules:**
+- state.world.agriculturalTaxRate →
+  state.fiscal.agriculturalTaxRate
+- state.world.couponCirculating →
+  state.monetary.couponCirculating
+- (and so on for all fields listed above)
+
+**Keep backward compatibility getters in state.world
+for all migrated fields.**
+
+**Files to modify:**
+- js/state.js
+- js/economy/currency.js
+- js/economy/market.js
+- js/economy/commerce.js
+- js/society/stability.js
+- js/ui/render_economy.js
+- js/game.js
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 8D-3):**
+- state.fiscal and state.monetary exist
+- All fields correctly moved
+- Backward compatibility getters maintained
+- Game runs identically after refactor
