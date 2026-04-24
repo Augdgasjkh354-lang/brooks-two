@@ -164,7 +164,7 @@ export function applyLiteracyEffectsToWorld(world) {
   return effects;
 }
 
-export function calculateClassSatisfaction(world) {
+export function calculateLifeQuality(world) {
   const previousValues = {
     farmer: Number(world.farmerLifeQuality ?? world.farmerSatisfaction ?? 50),
     merchant: Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50),
@@ -339,20 +339,6 @@ export function calculateClassSatisfaction(world) {
   world.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
   world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? world.farmerLifeQuality ?? 50));
 
-  const farmerEventModifier = Number(world.farmerEventModifier ?? 0);
-  const merchantEventModifier = Number(world.merchantEventModifier ?? 0);
-  const officialEventModifier = Number(world.officialEventModifier ?? 0);
-  const landlordEventModifier = Number(world.landlordEventModifier ?? 0);
-
-  world.farmerSatisfaction = clampPercentIndex(world.farmerLifeQuality + farmerEventModifier);
-  world.merchantSatisfaction = clampPercentIndex(world.merchantLifeQuality + merchantEventModifier);
-  world.officialSatisfaction = clampPercentIndex(world.officialLifeQuality + officialEventModifier);
-  world.landlordSatisfaction = clampPercentIndex(world.landlordLifeQuality + landlordEventModifier);
-
-  world.farmerEventModifier = 0;
-  world.merchantEventModifier = 0;
-  world.officialEventModifier = 0;
-  world.landlordEventModifier = 0;
 
   world.lifeQualityFactors = {
     farmer: factors.farmer.join(' | ') || '无显著因素',
@@ -384,6 +370,42 @@ export function calculateClassSatisfaction(world) {
     officialLifeQuality: world.officialLifeQuality,
     landlordLifeQuality: world.landlordLifeQuality,
   };
+}
+
+export function calculateClassSatisfaction(world) {
+  if (!world) {
+    return {
+      farmerSatisfaction: 0,
+      merchantSatisfaction: 0,
+      officialSatisfaction: 0,
+      landlordSatisfaction: 0,
+    };
+  }
+
+  const farmerEventModifier = Number(world.farmerEventModifier ?? 0);
+  const merchantEventModifier = Number(world.merchantEventModifier ?? 0);
+  const officialEventModifier = Number(world.officialEventModifier ?? 0);
+  const landlordEventModifier = Number(world.landlordEventModifier ?? 0);
+
+  world.farmerSatisfaction = clampPercentIndex(Number(world.farmerLifeQuality ?? 50) + farmerEventModifier);
+  world.merchantSatisfaction = clampPercentIndex(Number(world.merchantLifeQuality ?? 50) + merchantEventModifier);
+  world.officialSatisfaction = clampPercentIndex(Number(world.officialLifeQuality ?? 50) + officialEventModifier);
+  world.landlordSatisfaction = clampPercentIndex(Number(world.landlordLifeQuality ?? 50) + landlordEventModifier);
+
+  return {
+    farmerSatisfaction: world.farmerSatisfaction,
+    merchantSatisfaction: world.merchantSatisfaction,
+    officialSatisfaction: world.officialSatisfaction,
+    landlordSatisfaction: world.landlordSatisfaction,
+  };
+}
+
+export function clearEventModifiers(world) {
+  if (!world) return;
+  world.farmerEventModifier = 0;
+  world.merchantEventModifier = 0;
+  world.officialEventModifier = 0;
+  world.landlordEventModifier = 0;
 }
 
 
