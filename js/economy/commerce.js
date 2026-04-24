@@ -218,33 +218,47 @@ export function approveCommercialSchoolLicenses(world, schoolType, targetCount) 
 
 export function processCivilianLending(world) {
   syncMoneylenderCaps(world);
-  if ((world.moneylenderShops ?? 0) <= 0) {
-    world.moneylenderGDP = 0;
-    return { civilianLending: 0, civilianInterestIncome: 0, openedShops: 0 };
-  }
 
   const lendingPoolSize = clampMoney(world.lendingPoolSize);
-  const lendingPoolAvailable = Math.max(
-    0,
-    lendingPoolSize - clampMoney(world.governmentDebt ?? 0) - clampMoney(world.civilianLendingAccumulator ?? 0)
-  );
-  world.lendingPoolAvailable = lendingPoolAvailable;
-  const civilianLending = lendingPoolAvailable * 0.3;
-  const civilianInterestIncome = civilianLending * 0.08;
+  const governmentDebt = clampMoney(world.governmentDebt ?? 0);
+  const currentOutstanding = clampMoney(world.civilianLoanOutstanding ?? 0);
 
-  world.civilianLendingAccumulator =
-    clampMoney(world.civilianLendingAccumulator) + civilianLending;
+  world.lendingPoolAvailable = Math.max(0, lendingPoolSize - governmentDebt - currentOutstanding);
+
+  if ((world.moneylenderShops ?? 0) <= 0) {
+    world.moneylenderGDP = 0;
+    world.civilianLoanOutstanding = currentOutstanding;
+    world.civilianInvestmentProgress = clampMoney(world.civilianInvestmentProgress ?? 0);
+    world.civilianLendingAccumulator = world.civilianLoanOutstanding;
+    return { civilianLending: 0, civilianInterestIncome: 0, annualRepayment: 0, openedShops: 0 };
+  }
+
+  const civilianLending = world.lendingPoolAvailable * 0.3;
+  world.civilianLoanOutstanding = currentOutstanding + civilianLending;
+  world.civilianInvestmentProgress = clampMoney(world.civilianInvestmentProgress ?? 0) + civilianLending;
+  world.lendingPoolAvailable = Math.max(0, world.lendingPoolAvailable - civilianLending);
 
   let openedShops = 0;
-  while (world.civilianLendingAccumulator >= 50000000) {
-    world.civilianLendingAccumulator -= 50000000;
+  while (world.civilianInvestmentProgress >= 50000000) {
+    world.civilianInvestmentProgress -= 50000000;
     world.shopCount = Math.max(0, Math.floor(Number(world.shopCount ?? 0)) + 1);
     openedShops += 1;
   }
 
+  const annualRepayment = world.civilianLoanOutstanding * 0.1;
+  world.civilianLoanOutstanding = Math.max(0, world.civilianLoanOutstanding - annualRepayment);
+  world.lendingPoolAvailable = Math.min(
+    lendingPoolSize,
+    Math.max(0, world.lendingPoolAvailable + annualRepayment)
+  );
+
+  const civilianInterestIncome = world.civilianLoanOutstanding * 0.08;
+  world.civilianLendingAccumulator = world.civilianLoanOutstanding;
+
   return {
     civilianLending,
     civilianInterestIncome,
+    annualRepayment,
     openedShops,
   };
 }

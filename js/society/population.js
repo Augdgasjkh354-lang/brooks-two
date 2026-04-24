@@ -300,22 +300,37 @@ export function processEducationYear(world) {
 
   const wealthyChildrenPool = Math.floor(childrenPool * 0.15);
   const primaryEnrolled = Math.min(childrenPool, commercialPrimaryCapacity + governmentPrimaryCapacity);
-  const secondaryEligiblePool = Math.max(0, Math.floor((world.primaryGraduates ?? 0) * 0.4));
-  const secondaryEnrolled = Math.min(
-    secondaryEligiblePool,
-    commercialSecondaryCapacity + governmentSecondaryCapacity
-  );
-  const higherEligiblePool = Math.max(0, Math.floor((world.secondaryGraduates ?? 0) * 0.3));
+  const annualPrimaryGrads = Math.floor(primaryEnrolled / 3);
+
+  const currentSecondaryEligiblePool = Math.max(0, Number(world.secondaryEligiblePool ?? 0));
+  const currentHigherEligiblePool = Math.max(0, Number(world.higherEligiblePool ?? 0));
+
+  const secondaryCapacity = commercialSecondaryCapacity + governmentSecondaryCapacity;
+  const secondaryPoolBeforeEnrollment = currentSecondaryEligiblePool + annualPrimaryGrads;
+  const secondaryEnrolled = Math.min(secondaryCapacity, Math.floor(secondaryPoolBeforeEnrollment));
+  const annualSecondaryGrads = Math.floor(secondaryEnrolled / 4);
+
+  const higherCapacity = governmentHigherCapacity;
+  const higherPoolBeforeEnrollment = currentHigherEligiblePool + annualSecondaryGrads;
   const higherEnrolled = world.higherSchoolUnlocked
-    ? Math.min(higherEligiblePool, governmentHigherCapacity)
+    ? Math.min(higherCapacity, Math.floor(higherPoolBeforeEnrollment))
     : 0;
+  const annualHigherGrads = Math.floor(higherEnrolled / 3);
+
+  const secondaryEligiblePool = Math.max(
+    0,
+    (secondaryPoolBeforeEnrollment - secondaryEnrolled) * 0.95
+  );
+  const higherEligiblePool = Math.max(
+    0,
+    (higherPoolBeforeEnrollment - higherEnrolled) * 0.95
+  );
 
   const commercialPrimaryEnrolled = Math.min(wealthyChildrenPool, Math.min(primaryEnrolled, commercialPrimaryCapacity));
-  const commercialSecondaryEnrolled = Math.min(Math.max(0, Math.floor(secondaryEligiblePool * 0.3)), Math.min(secondaryEnrolled, commercialSecondaryCapacity));
-
-  const annualPrimaryGrads = Math.floor(primaryEnrolled / 3);
-  const annualSecondaryGrads = Math.floor(secondaryEnrolled / 4);
-  const annualHigherGrads = Math.floor(higherEnrolled / 3);
+  const commercialSecondaryEnrolled = Math.min(
+    Math.max(0, Math.floor(secondaryEnrolled * 0.3)),
+    Math.min(secondaryEnrolled, commercialSecondaryCapacity)
+  );
 
   world.primaryEnrolled = primaryEnrolled;
   world.secondaryEnrolled = secondaryEnrolled;
@@ -323,6 +338,8 @@ export function processEducationYear(world) {
   world.annualPrimaryGrads = annualPrimaryGrads;
   world.annualSecondaryGrads = annualSecondaryGrads;
   world.annualHigherGrads = annualHigherGrads;
+  world.secondaryEligiblePool = Math.max(0, Math.floor(secondaryEligiblePool));
+  world.higherEligiblePool = Math.max(0, Math.floor(higherEligiblePool));
 
   const decayedPrimary = Math.max(0, Math.floor(Number(world.primaryGraduates ?? 0) * 0.97));
   const decayedSecondary = Math.max(0, Math.floor(Number(world.secondaryGraduates ?? 0) * 0.97));
@@ -344,6 +361,8 @@ export function processEducationYear(world) {
     annualPrimaryGrads,
     annualSecondaryGrads,
     annualHigherGrads,
+    secondaryEligiblePool: world.secondaryEligiblePool,
+    higherEligiblePool: world.higherEligiblePool,
   };
 }
 
