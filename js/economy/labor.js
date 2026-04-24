@@ -36,12 +36,9 @@ function clampToRange(value, min, max) {
 }
 
 function deriveEffectiveLaborForceFromCohorts(population) {
-  const hasCohortData = [
-    'teenPop',
-    'youthPop',
-    'primeAdultPop',
-    'middleAgePop',
-  ].every((key) => Number.isFinite(Number(population[key])));
+  const hasCohortData = ['teenPop', 'youthPop', 'primeAdultPop', 'middleAgePop'].every((key) =>
+    Number.isFinite(Number(population[key]))
+  );
 
   if (!hasCohortData) {
     return Math.max(0, Math.floor(Number(population.laborForce ?? 0)));
@@ -106,197 +103,233 @@ function calculateAverageOfficialWage(world, institutionWorkers) {
   return institutionWorkers > 0 ? Math.max(0, Number(fiscal.midOfficialWage ?? 0)) : 0;
 }
 
+function softmax(x) {
+  return Math.exp(x);
+}
+
+export function softmaxLaborAllocation(sectors, movableLabor, temperature) {
+  const safeTemperature = Math.max(1, Number(temperature ?? 1));
+  const weights = sectors.map((sector) => {
+    const utility = Number(sector.utility ?? 0);
+    return { id: sector.id, weight: softmax(utility / safeTemperature) };
+  });
+
+  const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
+  if (totalWeight <= 0) {
+    const equalShare = sectors.length > 0 ? movableLabor / sectors.length : 0;
+    return sectors.map((sector) => ({ id: sector.id, targetLabor: equalShare }));
+  }
+
+  return weights.map((item) => ({
+    id: item.id,
+    targetLabor: (item.weight / totalWeight) * movableLabor,
+  }));
+}
+
 export function calculateLaborAllocation(world) {
   const land = getLandState(world);
   const agriculture = getAgricultureState(world);
   const population = getPopulationState(world);
+
   population.laborForce = deriveEffectiveLaborForceFromCohorts(population);
   const laborForce = Math.max(0, Number(population.laborForce ?? 0));
   const institutionWorkers = Math.max(0, Math.floor(calculateInstitutionWorkers(world)));
   const merchantCount = Math.max(0, Math.floor(Number(world.merchantCount ?? 0)));
+
   const fixedAllocatedLabor = Math.min(laborForce, institutionWorkers + merchantCount);
-  const availableLabor = Math.max(0, laborForce - fixedAllocatedLabor);
+  const movableLabor = Math.max(0, laborForce - fixedAllocatedLabor);
 
   const requiredFarmingLabor = Math.max(0, Math.floor((land.farmlandAreaMu ?? 0) / LABOR_PER_MU));
   const hempLaborRequired = Math.max(0, Math.floor((land.hempLandMu ?? 0) / LABOR_PER_MU));
   const mulberryLaborRequired = Math.max(0, Math.floor((land.mulberryLandMu ?? 0) / LABOR_PER_MU));
-  const minFarmingLabor = Math.min(availableLabor, requiredFarmingLabor);
+  const foodSecurityLaborFloor = Math.min(requiredFarmingLabor, movableLabor);
 
-  const priorFarming = Math.max(minFarmingLabor, Number(world.farmingLaborAllocated ?? minFarmingLabor));
+  const priorFarming = Math.max(foodSecurityLaborFloor, Number(world.farmingLaborAllocated ?? foodSecurityLaborFloor));
   const priorCommerce = Math.max(0, Number(world.commerceLaborAllocated ?? world.laborAssignedCommerce ?? 0));
   const priorHemp = clampToRange(Number(world.hempLaborAllocated ?? 0), 0, hempLaborRequired);
   const priorMulberry = clampToRange(Number(world.mulberryLaborAllocated ?? 0), 0, mulberryLaborRequired);
-  const priorTotal = Math.max(1, priorFarming + priorCommerce + priorHemp + priorMulberry);
-  const scale = Math.min(1, availableLabor / priorTotal);
-  const startingFarming = Math.max(minFarmingLabor, priorFarming * scale);
-  let remainingLabor = Math.max(0, availableLabor - startingFarming);
-  const startingCommerce = Math.min(priorCommerce * scale, remainingLabor);
-  remainingLabor -= startingCommerce;
-  const startingHemp = Math.min(priorHemp * scale, remainingLabor);
-  remainingLabor -= startingHemp;
-  const startingMulberry = Math.min(priorMulberry * scale, remainingLabor);
-  remainingLabor -= startingMulberry;
 
-  let farmingLaborAllocated = startingFarming;
-  let commerceLaborAllocated = startingCommerce;
-  let hempLaborAllocated = startingHemp;
-  let mulberryLaborAllocated = startingMulberry;
+  const commerceLaborCapProbe = calculateShopOperationState(
+    world,
+    Math.max(0, Math.floor(Number(world.shopCount ?? 0)) * 4)
+  );
+  const commerceLaborDemandCap = Math.max(0, Number(commerceLaborCapProbe.commerceLaborDemand ?? 0));
 
-  const initializeFreshAllocation =
-    Number(world.year ?? 1) <= 1 &&
-    Number(world.commerceLaborAllocated ?? world.laborAssignedCommerce ?? 0) <= 0 &&
-    Number(world.hempLaborAllocated ?? 0) <= 0 &&
-    Number(world.mulberryLaborAllocated ?? 0) <= 0;
-
-  if (initializeFreshAllocation) {
-    farmingLaborAllocated = minFarmingLabor;
-    commerceLaborAllocated = 0;
-    hempLaborAllocated = 0;
-    mulberryLaborAllocated = 0;
-  }
-
-  const commerceLaborDemandCap = Math.max(0, Math.floor(Number(world.shopCount ?? 0)) * 4);
   const grainPrice = Math.max(0, Number(world.grainPrice ?? 1));
   const grainYieldPerMu = Math.max(0, Number(agriculture.grainYieldPerMu ?? agriculture.baseGrainYieldPerMu ?? 0));
   const agriculturalTaxRate = clampToRange(Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0), 0, 1);
   const farmingWage = 10 * grainYieldPerMu * (1 - agriculturalTaxRate) * grainPrice;
-  const commerceLaborDemandForWage = Math.max(
-    1,
-    Math.floor(Number(world.commerceLaborDemand ?? commerceLaborDemandCap ?? 0))
-  );
-  const commerceWagePerWorker = Math.max(0, Number(world.commerceGDP ?? 0)) / commerceLaborDemandForWage;
+
+  const commerceWagePerWorker =
+    commerceLaborDemandCap > 0
+      ? Math.max(0, Number(world.commerceGDP ?? 0)) / commerceLaborDemandCap
+      : Math.max(0, Number(world.commerceWagePerWorker ?? 0));
+
   const hempWage =
     hempLaborRequired > 0
       ? (Math.max(0, Number(land.hempLandMu ?? 0)) * 5 * Math.max(0, Number(world.blendedClothPrice ?? world.clothPrice ?? 0))) /
         hempLaborRequired
       : 0;
+
   const mulberryWage =
     mulberryLaborRequired > 0
       ? (Math.max(0, Number(land.mulberryLandMu ?? 0)) * 15 * Math.max(0, Number(world.blendedClothPrice ?? world.clothPrice ?? 0))) /
         mulberryLaborRequired
       : 0;
-  const averageWage = (farmingWage + commerceWagePerWorker) / 2;
+
+  const laborForAverage = Math.max(1, priorFarming + priorCommerce + priorHemp + priorMulberry);
+  const averageWage =
+    (farmingWage * priorFarming +
+      commerceWagePerWorker * priorCommerce +
+      hempWage * priorHemp +
+      mulberryWage * priorMulberry) /
+    laborForAverage;
+
   const institutionWage = calculateAverageOfficialWage(world, institutionWorkers);
-  const flowSpeed = 0.05;
-  const maxFlowRate = 0.1;
+  const flowSpeed = 0.08;
 
-  const sectors = {
-    farming: { labor: farmingLaborAllocated, wage: farmingWage, min: minFarmingLabor, max: availableLabor },
-    commerce: { labor: commerceLaborAllocated, wage: commerceWagePerWorker, min: 0, max: commerceLaborDemandCap },
-    hemp: { labor: hempLaborAllocated, wage: hempWage, min: 0, max: hempLaborRequired },
-    mulberry: { labor: mulberryLaborAllocated, wage: mulberryWage, min: 0, max: mulberryLaborRequired },
-  };
+  const sectors = [
+    {
+      id: 'farming',
+      wage: farmingWage,
+      risk: Number(world.grainSurplus ?? 0) < 0 ? 0.3 : 0.0,
+      mobilityCost: 0.05,
+      min: foodSecurityLaborFloor,
+      max: requiredFarmingLabor,
+      currentLabor: priorFarming,
+    },
+    {
+      id: 'commerce',
+      wage: commerceWagePerWorker,
+      risk: 0.02,
+      mobilityCost: 0.15,
+      min: 0,
+      max: commerceLaborDemandCap,
+      currentLabor: priorCommerce,
+    },
+    {
+      id: 'hemp',
+      wage: hempWage,
+      risk: 0.01,
+      mobilityCost: 0.1,
+      min: 0,
+      max: hempLaborRequired,
+      currentLabor: priorHemp,
+    },
+    {
+      id: 'mulberry',
+      wage: mulberryWage,
+      risk: 0.01,
+      mobilityCost: 0.12,
+      min: 0,
+      max: mulberryLaborRequired,
+      currentLabor: priorMulberry,
+    },
+  ];
 
-  Object.values(sectors).forEach((sector) => {
-    sector.labor = clampToRange(sector.labor, sector.min, sector.max);
+  sectors.forEach((sector) => {
+    sector.max = Math.max(sector.min, sector.max);
+    sector.currentLabor = clampToRange(sector.currentLabor, sector.min, sector.max);
+    sector.utility = sector.wage * (1 - sector.risk) - sector.mobilityCost * averageWage;
   });
 
-  const wageBase = Math.max(averageWage, 1);
-  const requestedDelta = {};
-  Object.entries(sectors).forEach(([key, sector]) => {
-    const wageDiff = sector.wage - averageWage;
-    const rawChange = sector.labor * flowSpeed * (wageDiff / wageBase);
-    const maxChange = sector.labor * maxFlowRate;
-    requestedDelta[key] = clampToRange(rawChange, -maxChange, maxChange);
+  const temperature = Math.max(averageWage * 0.5, 1);
+  const softTargets = softmaxLaborAllocation(sectors, movableLabor, temperature);
+
+  const targetBySector = {};
+  softTargets.forEach((entry) => {
+    const sector = sectors.find((s) => s.id === entry.id);
+    targetBySector[entry.id] = clampToRange(entry.targetLabor, sector.min, sector.max);
   });
 
-  const appliedDelta = { farming: 0, commerce: 0, hemp: 0, mulberry: 0 };
-  const positiveEntries = Object.entries(requestedDelta).filter(([, delta]) => delta > 0);
-  const negativeLaborPool = Object.entries(requestedDelta)
-    .filter(([, delta]) => delta < 0)
-    .reduce((sum, [key, delta]) => {
-      const sector = sectors[key];
-      const maxOut = Math.max(0, sector.labor - sector.min);
-      return sum + Math.min(-delta, maxOut);
-    }, 0);
+  let allocatedTarget = Object.values(targetBySector).reduce((sum, v) => sum + v, 0);
+  let remaining = Math.max(0, movableLabor - allocatedTarget);
 
-  let positiveNeed = positiveEntries.reduce((sum, [, delta]) => sum + delta, 0);
-  const positiveScale = positiveNeed > 0 ? Math.min(1, negativeLaborPool / positiveNeed) : 0;
+  if (remaining > 0) {
+    const farmingSector = sectors.find((s) => s.id === 'farming');
+    const farmingRoom = Math.max(0, farmingSector.max - targetBySector.farming);
+    const farmingBoost = Math.min(remaining, farmingRoom);
+    targetBySector.farming += farmingBoost;
+    remaining -= farmingBoost;
+  }
 
-  positiveEntries.forEach(([key, delta]) => {
-    const sector = sectors[key];
-    const maxIn = Math.max(0, sector.max - sector.labor);
-    const scaled = delta * positiveScale;
-    const accepted = Math.min(scaled, maxIn);
-    appliedDelta[key] = accepted;
+  const newBySector = {};
+  sectors.forEach((sector) => {
+    const target = targetBySector[sector.id] ?? sector.currentLabor;
+    const next = sector.currentLabor + flowSpeed * (target - sector.currentLabor);
+    newBySector[sector.id] = clampToRange(next, sector.min, sector.max);
   });
 
-  const totalPositiveApplied = Object.values(appliedDelta).reduce((sum, delta) => sum + Math.max(0, delta), 0);
-  const negativeEntries = Object.entries(requestedDelta).filter(([, delta]) => delta < 0);
-  let remainingNegativeToApply = totalPositiveApplied;
-  const totalNegativeCapacity = negativeEntries.reduce((sum, [key]) => {
-    const sector = sectors[key];
-    return sum + Math.max(0, sector.labor - sector.min);
-  }, 0);
+  const sectorLaborTotal = Object.values(newBySector).reduce((sum, v) => sum + v, 0);
+  let unemployed = Math.max(0, movableLabor - sectorLaborTotal);
 
-  negativeEntries.forEach(([key], index) => {
-    const sector = sectors[key];
-    const maxOut = Math.max(0, sector.labor - sector.min);
-    if (index === negativeEntries.length - 1) {
-      const give = Math.min(maxOut, remainingNegativeToApply);
-      appliedDelta[key] = -give;
-    } else {
-      const share = totalNegativeCapacity > 0 ? maxOut / totalNegativeCapacity : 0;
-      const give = Math.min(maxOut, remainingNegativeToApply * share);
-      appliedDelta[key] = -give;
-      remainingNegativeToApply -= give;
-    }
-  });
+  const farmingAfterFlow = newBySector.farming ?? 0;
+  const farmingNeeded = Math.max(0, foodSecurityLaborFloor - farmingAfterFlow);
+  if (farmingNeeded > 0) {
+    const moved = Math.min(unemployed, farmingNeeded);
+    newBySector.farming = farmingAfterFlow + moved;
+    unemployed -= moved;
+  }
 
-  Object.entries(sectors).forEach(([key, sector]) => {
-    sector.labor = clampToRange(sector.labor + (appliedDelta[key] ?? 0), sector.min, sector.max);
-  });
+  const finalFarming = clamp(newBySector.farming ?? 0);
+  const finalCommerceRaw = clamp(newBySector.commerce ?? 0);
+  const finalHemp = clamp(newBySector.hemp ?? 0);
+  const finalMulberry = clamp(newBySector.mulberry ?? 0);
 
-  const laborUsedBySectors = Object.values(sectors).reduce((sum, sector) => sum + sector.labor, 0);
-  const availableSlack = Math.max(0, availableLabor - laborUsedBySectors);
-  sectors.farming.labor = clampToRange(sectors.farming.labor + availableSlack, sectors.farming.min, sectors.farming.max);
+  const shopOps = calculateShopOperationState(world, finalCommerceRaw);
+  const finalCommerce = clamp(shopOps.commerceLaborDemand ?? 0);
 
-  const finalCommerceLabor = clamp(sectors.commerce.labor);
-  const shopOps = calculateShopOperationState(world, finalCommerceLabor);
-  const commerceLaborAllocatedFromShops = shopOps.commerceLaborDemand;
+  const variableLaborUsed = finalFarming + finalCommerce + finalHemp + finalMulberry;
+  const finalUnemployed = Math.max(0, laborForce - fixedAllocatedLabor - variableLaborUsed);
+  const unemploymentRate = laborForce > 0 ? finalUnemployed / laborForce : 0;
 
-  const farmingLaborFinal = clamp(sectors.farming.labor);
-  const hempLaborFinal = clamp(sectors.hemp.labor);
-  const mulberryLaborFinal = clamp(sectors.mulberry.labor);
-  const allocatedVariableLabor = farmingLaborFinal + commerceLaborAllocatedFromShops + hempLaborFinal + mulberryLaborFinal;
-  const unemployed = Math.max(0, laborForce - fixedAllocatedLabor - allocatedVariableLabor);
-  const unemploymentRate = population.laborForce > 0 ? unemployed / population.laborForce : 0;
-  const idleLabor = unemployed;
-  const farmEfficiency =
-    requiredFarmingLabor > 0 ? clampRatio(farmingLaborFinal / requiredFarmingLabor) : 1;
-  const hempEfficiency = hempLaborRequired > 0 ? clampRatio(hempLaborFinal / hempLaborRequired) : 1;
-  const mulberryEfficiency =
-    mulberryLaborRequired > 0 ? clampRatio(mulberryLaborFinal / mulberryLaborRequired) : 1;
+  const farmEfficiency = requiredFarmingLabor > 0 ? clampRatio(finalFarming / requiredFarmingLabor) : 1;
+  const hempEfficiency = hempLaborRequired > 0 ? clampRatio(finalHemp / hempLaborRequired) : 1;
+  const mulberryEfficiency = mulberryLaborRequired > 0 ? clampRatio(finalMulberry / mulberryLaborRequired) : 1;
 
   world.farmingLaborRequired = clamp(requiredFarmingLabor);
-  world.farmingLaborAllocated = farmingLaborFinal;
+  world.farmingLaborAllocated = finalFarming;
   population.laborAssignedFarming = world.farmingLaborAllocated;
+
   population.hempLaborRequired = clamp(hempLaborRequired);
   population.mulberryLaborRequired = clamp(mulberryLaborRequired);
   world.hempLaborRequired = population.hempLaborRequired;
   world.mulberryLaborRequired = population.mulberryLaborRequired;
-  world.hempLaborAllocated = hempLaborFinal;
-  world.mulberryLaborAllocated = mulberryLaborFinal;
-  world.commerceLaborAllocated = commerceLaborAllocatedFromShops;
-  population.laborAssignedCommerce = commerceLaborAllocatedFromShops;
-  population.commerceLaborAllocated = commerceLaborAllocatedFromShops;
-  population.laborIdle = clamp(idleLabor);
-  world.laborAssignedCommerce = population.laborAssignedCommerce;
-  world.idleLabor = population.laborIdle;
+
+  world.hempLaborAllocated = finalHemp;
+  world.mulberryLaborAllocated = finalMulberry;
+  world.commerceLaborAllocated = finalCommerce;
+  population.laborAssignedCommerce = finalCommerce;
+  population.commerceLaborAllocated = finalCommerce;
+
   world.operatingShops = clamp(shopOps.operatingShops);
   world.idleShops = clamp(shopOps.idleShops);
   world.commerceLaborDemand = clamp(shopOps.commerceLaborDemand);
-  world.availableCommerceLabor = Math.max(0, clamp(availableLabor - farmingLaborFinal - hempLaborFinal - mulberryLaborFinal));
+
   world.institutionWorkers = clamp(institutionWorkers);
-  world.unemployed = clamp(unemployed);
+  world.unemployed = clamp(finalUnemployed);
   world.unemploymentRate = unemploymentRate;
+  population.laborIdle = clamp(finalUnemployed);
+  world.idleLabor = population.laborIdle;
+  world.laborAssignedCommerce = finalCommerce;
+
   world.farmingWage = farmingWage;
   world.commerceWagePerWorker = commerceWagePerWorker;
   world.hempWage = hempWage;
   world.mulberryWage = mulberryWage;
   world.averageWage = averageWage;
   world.institutionWage = institutionWage;
-  world.laborFlowSummary = `农业${appliedDelta.farming >= 0 ? '+' : ''}${appliedDelta.farming.toFixed(1)}，商业${appliedDelta.commerce >= 0 ? '+' : ''}${appliedDelta.commerce.toFixed(1)}，麻${appliedDelta.hemp >= 0 ? '+' : ''}${appliedDelta.hemp.toFixed(1)}，桑${appliedDelta.mulberry >= 0 ? '+' : ''}${appliedDelta.mulberry.toFixed(1)}`;
+
+  const farmingFlow = (targetBySector.farming ?? 0) - priorFarming;
+  const commerceFlow = (targetBySector.commerce ?? 0) - priorCommerce;
+  const hempFlow = (targetBySector.hemp ?? 0) - priorHemp;
+  const mulberryFlow = (targetBySector.mulberry ?? 0) - priorMulberry;
+  world.laborFlowSummary = `农业${farmingFlow >= 0 ? '+' : ''}${farmingFlow.toFixed(1)}，商业${commerceFlow >= 0 ? '+' : ''}${commerceFlow.toFixed(1)}，麻${hempFlow >= 0 ? '+' : ''}${hempFlow.toFixed(1)}，桑${mulberryFlow >= 0 ? '+' : ''}${mulberryFlow.toFixed(1)}`;
+
+  if (Math.abs(farmingFlow) + Math.abs(commerceFlow) + Math.abs(hempFlow) + Math.abs(mulberryFlow) >= 10 && Array.isArray(world.yearLog)) {
+    world.yearLog.push(`劳动力流动：${world.laborFlowSummary}`);
+  }
+
   if (unemploymentRate > 0.3) {
     world.unemploymentStatus = '严重失业';
     world.unemploymentEffectTier = 'high';
@@ -310,6 +343,7 @@ export function calculateLaborAllocation(world) {
     world.unemploymentStatus = '正常';
     world.unemploymentEffectTier = 'none';
   }
+
   agriculture.farmEfficiency = farmEfficiency;
   world.farmEfficiency = agriculture.farmEfficiency;
   world.hempEfficiency = hempEfficiency;
