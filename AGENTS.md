@@ -4634,3 +4634,128 @@ any ui/ files, game.js, render.js, save.js
 - No logic changes anywhere
 - Game runs identically after refactor
 - Easy to find and change any number in future
+## Phase 8E: 100-Year Stress Test (Current)
+
+Phase 8A/8B/8F complete. Now adding automated
+simulation test to catch numeric instability.
+
+**Goal:** Run 100 years of simulation in Node.js
+without browser. Detect NaN, negative values,
+out-of-range values, and runaway growth.
+
+**New file:** test/simulate100years.js
+
+**Test approach:**
+- Import core logic modules (no UI, no render)
+- Create initial state via createGameState()
+- Run nextYear() 100 times
+- After each year, check invariants
+- Report any violations with year number
+
+**Invariants to check each year:**
+
+Population:
+- world.totalPopulation > 0
+- world.totalPopulation < 10000000 (no runaway)
+- world.laborForce >= 0
+- world.children >= 0
+- world.elderly >= 0
+- !isNaN(world.totalPopulation)
+
+Grain:
+- !isNaN(world.grainTreasury)
+- world.grainTreasury >= 0
+- world.grainTreasury < 1000000000 (no runaway)
+- !isNaN(world.actualGrainOutput)
+- world.actualGrainOutput >= 0
+
+Currency:
+- !isNaN(world.couponCirculating)
+- world.couponCirculating >= 0
+- !isNaN(world.lockedGrainReserve)
+- world.lockedGrainReserve >= 0
+- world.backingRatio >= 0
+- !isNaN(world.inflationRate)
+
+Satisfaction / Life Quality:
+- world.farmerLifeQuality >= 0
+- world.farmerLifeQuality <= 100
+- world.merchantLifeQuality >= 0
+- world.merchantLifeQuality <= 100
+- world.officialLifeQuality >= 0
+- world.officialLifeQuality <= 100
+- !isNaN(world.farmerLifeQuality)
+- !isNaN(world.merchantLifeQuality)
+
+Stability:
+- world.stabilityIndex >= 0
+- world.stabilityIndex <= 100
+- !isNaN(world.stabilityIndex)
+
+Market prices:
+- world.saltPrice >= 1.0
+- world.saltPrice <= 10.0
+- world.clothPrice >= 0.8
+- world.clothPrice <= 5.0
+- !isNaN(world.saltPrice)
+- !isNaN(world.clothPrice)
+
+Literacy:
+- world.farmerLiteracy >= 0
+- world.farmerLiteracy <= 1.0
+- !isNaN(world.farmerLiteracy)
+
+**Test output format:**
+- Year X: PASS (all invariants met)
+- Year X: FAIL - [field] = [value] ([reason])
+- Final summary: X/100 years passed
+
+**Test scenarios:**
+
+Scenario 1: Default (no player actions)
+- Just run nextYear() 100 times
+- No policies, no buildings, no tech
+
+Scenario 2: Basic development
+- Year 1: build bank (set bankBuilt = true)
+- Year 3: recruit clerks
+- Year 5: research anti-counterfeit
+- Year 7: issue grain coupons
+- Year 10: build 5 shops
+- Then run to year 100
+
+Scenario 3: Stress test (extreme values)
+- Set grainTreasury = 0 (famine)
+- Set stabilityIndex = 10 (crisis)
+- Run 20 years and check survival
+
+**New file:** test/simulate100years.js
+
+This is a Node.js script, not browser code.
+It must use require() or dynamic import() to
+load game modules.
+
+Since modules use ES module syntax, use:
+- type: "module" in a test package.json
+- Or convert imports to work with Node
+
+**Also create:** test/package.json
+{
+  "type": "module",
+  "scripts": {
+    "test": "node simulate100years.js"
+  }
+}
+
+**Files to create:**
+- test/simulate100years.js
+- test/package.json
+
+**Do NOT modify any existing files.**
+
+**Definition of Done (Phase 8E):**
+- test/simulate100years.js runs with node
+- All 3 scenarios tested
+- Clear pass/fail output per year
+- Summary at end showing total pass rate
+- Any NaN or out-of-range values clearly reported
