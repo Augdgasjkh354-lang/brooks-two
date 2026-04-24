@@ -37,7 +37,7 @@ import {
 } from '../society/stability.js';
 import {
   FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
-  MAX_GRAIN_YIELD_PER_MU, SHOP_GDP_PER_UNIT, COUPON_GRAIN_RATIO
+  MAX_GRAIN_YIELD_PER_MU, SHOP_GDP_PER_UNIT, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
 } from '../config/constants.js';
 
 
@@ -70,6 +70,10 @@ function getLandState(world) {
 
 function getAgricultureState(world) {
   return world.__agriculture ?? world;
+}
+
+function getPrivateSectorState(world) {
+  return world.__privateSector ?? world.privateSector ?? null;
 }
 
 export function getFoodSecurityStatus(grainCoverageRatio) {
@@ -145,7 +149,7 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push(`桑田首收：新增成熟桑田${maturedMulberryLand}亩`);
   }
 
-  const { farmEfficiency, hempEfficiency, mulberryEfficiency } = calculateLaborAllocation(world);
+  const { farmEfficiency, hempEfficiency, mulberryEfficiency, unemploymentEffectTier } = calculateLaborAllocation(world);
 
   const literacyEffects = applyLiteracyEffectsToWorld(world);
 
@@ -197,11 +201,12 @@ export function updateEconomy(world, options = {}) {
     preStabilityGrainOutput * agriculture.agriculturalTaxRate * (1 + bureaucracyEffects.taxEfficiencyBonus)
   );
 
-  const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
-  const idleShops = Math.max(0, (world.shopCount ?? 0) - operatingShops);
+  const operatingShops = Math.max(0, Math.floor(world.operatingShops ?? 0));
+  const idleShops = Math.max(0, Math.floor(world.idleShops ?? 0));
 
   const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
   const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
+  const demandSaturationFactor = Math.max(0, Math.min(1, demandSaturation));
   const demandEfficiencyRate = demandSaturation > 1 ? 1 / demandSaturation : 1;
 
   const totalGrainDemand = clamp(operatingShops * 200);
@@ -233,6 +238,7 @@ export function updateEconomy(world, options = {}) {
   const preStabilityCommerceGDP = clamp(
     operatingShops *
       SHOP_GDP_PER_UNIT *
+      demandSaturationFactor *
       demandEfficiencyRate *
       grainSupplyEfficiency *
       effectiveCommerceActivityBonus *
@@ -443,6 +449,33 @@ export function updateEconomy(world, options = {}) {
   const localClothRatio =
     clothAnnualDemand > 0 ? Math.max(0, totalClothOutput / clothAnnualDemand) : 0;
 
+  const privateSector = getPrivateSectorState(world);
+  if (privateSector) {
+    const annualFarmerIncome =
+      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) *
+      10 *
+      Math.max(0, Number(agriculture.grainYieldPerMu ?? effectiveYieldPerMu)) *
+      (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
+    const annualFarmerConsumption =
+      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
+    const saltSpending = Math.max(0, Number(privateSector.farmerGrain ?? 0)) * Math.max(0, Number(saltPricing.nextPrice ?? world.saltPrice ?? 0)) * 15;
+
+    privateSector.farmerGrain = Math.max(
+      0,
+      Number(privateSector.farmerGrain ?? 0) + annualFarmerIncome - annualFarmerConsumption - saltSpending
+    );
+    privateSector.merchantGoods = Math.max(
+      0,
+      Number(privateSector.merchantGoods ?? 0) + commerceGDP * 0.5
+    );
+    privateSector.merchantGoods = Math.max(0, Number(privateSector.merchantGoods ?? 0) - Number(privateSector.merchantGoods ?? 0) * 0.3);
+    privateSector.totalPrivateGrain = Math.max(0, Number(privateSector.farmerGrain ?? 0));
+    privateSector.totalPrivateCoupons = Math.max(
+      0,
+      Number(privateSector.farmerCoupons ?? 0) + Number(privateSector.merchantCoupons ?? 0)
+    );
+  }
+
   let adjustedGrainOutput = grainOutput;
   let adjustedCommerceGDP = commerceGDP;
   let additionalStabilityPenalty = 0;
@@ -507,6 +540,14 @@ export function updateEconomy(world, options = {}) {
   world.merchantEventModifier = 0;
   world.officialEventModifier = 0;
   world.landlordEventModifier = 0;
+
+  if (unemploymentEffectTier === 'high') {
+    behaviorMessages.push('大规模失业，社会动荡');
+  } else if (unemploymentEffectTier === 'medium') {
+    behaviorMessages.push('失业问题严重，社会不稳');
+  } else if (unemploymentEffectTier === 'low') {
+    behaviorMessages.push('失业率上升，民间压力增大');
+  }
 
   calculateClassSatisfaction(world);
   calculateGovernmentEfficiency(world);

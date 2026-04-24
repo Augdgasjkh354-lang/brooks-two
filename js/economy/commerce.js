@@ -12,6 +12,8 @@ import {
 export const SHOP_BUILD_COST_GRAIN = SHOP_COST;
 export const DEFAULT_MONEYLENDER_LICENSE_FEE = MONEYLENDER_LICENSE_FEE;
 export const DEFAULT_SCHOOL_LICENSE_FEE = SCHOOL_LICENSE_FEE;
+export const SHOP_WORKERS_PER_UNIT = 4;
+export const SHOP_MANAGERS_PER_UNIT = 1;
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -42,6 +44,25 @@ function ensureLedger(world) {
     world.ledger[key] = Math.max(0, Number(world.ledger[key] ?? 0));
   });
   return world.ledger;
+}
+
+export function calculateShopOperationState(world, availableCommerceLabor = 0) {
+  const safeShopCount = Math.max(0, Math.floor(Number(world?.shopCount ?? 0)));
+  const safeMerchantCount = Math.max(0, Math.floor(Number(world?.merchantCount ?? 0)));
+  const safeAvailableLabor = Math.max(0, Math.floor(Number(availableCommerceLabor ?? 0)));
+
+  const laborLimitedShops = Math.floor(safeAvailableLabor / SHOP_WORKERS_PER_UNIT);
+  const operatingShops = Math.min(safeShopCount, safeMerchantCount, laborLimitedShops);
+  const idleShops = Math.max(0, safeShopCount - operatingShops);
+  const commerceLaborDemand = operatingShops * SHOP_WORKERS_PER_UNIT;
+
+  return {
+    operatingShops,
+    idleShops,
+    commerceLaborDemand,
+    workerLaborPerShop: SHOP_WORKERS_PER_UNIT,
+    managerLaborPerShop: SHOP_MANAGERS_PER_UNIT,
+  };
 }
 
 

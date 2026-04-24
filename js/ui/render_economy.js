@@ -329,6 +329,8 @@ export function renderEconomyTab(state) {
     <section class="panel"><h2>Commerce</h2><div class="tab-grid">
       ${statItem('Shop Count', formatNumber(world.shopCount ?? 0))}
       ${statItem('Operating / Idle Shops', `${formatNumber(world.operatingShops ?? 0)} / ${formatNumber(world.idleShops ?? 0)}`)}
+      ${statItem('Shop Worker Demand', formatNumber(world.commerceLaborDemand ?? 0))}
+      ${statItem('Available Commerce Labor', formatNumber(world.availableCommerceLabor ?? 0))}
       ${statItem('Merchant Count', formatNumber(world.merchantCount ?? 0))}
       ${statItem('Demand Saturation', `${formatDecimal(demandSaturationPercent, 1)}%`)}
       ${statItem('Commerce Efficiency Rate', `${formatDecimal(commerceEfficiencyRate * 100, 1)}%`)}
@@ -399,6 +401,7 @@ export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) 
 export function renderCurrencyTab(state, onOfficialSaltSale) {
   const world = state.world;
   const agriculture = state.agriculture ?? world;
+  const privateSector = state.privateSector ?? world.__privateSector ?? world.privateSector ?? {};
   const mount = document.getElementById('currency-tab-content');
   if (!mount) return;
 
@@ -415,6 +418,14 @@ export function renderCurrencyTab(state, onOfficialSaltSale) {
       ${statItem('Coupon Circulating', formatNumber(monetary.couponCirculating ?? 0))}
       ${statItem('Tax Ratio', renderRatioValue(fiscal.taxGrainRatio ?? 1))}
       ${statItem('Salary Ratio', renderRatioValue(fiscal.salaryGrainRatio ?? 1))}
+    </div></section>
+    <section class="panel"><h2>Private Sector Assets</h2><div class="tab-grid">
+      ${statItem('Farmer Grain', formatNumber(privateSector.farmerGrain ?? 0))}
+      ${statItem('Farmer Coupons', formatNumber(privateSector.farmerCoupons ?? 0))}
+      ${statItem('Merchant Goods', formatNumber(privateSector.merchantGoods ?? 0))}
+      ${statItem('Merchant Coupons', formatNumber(privateSector.merchantCoupons ?? 0))}
+      ${statItem('Private Grain Total', formatNumber(privateSector.totalPrivateGrain ?? 0))}
+      ${statItem('Private Coupon Total', formatNumber(privateSector.totalPrivateCoupons ?? 0))}
     </div></section>
     <section class="panel"><h2>Inflation</h2><div class="tab-grid">
       ${statItem('Backing Ratio', formatDecimal(monetary.backingRatio ?? 1, 2))}
