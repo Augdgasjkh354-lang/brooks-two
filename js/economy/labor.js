@@ -10,11 +10,16 @@ export function clampRatio(value) {
   return Math.max(0, Math.min(1, value));
 }
 
-export function calculateLaborAllocation(world) {
-  const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
-  const farmingLaborAllocated = Math.min(world.laborForce, requiredFarmingLabor);
+function getPopulationState(world) {
+  return world.__population ?? world;
+}
 
-  const remainingAfterFarming = Math.max(0, world.laborForce - farmingLaborAllocated);
+export function calculateLaborAllocation(world) {
+  const population = getPopulationState(world);
+  const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
+  const farmingLaborAllocated = Math.min(population.laborForce, requiredFarmingLabor);
+
+  const remainingAfterFarming = Math.max(0, population.laborForce - farmingLaborAllocated);
   const saltMineLaborRequired = Math.max(0, world.saltMineWorkers ?? 0);
   const saltMineLaborAllocated = Math.min(remainingAfterFarming, saltMineLaborRequired);
 
@@ -39,12 +44,17 @@ export function calculateLaborAllocation(world) {
 
   world.farmingLaborRequired = clamp(requiredFarmingLabor);
   world.farmingLaborAllocated = clamp(farmingLaborAllocated);
-  world.hempLaborRequired = clamp(hempLaborRequired);
-  world.mulberryLaborRequired = clamp(mulberryLaborRequired);
+  population.laborAssignedFarming = world.farmingLaborAllocated;
+  population.hempLaborRequired = clamp(hempLaborRequired);
+  population.mulberryLaborRequired = clamp(mulberryLaborRequired);
+  world.hempLaborRequired = population.hempLaborRequired;
+  world.mulberryLaborRequired = population.mulberryLaborRequired;
   world.hempLaborAllocated = clamp(hempLaborAllocated);
   world.mulberryLaborAllocated = clamp(mulberryLaborAllocated);
-  world.laborAssignedCommerce = clamp(laborAssignedCommerce);
-  world.idleLabor = clamp(idleLabor);
+  population.laborAssignedCommerce = clamp(laborAssignedCommerce);
+  population.laborIdle = clamp(idleLabor);
+  world.laborAssignedCommerce = population.laborAssignedCommerce;
+  world.idleLabor = population.laborIdle;
   world.farmEfficiency = farmEfficiency;
   world.hempEfficiency = hempEfficiency;
   world.mulberryEfficiency = mulberryEfficiency;
@@ -56,4 +66,3 @@ export function calculateLaborAllocation(world) {
     mulberryEfficiency,
   };
 }
-

@@ -8,21 +8,12 @@ import {
 
 export const initialState = {
   world: {
-    year: 1,
-    totalPopulation: INITIAL_POPULATION,
-    laborForce: INITIAL_LABOR_FORCE,
-    children: INITIAL_CHILDREN,
-    elderly: INITIAL_ELDERLY,
-
     farmlandAreaMu: INITIAL_FARMLAND_MU,
     baseGrainYieldPerMu: BASE_GRAIN_YIELD_PER_MU,
     grainYieldPerMu: BASE_GRAIN_YIELD_PER_MU,
 
     farmingLaborRequired: 3000,
     farmingLaborAllocated: 3000,
-    laborAssignedCommerce: 0,
-    idleLabor: 0,
-    merchantCount: 0,
     farmEfficiency: 1,
     landUtilizationPercent: 100,
 
@@ -64,8 +55,6 @@ export const initialState = {
     pendingHempLandMu: 0,
     pendingMulberryLandMu: 0,
     mulberryMaturationYear: 0,
-    hempLaborRequired: 0,
-    mulberryLaborRequired: 0,
     coarseClothOutput: 0,
     fineClothOutput: 0,
     rawSilkOutput: 0,
@@ -217,13 +206,6 @@ export const initialState = {
     saltTradeUsed: false,
     clothTradeUsed: false,
 
-    farmerLiteracy: FARMER_INIT_LITERACY,
-    merchantLiteracy: 0,
-    officialLiteracy: 0,
-    workerLiteracy: 0,
-    landlordLiteracy: 0,
-    overallLiteracy: FARMER_INIT_LITERACY,
-
     farmerPopulation: 3000,
     merchantPopulation: 0,
     officialPopulation: 0,
@@ -237,11 +219,6 @@ export const initialState = {
       landlordActive: false,
     },
 
-    primaryGraduates: 0,
-    secondaryGraduates: 0,
-    higherGraduates: 0,
-    higherSchoolUnlocked: false,
-
     commercialPrimarySchools: 0,
     commercialSecondarySchools: 0,
     govPrimaryCapacity: 0,
@@ -252,18 +229,6 @@ export const initialState = {
     higherEnrolled: 0,
     schoolLicenseFee: SCHOOL_LICENSE_FEE,
     studentsDownToVillage: 0,
-    annualPrimaryGrads: 0,
-    annualSecondaryGrads: 0,
-    annualHigherGrads: 0,
-    secondaryEligiblePool: 0,
-    higherEligiblePool: 0,
-    scholarPool: 0,
-    adminTalent: 0,
-    commerceTalent: 0,
-    techTalent: 0,
-    adminTalentDeployed: 0,
-    commerceTalentDeployed: 0,
-    techTalentDeployed: 0,
     institutionPrereqBasicGov: false,
     institutionPrereqPolice: false,
     institutionPrereqCourt: false,
@@ -283,8 +248,6 @@ export const initialState = {
     midOfficialCount: 0,
     juniorOfficialCount: 0,
     professionalCount: 0,
-    sanitationWorkerCount: 0,
-    cleaningWorkerCount: 0,
     publicToilets: 0,
     roadLength: 0,
     toiletCoverage: 0,
@@ -414,6 +377,45 @@ export const initialState = {
     farmerLiteracyEfficiencyBonus: 0,
     merchantLiteracyEfficiencyBonus: 0,
   },
+  calendar: {
+    year: 1,
+  },
+  population: {
+    totalPopulation: INITIAL_POPULATION,
+    laborForce: INITIAL_LABOR_FORCE,
+    children: INITIAL_CHILDREN,
+    elderly: INITIAL_ELDERLY,
+    laborAssignedFarming: 0,
+    laborAssignedCommerce: 0,
+    laborIdle: 0,
+    merchantCount: 0,
+    hempLaborRequired: 0,
+    mulberryLaborRequired: 0,
+    sanitationWorkerCount: 0,
+    cleaningWorkerCount: 0,
+    farmerLiteracy: FARMER_INIT_LITERACY,
+    merchantLiteracy: 0,
+    officialLiteracy: 0,
+    workerLiteracy: 0,
+    landlordLiteracy: 0,
+    overallLiteracy: FARMER_INIT_LITERACY,
+    primaryGraduates: 0,
+    secondaryGraduates: 0,
+    higherGraduates: 0,
+    annualPrimaryGrads: 0,
+    annualSecondaryGrads: 0,
+    annualHigherGrads: 0,
+    secondaryEligiblePool: 0,
+    higherEligiblePool: 0,
+    higherSchoolUnlocked: false,
+    adminTalent: 0,
+    commerceTalent: 0,
+    techTalent: 0,
+    adminTalentDeployed: 0,
+    commerceTalentDeployed: 0,
+    techTalentDeployed: 0,
+    scholarPool: 0,
+  },
   xikou: {
     population: XIKOU_INIT_POPULATION,
     laborForce: XIKOU_INIT_LABOR,
@@ -516,9 +518,88 @@ export const initialState = {
   economyHistory: [],
 };
 
+const CALENDAR_FIELD_MAP = {
+  year: 'year',
+};
+
+const POPULATION_FIELD_MAP = {
+  totalPopulation: 'totalPopulation',
+  laborForce: 'laborForce',
+  children: 'children',
+  elderly: 'elderly',
+  laborAssignedFarming: 'laborAssignedFarming',
+  laborAssignedCommerce: 'laborAssignedCommerce',
+  laborIdle: 'laborIdle',
+  merchantCount: 'merchantCount',
+  hempLaborRequired: 'hempLaborRequired',
+  mulberryLaborRequired: 'mulberryLaborRequired',
+  sanitationWorkerCount: 'sanitationWorkerCount',
+  cleaningWorkerCount: 'cleaningWorkerCount',
+  farmerLiteracy: 'farmerLiteracy',
+  merchantLiteracy: 'merchantLiteracy',
+  officialLiteracy: 'officialLiteracy',
+  workerLiteracy: 'workerLiteracy',
+  landlordLiteracy: 'landlordLiteracy',
+  overallLiteracy: 'overallLiteracy',
+  primaryGraduates: 'primaryGraduates',
+  secondaryGraduates: 'secondaryGraduates',
+  higherGraduates: 'higherGraduates',
+  annualPrimaryGrads: 'annualPrimaryGrads',
+  annualSecondaryGrads: 'annualSecondaryGrads',
+  annualHigherGrads: 'annualHigherGrads',
+  secondaryEligiblePool: 'secondaryEligiblePool',
+  higherEligiblePool: 'higherEligiblePool',
+  higherSchoolUnlocked: 'higherSchoolUnlocked',
+  adminTalent: 'adminTalent',
+  commerceTalent: 'commerceTalent',
+  techTalent: 'techTalent',
+  adminTalentDeployed: 'adminTalentDeployed',
+  commerceTalentDeployed: 'commerceTalentDeployed',
+  techTalentDeployed: 'techTalentDeployed',
+  scholarPool: 'scholarPool',
+};
+
+function defineCompatAccessors(state) {
+  Object.entries(CALENDAR_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.calendar[sourceField],
+      set: (value) => {
+        state.calendar[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  Object.entries(POPULATION_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.population[sourceField],
+      set: (value) => {
+        state.population[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  Object.defineProperty(state.world, '__calendar', {
+    value: state.calendar,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__population', {
+    value: state.population,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+}
+
 export function createGameState() {
   const state = structuredClone(initialState);
 
+  defineCompatAccessors(state);
   state.world.techBonuses = state.techBonuses;
   state.world.ledger = state.ledger;
   state.world.pendingMulberryProjects = [];

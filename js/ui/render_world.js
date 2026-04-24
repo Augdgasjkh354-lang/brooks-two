@@ -43,13 +43,15 @@ export function getPopulationGrowthDisplayDetails(world) {
 
 export function renderHeaderStats(state) {
   const world = state.world;
+  const calendar = state.calendar ?? world;
+  const population = state.population ?? world;
   const mount = document.getElementById('header-stats');
   if (!mount) return;
 
   const purchasingPowerDisplay = getPurchasingPowerDisplay(world.purchasingPower ?? 100);
   mount.innerHTML = [
-    `Year ${formatNumber(world.year)}`,
-    `Population ${formatNumber(world.totalPopulation)}`,
+    `Year ${formatNumber(calendar.year)}`,
+    `Population ${formatNumber(population.totalPopulation)}`,
     `Grain ${formatNumber(world.grainTreasury)}`,
     `Stability ${formatNumber(world.stabilityIndex ?? 80)}`,
     `Purchasing ${formatDecimal(world.purchasingPower ?? 100, 1)} (${purchasingPowerDisplay.label})`,
@@ -58,23 +60,25 @@ export function renderHeaderStats(state) {
 
 export function renderCoreStats(state) {
   const world = state.world;
+  const calendar = state.calendar ?? world;
+  const population = state.population ?? world;
   const el = document.getElementById('core-stats');
   if (!el) return;
 
   el.innerHTML = [
-    statItem('Year', world.year),
-    statItem('Total Population', formatNumber(world.totalPopulation)),
-    statItem('Total Labor', formatNumber(world.laborForce)),
+    statItem('Year', calendar.year),
+    statItem('Total Population', formatNumber(population.totalPopulation)),
+    statItem('Total Labor', formatNumber(population.laborForce)),
     statItem(
       'Farming Labor',
       `${formatNumber(world.farmingLaborAllocated ?? 0)} / ${formatNumber(world.farmingLaborRequired ?? 0)}`
     ),
-    statItem('Commerce Labor', formatNumber(world.laborAssignedCommerce ?? 0)),
-    statItem('Merchants', formatNumber(world.merchantCount ?? 0)),
+    statItem('Commerce Labor', formatNumber(population.laborAssignedCommerce ?? 0)),
+    statItem('Merchants', formatNumber(population.merchantCount ?? 0)),
     statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
     statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
-    statItem('Children', formatNumber(world.children)),
-    statItem('Elderly', formatNumber(world.elderly)),
+    statItem('Children', formatNumber(population.children)),
+    statItem('Elderly', formatNumber(population.elderly)),
     statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
     statItem('Income Pool - Farmer', formatNumber(world.farmerIncomePool ?? 0)),
     statItem('Income Pool - Merchant', formatNumber(world.merchantIncomePool ?? 0)),
