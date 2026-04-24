@@ -2,7 +2,7 @@
 import { clamp, clampRatio } from '../economy/labor.js';
 import {
   BASE_GROWTH_RATE, LABOR_RATIO, CHILDREN_RATIO, ELDERLY_RATIO,
-  LABOR_PER_MU, XIKOU_SALT_OUTPUT, ENVOY_COST
+  LABOR_PER_MU, XIKOU_SALT_OUTPUT, ENVOY_COST, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
 } from '../config/constants.js';
 
 export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
@@ -48,7 +48,7 @@ export function updateXikouVillageEconomy(world) {
       : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * XIKOU_SALT_OUTPUT);
   const saltOutputJin = clamp(baseSaltOutput * tradeMultiplier);
 
-  const annualConsumption = clamp((xikou.population ?? 0) * 2);
+  const annualConsumption = clamp((xikou.population ?? 0) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR);
   const nextGrainTreasury = Math.max(0, Math.round((xikou.grainTreasury ?? 0) + grainOutput - annualConsumption));
 
   xikou.saltMineWorkers = clamp(saltWorkers);
