@@ -1,49 +1,99 @@
-# Policy-Driven Society Simulation (Phase 0)
+# Policy-Driven Society Simulation
 
-A browser-based strategy simulation prototype focused on **progressive unlocks**.
+一个以“政策驱动 + 年度推进 + 系统渐进解锁”为核心的社会模拟项目。玩家通过制度建设、财政分配、产业发展、教育投入与外交互动，推动一个农业社会逐步复杂化。
 
-The design goal is to avoid preloading all mechanics on day one. New systems appear only when policy, institutions, and infrastructure make them possible.
+## 当前项目状态
 
-## What Phase 0 Includes
+- **当前阶段：Phase 7D（已完成）**
+- 开发方式遵循 `AGENTS.md` 的阶段化规则（每个阶段限定目标、改动范围与验收标准）
+- 游戏以“每年前进一次”的回合制流程组织，并在 `nextYear()` 中串联经济、人口、制度、满意度、技术、债务等模块
 
-Phase 0 is intentionally small and proves 3 foundations:
+## 已实现系统总览
 
-1. The world advances year by year.
-2. Policies can unlock systems through prerequisites.
-3. The codebase is modular enough for future expansion.
+### 1) 人口与劳动力系统
+- 总人口、劳动力、儿童、老年分层
+- 年增长/收缩机制（含经济与社会修正）
+- 劳动力分配（农业、商业、机构岗位）
+- 人才与毕业生池（行政/商业/技术人才）
 
-Implemented systems:
+### 2) 农业与土地系统
+- 耕地、亩产、潜在与实际产出
+- 农业劳动力约束与土地利用率
+- 粮食需求、缺口、覆盖率、粮食安全状态
+- 土地开垦（基础耕地/麻田/桑田）、成熟周期与效率修正
+- 水利工程、城墙、粮仓扩建等工程建设
 
-- Core agricultural world state (population, labor, land, yield, tax, treasury, GDP estimate)
-- Year progression with population/economy updates and narration log
-- Generic policy framework with prerequisites + state mutation + unlocked systems
-- Full unlock chain:
-  1. Build Bank
-  2. Recruit Bank Clerks
-  3. Research Anti-Counterfeit Technology
-  4. Issue Grain Coupons
-- Grain coupon panel and issuance stats, visible only after full unlock
+### 3) 市场与产业系统
+- 商铺运营与商业 GDP
+- 盐/布供需、配额、进口、价格机制
+- 本地纺织产出（麻布、细布、生丝）
+- 肥料/纸张/建材等中间资源链
+- 钱庄（放贷池、政府借贷、民间贷款、利息与税收）
 
-## Run Locally
+### 4) 货币与财政系统
+- 粮仓与粮劵双财政账户
+- 粮劵发行、流通、锁定储备、兑付与危机处理
+- 通胀、背书率、商业活跃度修正
+- 税收与薪资的粮/劵比例结算
+- 债务、利息、偿还与信用评级联动
 
-No build step is required.
+### 5) 社会与稳定系统
+- 生活质量（按阶层）
+- 阶层满意度（农民/商人/官员/地主）
+- 事件修正器（event modifier）与年度重算
+- 稳定度、效率乘数、行为惩罚与年志事件
+- 基尼系数、生活成本、购买力等分配指标
 
-1. Open `index.html` directly in a browser.
-2. Use **Next Year** to advance simulation.
-3. Enact available policies in order to unlock grain coupons.
-4. After unlock, use issuance controls in the grain coupon panel.
+### 6) 制度与官僚系统
+- 政府、警务、卫生、法院、税务、贸易、工程机构
+- 机构人员编制、工资、年度成本
+- 机构效率（人才/纸张/编制）
+- 政策执行效率与制度前置条件
 
-## Current Phase Boundaries
+### 7) 教育与识字系统
+- 官办与商办教育容量
+- 初等/中等/高等在校、毕业与年度产出
+- 升学资格池（eligible pool）与衰减
+- 阶层识字率与总体识字率
+- 学子下乡与教育财政结算
 
-Phase 0 does **not** include advanced systems such as migration, class simulation, diplomacy, combat, maps, networking, cloud saves, or backend services.
+### 8) 科技研发系统
+- 科研队列（当前技术、剩余年数、可研/已完成）
+- 技术完成后全局加成（产量、稳定、贸易、防御等）
+- 与机构、教育、市场系统联动
 
-## Future Phases (Planned Direction)
+### 9) 外交（溪口）系统
+- 溪口独立经济体（人口、农业、盐业、纺织）
+- 外交接触与态度变化
+- 贸易行为与双边影响（含资源流动与关系修正）
 
-Future phases may add:
+### 10) 记录与持久化系统
+- 年志（`yearLog`）
+- 经济快照历史（`economyHistory`）
+- 本地存档（保存/读取/导入/导出/重置）
 
-- More policy trees and institution chains
-- Expanded fiscal/monetary mechanics
-- Health, education, housing, and infrastructure layers
-- Social stability, class behavior, and regional governance
+## 技术栈
 
-The current architecture is organized to support this without rewriting the core loop.
+- **Vanilla HTML / CSS / JavaScript（ES Modules）**
+- 无框架、无后端、无构建工具、无打包步骤
+
+## 运行方式
+
+1. 克隆或下载仓库
+2. 直接用浏览器打开 `index.html`
+3. 点击“下一年”推进模拟，按面板交互进行政策与建设操作
+
+> 本项目设计目标之一就是“可离线、可直接打开运行”。
+
+## 开发工作流（AGENTS.md 驱动）
+
+1. 先阅读 `AGENTS.md`，确认“当前阶段（Current）”
+2. 严格按阶段目标与允许改动文件进行开发
+3. 每次提交只解决当前阶段问题，不跨阶段扩展
+4. 按“Definition of Done”逐条验收
+5. 更新文档并保持模块边界清晰
+
+这种流程保证了：
+- 迭代目标明确
+- 变更范围可控
+- 系统复杂度可逐步增长而不失控
