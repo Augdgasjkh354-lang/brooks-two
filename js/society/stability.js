@@ -1,5 +1,12 @@
 // Society stability module
 
+import {
+  BASE_STABILITY, STABILITY_MIN, STABILITY_MAX,
+  POLICE_RATIO_CRITICAL, POLICE_RATIO_LOW, POLICE_RATIO_GOOD, POLICE_RATIO_HIGH,
+  PUBLIC_TOILET_COST, ROAD_COST_PER_LI, PEOPLE_PER_TOILET, HEALTH_BUREAU_TOILET_MIN,
+  HEALTH_BUREAU_SANITATION_MIN, HEALTH_BUREAU_CLEANING_MIN
+} from '../config/constants.js';
+
 export const BUREAUCRACY_POLICY_DEFS = {
   householdRegistry: {
     key: 'householdRegistry',
@@ -155,21 +162,21 @@ export function getStabilityPenaltyFromIncomeGap(incomeGap) {
 }
 
 export function getEfficiencyMultiplier(stabilityIndex) {
-  if (stabilityIndex >= 80) return 1.0;
+  if (stabilityIndex >= BASE_STABILITY) return 1.0;
   if (stabilityIndex >= 50) return 0.85;
   return 0.65;
 }
 
 
 export function getStabilityBase(world) {
-  const base = Number(world?.techBonuses?.stabilityBase ?? 80);
+  const base = Number(world?.techBonuses?.stabilityBase ?? BASE_STABILITY);
   const policyBonus = world?.codifiedLawPolicyActive ? 10 : 0;
   return base + policyBonus;
 }
 
 
 function clampPercent(value) {
-  return Math.max(0, Math.min(100, Number(value ?? 0)));
+  return Math.max(STABILITY_MIN, Math.min(STABILITY_MAX, Number(value ?? 0)));
 }
 
 function getInstitutionPaperDemand(world) {

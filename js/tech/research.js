@@ -1,3 +1,11 @@
+import {
+  TECH_BASIC_FARMING, TECH_INTENSIVE_FARMING, TECH_CROP_ROTATION, TECH_IRRIGATION,
+  TECH_FOLK_TRADE, TECH_CONTRACT_LAW, TECH_WEIGHTS_MEASURES, TECH_MONEYLENDER, TECH_LONG_DISTANCE_TRADE,
+  TECH_WRITTEN_RECORDS, TECH_PAPERMAKING, TECH_CODIFIED_LAW, TECH_HERBALISM, TECH_BASIC_MEDICINE,
+  TECH_IMPERIAL_EXAM, TECH_ADVANCED_MEDICINE, TECH_MILITIA, TECH_WEAPON_FORGING, TECH_FORTIFICATION,
+  TECH_INTELLIGENCE, TECH_SELECTIVE_BREEDING, TECH_WATERMILL, BASE_STABILITY
+} from '../config/constants.js';
+
 export const techTree = [
   {
     id: 'basic_farming',
@@ -5,7 +13,7 @@ export const techTree = [
     category: 'agriculture',
     description: '建立基础耕作方法，解锁后续农业强化研究。',
     researchYears: 1,
-    cost: { grain: 200000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_BASIC_FARMING, cloth: 0, coupon: 0 },
     prerequisites: [],
     unlocks: [{ type: 'available', target: 'intensive_farming' }],
     status: 'available',
@@ -16,7 +24,7 @@ export const techTree = [
     category: 'agriculture',
     description: '改进耕作管理，提升单位亩产潜力。',
     researchYears: 2,
-    cost: { grain: 500000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_INTENSIVE_FARMING, cloth: 0, coupon: 0 },
     prerequisites: ['basic_farming'],
     unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 50 }],
     status: 'locked',
@@ -27,7 +35,7 @@ export const techTree = [
     category: 'agriculture',
     description: '通过轮作改善土壤与抗灾能力。',
     researchYears: 3,
-    cost: { grain: 800000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_CROP_ROTATION, cloth: 0, coupon: 0 },
     prerequisites: ['intensive_farming'],
     unlocks: [
       { type: 'bonus', target: 'grainYieldPerMu', value: 50 },
@@ -41,7 +49,7 @@ export const techTree = [
     category: 'agriculture',
     description: '建设灌溉体系，显著提升农业产出潜力。',
     researchYears: 3,
-    cost: { grain: 1000000, cloth: 100000, coupon: 0 },
+    cost: { grain: TECH_IRRIGATION, cloth: 100000, coupon: 0 },
     prerequisites: ['intensive_farming'],
     unlocks: [{ type: 'bonus', target: 'grainYieldPerMu', value: 75 }],
     status: 'locked',
@@ -52,7 +60,7 @@ export const techTree = [
     category: 'agriculture',
     description: '通过系统育种进一步提高亩产并解锁新作物研发。',
     researchYears: 3,
-    cost: { grain: 1200000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_SELECTIVE_BREEDING, cloth: 0, coupon: 0 },
     prerequisites: ['crop_rotation'],
     unlocks: [
       { type: 'bonus', target: 'grainYieldPerMu', value: 50 },
@@ -66,7 +74,7 @@ export const techTree = [
     category: 'agriculture',
     description: '利用水车磨坊提升劳动效率并解锁磨粉加工体系。',
     researchYears: 3,
-    cost: { grain: 1500000, cloth: 150000, coupon: 0 },
+    cost: { grain: TECH_WATERMILL, cloth: 150000, coupon: 0 },
     prerequisites: ['irrigation'],
     unlocks: [
       { type: 'bonus', target: 'laborEfficiency', value: 0.05 },
@@ -80,7 +88,7 @@ export const techTree = [
     category: 'commerce',
     description: '规范民间交易，解锁商业制度技术。',
     researchYears: 1,
-    cost: { grain: 100000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_FOLK_TRADE, cloth: 0, coupon: 0 },
     prerequisites: [],
     unlocks: [
       { type: 'available', target: 'contract_law' },
@@ -94,7 +102,7 @@ export const techTree = [
     category: 'commerce',
     description: '以契约稳定交易秩序。',
     researchYears: 2,
-    cost: { grain: 400000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_CONTRACT_LAW, cloth: 0, coupon: 0 },
     prerequisites: ['folk_trade'],
     unlocks: [{ type: 'bonus', target: 'merchantSatisfaction', value: 10 }],
     status: 'locked',
@@ -105,7 +113,7 @@ export const techTree = [
     category: 'commerce',
     description: '统一衡量标准，提升贸易效率。',
     researchYears: 1,
-    cost: { grain: 300000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_WEIGHTS_MEASURES, cloth: 0, coupon: 0 },
     prerequisites: ['folk_trade'],
     unlocks: [{ type: 'bonus', target: 'tradeEfficiency', value: 0.1 }],
     status: 'locked',
@@ -116,7 +124,7 @@ export const techTree = [
     category: 'commerce',
     description: '建立借贷网络，增强商业资本周转能力。',
     researchYears: 3,
-    cost: { grain: 2000000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_MONEYLENDER, cloth: 0, coupon: 0 },
     prerequisites: ['contract_law'],
     unlocks: [
       { type: 'system', target: 'lending_system' },
@@ -130,7 +138,7 @@ export const techTree = [
     category: 'commerce',
     description: '发展远程商路并拓展跨区域贸易伙伴。',
     researchYears: 4,
-    cost: { grain: 2500000, cloth: 200000, coupon: 0 },
+    cost: { grain: TECH_LONG_DISTANCE_TRADE, cloth: 200000, coupon: 0 },
     prerequisites: ['weights_measures'],
     unlocks: [
       { type: 'system', target: 'new_trade_partners' },
@@ -144,7 +152,7 @@ export const techTree = [
     category: 'society',
     description: '建立记录制度，促进治理与知识积累。',
     researchYears: 2,
-    cost: { grain: 300000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_WRITTEN_RECORDS, cloth: 0, coupon: 0 },
     prerequisites: [],
     unlocks: [
       { type: 'available', target: 'papermaking' },
@@ -158,7 +166,7 @@ export const techTree = [
     category: 'society',
     description: '提升行政文书效率与知识传播能力。',
     researchYears: 2,
-    cost: { grain: 500000, cloth: 50000, coupon: 0 },
+    cost: { grain: TECH_PAPERMAKING, cloth: 50000, coupon: 0 },
     prerequisites: ['written_records'],
     unlocks: [{ type: 'bonus', target: 'bureaucracyUnlocked', value: true }],
     status: 'locked',
@@ -169,7 +177,7 @@ export const techTree = [
     category: 'society',
     description: '以成文法加强秩序与稳定。',
     researchYears: 2,
-    cost: { grain: 400000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_CODIFIED_LAW, cloth: 0, coupon: 0 },
     prerequisites: ['written_records'],
     unlocks: [{ type: 'bonus', target: 'stabilityIndex', value: 10 }],
     status: 'locked',
@@ -180,7 +188,7 @@ export const techTree = [
     category: 'society',
     description: '系统化草药经验，解锁医学基础。',
     researchYears: 2,
-    cost: { grain: 200000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_HERBALISM, cloth: 0, coupon: 0 },
     prerequisites: [],
     unlocks: [{ type: 'available', target: 'basic_medicine' }],
     status: 'available',
@@ -191,7 +199,7 @@ export const techTree = [
     category: 'society',
     description: '提升基础健康水平与人口增长潜力。',
     researchYears: 3,
-    cost: { grain: 600000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_BASIC_MEDICINE, cloth: 0, coupon: 0 },
     prerequisites: ['herbalism'],
     unlocks: [{ type: 'bonus', target: 'populationGrowthRate', value: 0.005 }],
     status: 'locked',
@@ -202,7 +210,7 @@ export const techTree = [
     category: 'society',
     description: '搭建官员选拔雏形，提高官僚质量与秩序基础。',
     researchYears: 4,
-    cost: { grain: 3000000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_IMPERIAL_EXAM, cloth: 0, coupon: 0 },
     prerequisites: ['papermaking', 'codified_law'],
     unlocks: [
       { type: 'system', target: 'scholar_class' },
@@ -217,7 +225,7 @@ export const techTree = [
     category: 'society',
     description: '提升医疗体系成熟度，进一步促进人口与民生。',
     researchYears: 4,
-    cost: { grain: 2000000, cloth: 100000, coupon: 0 },
+    cost: { grain: TECH_ADVANCED_MEDICINE, cloth: 100000, coupon: 0 },
     prerequisites: ['basic_medicine'],
     unlocks: [
       { type: 'bonus', target: 'populationGrowthRate', value: 0.005 },
@@ -231,7 +239,7 @@ export const techTree = [
     category: 'military',
     description: '建立基础军事组织并解锁武备技术。',
     researchYears: 2,
-    cost: { grain: 300000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_MILITIA, cloth: 0, coupon: 0 },
     prerequisites: [],
     unlocks: [
       { type: 'system', target: 'military_system' },
@@ -245,7 +253,7 @@ export const techTree = [
     category: 'military',
     description: '改进兵器制造并提升战斗力。',
     researchYears: 2,
-    cost: { grain: 500000, cloth: 100000, coupon: 0 },
+    cost: { grain: TECH_WEAPON_FORGING, cloth: 100000, coupon: 0 },
     prerequisites: ['militia'],
     unlocks: [{ type: 'bonus', target: 'combatPower', value: 0.2 }],
     status: 'locked',
@@ -256,7 +264,7 @@ export const techTree = [
     category: 'military',
     description: '构建防御体系，显著提升城市防御能力。',
     researchYears: 3,
-    cost: { grain: 2500000, cloth: 250000, coupon: 0 },
+    cost: { grain: TECH_FORTIFICATION, cloth: 250000, coupon: 0 },
     prerequisites: ['weapon_forging'],
     unlocks: [
       { type: 'bonus', target: 'defenseRating', value: 0.3 },
@@ -270,7 +278,7 @@ export const techTree = [
     category: 'military',
     description: '建立情报网络，提升对外态势掌控能力。',
     researchYears: 3,
-    cost: { grain: 1500000, cloth: 0, coupon: 0 },
+    cost: { grain: TECH_INTELLIGENCE, cloth: 0, coupon: 0 },
     prerequisites: ['weapon_forging'],
     unlocks: [
       { type: 'system', target: 'espionage_system' },
@@ -286,7 +294,7 @@ function ensureTechBonusesShape(state) {
   }
 
   state.techBonuses.grainYieldBonus = Number(state.techBonuses.grainYieldBonus ?? 0);
-  state.techBonuses.stabilityBase = Number(state.techBonuses.stabilityBase ?? 80);
+  state.techBonuses.stabilityBase = Number(state.techBonuses.stabilityBase ?? BASE_STABILITY);
   state.techBonuses.populationGrowthBonus = Number(state.techBonuses.populationGrowthBonus ?? 0);
   state.techBonuses.tradeEfficiency = Number(state.techBonuses.tradeEfficiency ?? 0);
   state.techBonuses.combatPower = Number(state.techBonuses.combatPower ?? 0);

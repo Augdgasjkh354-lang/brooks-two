@@ -1,5 +1,13 @@
 // Currency module: coupons, inflation, and government debt
 import { clamp } from './labor.js';
+import {
+  COUPON_GRAIN_RATIO,
+  INFLATION_THRESHOLD_LOW,
+  INFLATION_THRESHOLD_MID,
+  INFLATION_RATE_LOW,
+  INFLATION_RATE_MID,
+  INFLATION_RATE_HIGH,
+} from '../config/constants.js';
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -23,39 +31,39 @@ function getBorrowingRateByCredit(creditRating = 'B') {
 export function getInflationState(world) {
   if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
     return {
-      backingRatio: 1.0,
+      backingRatio: COUPON_GRAIN_RATIO,
       inflationRate: 0,
       inflationStabilityPenalty: 0,
-      inflationCommercePenaltyMultiplier: 1.0,
+      inflationCommercePenaltyMultiplier: COUPON_GRAIN_RATIO,
     };
   }
 
   const couponCirculating = Math.max(0, world.couponCirculating ?? 0);
   const backingRatio =
-    couponCirculating > 0 ? Math.max(0, (world.lockedGrainReserve ?? 0) / couponCirculating) : 1.0;
+    couponCirculating > 0 ? Math.max(0, (world.lockedGrainReserve ?? 0) / couponCirculating) : COUPON_GRAIN_RATIO;
 
-  if (backingRatio >= 1.0) {
+  if (backingRatio >= COUPON_GRAIN_RATIO) {
     return {
       backingRatio,
       inflationRate: 0,
       inflationStabilityPenalty: 0,
-      inflationCommercePenaltyMultiplier: 1.0,
+      inflationCommercePenaltyMultiplier: COUPON_GRAIN_RATIO,
     };
   }
 
-  if (backingRatio >= 0.7) {
+  if (backingRatio >= INFLATION_THRESHOLD_LOW) {
     return {
       backingRatio,
-      inflationRate: 0.05,
+      inflationRate: INFLATION_RATE_LOW,
       inflationStabilityPenalty: 5,
-      inflationCommercePenaltyMultiplier: 1.0,
+      inflationCommercePenaltyMultiplier: COUPON_GRAIN_RATIO,
     };
   }
 
-  if (backingRatio >= 0.4) {
+  if (backingRatio >= INFLATION_THRESHOLD_MID) {
     return {
       backingRatio,
-      inflationRate: 0.15,
+      inflationRate: INFLATION_RATE_MID,
       inflationStabilityPenalty: 15,
       inflationCommercePenaltyMultiplier: 0.9,
     };
@@ -63,7 +71,7 @@ export function getInflationState(world) {
 
   return {
     backingRatio,
-    inflationRate: 0.3,
+    inflationRate: INFLATION_RATE_HIGH,
     inflationStabilityPenalty: 25,
     inflationCommercePenaltyMultiplier: 0.7,
   };

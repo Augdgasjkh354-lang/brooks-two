@@ -1,9 +1,13 @@
 // Society life quality module
 
 import { calculateLivingCost } from '../economy/market.js';
+import {
+  STABILITY_MIN, STABILITY_MAX, BASE_LIFE_QUALITY, FARMER_INIT_LITERACY,
+  MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY
+} from '../config/constants.js';
 
 export function clampPercentIndex(value) {
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.max(STABILITY_MIN, Math.min(STABILITY_MAX, Math.round(value)));
 }
 
 function clampRatio(value) {
@@ -79,11 +83,11 @@ function getClassIncomePerHead(world) {
 
 export function updateLiteracyCaps(world) {
   const baseCaps = {
-    farmer: 0.15,
-    merchant: 0.4,
-    official: 0.7,
-    worker: 0.2,
-    landlord: 0.35,
+    farmer: FARMER_INIT_LITERACY * 3,
+    merchant: MERCHANT_POP_INIT_LITERACY + 0.15,
+    official: OFFICIAL_INIT_LITERACY + 0.2,
+    worker: WORKER_INIT_LITERACY + 0.12,
+    landlord: LANDLORD_INIT_LITERACY + 0.15,
   };
 
   const primarySchoolCount =
@@ -179,10 +183,10 @@ export function calculateLifeQuality(world) {
 
   world.giniRatio = classIncome.merchantIncomePerHead / Math.max(classIncome.farmerIncomePerHead, 1);
 
-  let farmerLifeQuality = 50;
-  let merchantLifeQuality = 50;
-  let officialLifeQuality = 50;
-  let landlordLifeQuality = 50;
+  let farmerLifeQuality = BASE_LIFE_QUALITY;
+  let merchantLifeQuality = BASE_LIFE_QUALITY;
+  let officialLifeQuality = BASE_LIFE_QUALITY;
+  let landlordLifeQuality = BASE_LIFE_QUALITY;
 
   const factors = {
     farmer: [],
