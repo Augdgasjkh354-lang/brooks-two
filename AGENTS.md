@@ -4472,3 +4472,165 @@ tech/ ui/ files, state.js, unlocks.js, policies.js
 - On page load: detect and offer to restore save
 - All buttons visible in header
 - 自动保存 indicator appears briefly after save
+## Phase 8B: Constants (Current)
+
+Phase 8F complete. Now extracting all magic numbers
+into a central constants file.
+
+**Goal:** All hardcoded numbers moved to
+js/config/constants.js. No logic changes.
+
+**New file:** js/config/constants.js
+
+Constants to extract:
+
+Population:
+- INITIAL_POPULATION: 5000
+- INITIAL_LABOR_FORCE: 3000
+- INITIAL_CHILDREN: 1000
+- INITIAL_ELDERLY: 1000
+- BASE_GROWTH_RATE: 0.02
+- MIN_GROWTH_RATE: -0.05
+- MAX_GROWTH_RATE: 0.05
+- LABOR_RATIO: 0.6
+- CHILDREN_RATIO: 0.2
+- ELDERLY_RATIO: 0.2
+
+Agriculture:
+- INITIAL_FARMLAND_MU: 30000
+- BASE_GRAIN_YIELD_PER_MU: 500
+- MAX_GRAIN_YIELD_PER_MU: 800
+- LABOR_PER_MU: 10
+- GRAIN_CONSUMPTION_PER_PERSON: 360
+- FARMLAND_RECLAIM_COST_PER_MU: 500
+- HEMP_RECLAIM_COST_PER_MU: 800
+- MULBERRY_RECLAIM_COST_PER_MU: 1500
+- MULBERRY_MATURATION_YEARS: 2
+- MIN_RECLAIM_MU: 1000
+- MIN_FIBER_RECLAIM_MU: 100
+
+Market:
+- SALT_BASE_PRICE: 4.0
+- CLOTH_BASE_PRICE: 2.0
+- SALT_CONSUMPTION_PER_PERSON: 15
+- CLOTH_CONSUMPTION_PER_PERSON: 0.3
+- SALT_PRICE_MIN: 1.0
+- SALT_PRICE_MAX: 10.0
+- CLOTH_PRICE_MIN: 0.8
+- CLOTH_PRICE_MAX: 5.0
+
+Commerce:
+- SHOP_COST: 1500000
+- SHOP_GDP_PER_UNIT: 500
+- SHOP_LABOR_PER_UNIT: 5
+- MERCHANT_POP_INIT_LITERACY: 0.25
+- MONEYLENDER_LICENSE_FEE: 5000000
+- MONEYLENDER_DEFAULT_TAX: 0.01
+
+Currency:
+- COUPON_GRAIN_RATIO: 1.0
+- INFLATION_THRESHOLD_LOW: 0.7
+- INFLATION_THRESHOLD_MID: 0.4
+- INFLATION_RATE_LOW: 0.05
+- INFLATION_RATE_MID: 0.15
+- INFLATION_RATE_HIGH: 0.30
+
+Society:
+- BASE_STABILITY: 80
+- STABILITY_MIN: 0
+- STABILITY_MAX: 100
+- BASE_LIFE_QUALITY: 50
+- FARMER_INIT_LITERACY: 0.05
+- OFFICIAL_INIT_LITERACY: 0.5
+- WORKER_INIT_LITERACY: 0.08
+- LANDLORD_INIT_LITERACY: 0.2
+
+Institutions:
+- POLICE_RATIO_CRITICAL: 0.001
+- POLICE_RATIO_LOW: 0.002
+- POLICE_RATIO_GOOD: 0.005
+- POLICE_RATIO_HIGH: 0.01
+- PUBLIC_TOILET_COST: 50000
+- ROAD_COST_PER_LI: 10000
+- PEOPLE_PER_TOILET: 100
+- HEALTH_BUREAU_TOILET_MIN: 50
+- HEALTH_BUREAU_SANITATION_MIN: 5
+- HEALTH_BUREAU_CLEANING_MIN: 5
+
+Diplomacy (Xikou):
+- XIKOU_INIT_POPULATION: 3000
+- XIKOU_INIT_LABOR: 1800
+- XIKOU_FARMLAND_MU: 3000
+- XIKOU_SALT_OUTPUT: 200000
+- XIKOU_MULBERRY_MU: 1200
+- XIKOU_HEMP_MU: 800
+- ENVOY_COST: 500000
+- SALT_TRADE_RATIO: 0.5
+- CLOTH_TRADE_RATIO: 0.3
+
+Education:
+- PRIMARY_PROGRAM_YEARS: 3
+- SECONDARY_PROGRAM_YEARS: 4
+- HIGHER_PROGRAM_YEARS: 3
+- SCHOOL_LICENSE_FEE: 2000000
+- HIGHER_SCHOOL_GRAD_MIN: 2000
+- HIGHER_SCHOOL_YEAR_MIN: 100
+- GRADUATE_DECAY_RATE: 0.97
+- ELIGIBLE_POOL_DECAY: 0.95
+
+Tech costs:
+- TECH_BASIC_FARMING: 200000
+- TECH_INTENSIVE_FARMING: 500000
+- TECH_CROP_ROTATION: 800000
+- TECH_IRRIGATION: 1000000
+- TECH_FOLK_TRADE: 100000
+- TECH_CONTRACT_LAW: 400000
+- TECH_WEIGHTS_MEASURES: 300000
+- TECH_WRITTEN_RECORDS: 300000
+- TECH_PAPERMAKING: 500000
+- TECH_CODIFIED_LAW: 400000
+- TECH_HERBALISM: 200000
+- TECH_BASIC_MEDICINE: 600000
+- TECH_MILITIA: 300000
+- TECH_WEAPON_FORGING: 500000
+- TECH_SELECTIVE_BREEDING: 1200000
+- TECH_WATERMILL: 1500000
+- TECH_MONEYLENDER: 2000000
+- TECH_LONG_DISTANCE_TRADE: 2500000
+- TECH_IMPERIAL_EXAM: 3000000
+- TECH_ADVANCED_MEDICINE: 2000000
+- TECH_FORTIFICATION: 2500000
+- TECH_INTELLIGENCE: 1500000
+
+**Implementation rules:**
+- Create js/config/constants.js with all above
+- Replace hardcoded values in all JS files with
+  constant references
+- Use UPPER_SNAKE_CASE for all constants
+- Group constants by system with comments
+- Do NOT change any logic, only replace numbers
+
+**Files to modify:**
+- js/config/constants.js (new file)
+- js/state.js
+- js/economy/agriculture.js
+- js/economy/commerce.js
+- js/economy/market.js
+- js/economy/currency.js
+- js/economy/labor.js
+- js/society/population.js
+- js/society/satisfaction.js
+- js/society/stability.js
+- js/diplomacy/xikou.js
+- js/tech/research.js
+- index.html (add script tag for constants.js)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any ui/ files, game.js, render.js, save.js
+
+**Definition of Done (Phase 8B):**
+- All magic numbers replaced with named constants
+- constants.js loads before all other modules
+- No logic changes anywhere
+- Game runs identically after refactor
+- Easy to find and change any number in future
