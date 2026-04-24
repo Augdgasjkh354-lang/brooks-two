@@ -8,6 +8,7 @@ import {
   INFLATION_RATE_MID,
   INFLATION_RATE_HIGH,
 } from '../config/constants.js';
+import { transfer } from './transfer.js';
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -158,17 +159,36 @@ export function issueGrainCoupons(state, amount) {
 
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
-  privateSector.farmerGrain = clampMoney(privateSector.farmerGrain ?? 0) - issueAmount;
-  privateSector.farmerCoupons = clampMoney(privateSector.farmerCoupons ?? 0) + issueAmount;
-  privateSector.totalPrivateGrain = clampMoney((privateSector.farmerGrain ?? 0));
-  privateSector.totalPrivateCoupons = clampMoney(
-    (privateSector.farmerCoupons ?? 0) + (privateSector.merchantCoupons ?? 0)
-  );
+  const monetary = state.monetary ?? state.world;
+  const movedToBacking = transfer({
+    from: 'private.farmer.grain',
+    to: 'monetary.locked',
+    asset: 'grain',
+    amount: issueAmount,
+    gdpTreatment: 'none',
+    reason: 'coupon_backing'
+  }, state);
+
+  if (!movedToBacking) {
+    return { success: false, reason: 'Insufficient farmer grain for coupon backing.' };
+  }
 
   state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) + issueAmount;
-  const monetary = state.monetary ?? state.world;
-  monetary.lockedGrainReserve = clampMoney(monetary.lockedGrainReserve ?? 0) + issueAmount;
   monetary.couponCirculating = clampMoney(monetary.couponCirculating ?? 0) + issueAmount;
+
+  const issuedCoupons = transfer({
+    from: 'monetary.circulating',
+    to: 'private.farmer.coupon',
+    asset: 'coupon',
+    amount: issueAmount,
+    gdpTreatment: 'none',
+    reason: 'coupon_issuance'
+  }, state);
+
+  if (!issuedCoupons) {
+    return { success: false, reason: 'Coupon issuance transfer failed.' };
+  }
+
   monetary.couponTotalIssued = clampMoney(monetary.couponTotalIssued ?? 0) + issueAmount;
   state.world.lastCouponIssueAmount = issueAmount;
   state.world.lastCouponDenominationBreakdown = denominationBreakdown;

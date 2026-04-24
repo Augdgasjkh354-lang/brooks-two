@@ -8,6 +8,7 @@ import {
   SHOP_GDP_PER_UNIT,
   MERCHANT_POP_INIT_LITERACY,
 } from '../config/constants.js';
+import { transfer } from './transfer.js';
 
 export const SHOP_BUILD_COST_GRAIN = SHOP_COST;
 export const DEFAULT_MONEYLENDER_LICENSE_FEE = MONEYLENDER_LICENSE_FEE;
@@ -432,10 +433,21 @@ export function applyCommerceTax(world) {
     world.commerceGDP = taxableGdp;
   }
 
-  const revenue = taxableGdp * taxRate;
-  world.commerceTaxRevenue = revenue;
+  const taxAmount = taxableGdp * taxRate;
+  const taxCollected = transfer({
+    from: 'private.merchant.coupon',
+    to: 'government.coupon',
+    asset: 'coupon',
+    amount: taxAmount,
+    gdpTreatment: 'transfer',
+    reason: 'commerce_tax'
+  }, world)
+    ? taxAmount
+    : 0;
 
-  return { revenue, taxRate, taxableGdp };
+  world.commerceTaxRevenue = taxCollected;
+
+  return { revenue: taxCollected, taxRate, taxableGdp };
 }
 
 export function applyTradeBureauCommerceEffects(world, tradeEffects) {

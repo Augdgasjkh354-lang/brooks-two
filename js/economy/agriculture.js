@@ -14,6 +14,7 @@ import {
 } from '../society/satisfaction.js';
 import { getCommerceActivityBonus, getMerchantLiteracyMultiplier, calculateGdpPerCapita, applyTradePolicySettings, calculateProductionCommerceGDP } from './commerce.js';
 import { getInflationState, issueGrainCoupons } from './currency.js';
+import { transfer } from './transfer.js';
 import {
   updateXikouVillageEconomy,
   updateXikouDiplomacy,
@@ -499,11 +500,20 @@ export function updateEconomy(world, options = {}) {
       (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
     const annualFarmerConsumption =
       Math.max(0, Number(world.farmingLaborAllocated ?? 0)) * 360;
+    const retainedGrain = annualFarmerIncome;
+    const farmerRetentionApplied = transfer({
+      from: 'private.farmer.grain',
+      to: 'private.farmer.grain',
+      asset: 'grain',
+      amount: retainedGrain,
+      gdpTreatment: 'production',
+      reason: 'farmer_retention'
+    }, world);
     const saltSpending = Math.max(0, Number(privateSector.farmerGrain ?? 0)) * Math.max(0, Number(saltPricing.nextPrice ?? world.saltPrice ?? 0)) * 15;
 
     privateSector.farmerGrain = Math.max(
       0,
-      Number(privateSector.farmerGrain ?? 0) + annualFarmerIncome - annualFarmerConsumption - saltSpending
+      Number(privateSector.farmerGrain ?? 0) + (farmerRetentionApplied ? retainedGrain : 0) - annualFarmerConsumption - saltSpending
     );
     privateSector.merchantGoods = Math.max(
       0,
@@ -882,6 +892,15 @@ export function updateEconomy(world, options = {}) {
 
     world.theoreticalTaxRevenue = theoreticalTaxRevenue;
     world.actualTaxRevenue = actualTaxRevenue;
+
+    transfer({
+      from: 'private.farmer.grain',
+      to: 'government.grain',
+      asset: 'grain',
+      amount: agriculturalTax,
+      gdpTreatment: 'transfer',
+      reason: 'agricultural_tax'
+    }, world);
 
     const taxToGrain = actualTaxRevenue * taxGrainRatio;
     const taxToCoupon = actualTaxRevenue - taxToGrain;
