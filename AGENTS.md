@@ -4102,3 +4102,150 @@ tech/research.js
 - Irrigation canals use array not single timestamp
 - Population can shrink during famine/crisis
 - Graduate pools decay 3% annually
+## Bugfix v2: Core Logic Corrections (Current)
+
+Bugfix v1 complete. Now fixing 3 remaining critical
+logic errors. No new features. No UI changes.
+
+---
+
+**FIX 1: Grain coupon accounting (currency.js)**
+
+Current problem:
+- Issuing coupons increases both grainTreasury
+  AND lockedGrainReserve simultaneously
+- Two different accounting models mixed together
+
+Correct model (choose ONE, implement consistently):
+Use "government issues coupons backed by existing
+grain treasury" model:
+
+issueGrainCoupons(amount):
+- Check: grainTreasury >= amount (has backing grain)
+- grainTreasury -= amount (grain moved to reserve)
+- lockedGrainReserve += amount (now backing coupons)
+- couponCirculating += amount (coupons enter market)
+- couponTotalIssued += amount
+- couponTreasury unchanged (this is govt held coupons)
+
+maxIssuable = grainTreasury (free grain only)
+backingRatio = lockedGrainReserve / couponCirculating
+
+Coupon redemption (when player redeems):
+- couponCirculating -= amount
+- lockedGrainReserve -= amount
+- grainTreasury += amount (grain returns to free)
+
+This is clean: grain either free or locked, never both.
+
+---
+
+**FIX 2: Paper supply ratio formula (stability.js)**
+
+Current problem:
+- institutionPaperPercent = (demand/total) * supplyRatio
+- When supply is sufficient, institution gets 50%
+  instead of 100% (wrong)
+
+Correct formula:
+
+Step 1: Calculate total paper demand
+totalPaperDemand = sum of all institution demands
+
+Step 2: Calculate overall supply ratio
+paperSupplyRatio = min(1.0, paperOutput /
+  max(totalPaperDemand, 1))
+
+Step 3: Each institution gets same supply ratio
+institutionPaperPercent = paperSupplyRatio * 100
+
+Simple rule: if total paper is sufficient for all,
+every institution gets 100%. If scarce, everyone
+gets proportionally less (paperSupplyRatio < 1).
+
+Example:
+- totalDemand = 1000, paperOutput = 1000
+- paperSupplyRatio = 1.0
+- ALL institutions get 100% paper supply
+
+Example 2:
+- totalDemand = 1000, paperOutput = 500
+- paperSupplyRatio = 0.5
+- ALL institutions get 50% paper supply
+
+---
+
+**FIX 3: Satisfaction unified end-of-year calculation
+(game.js + satisfaction.js)**
+
+Current problem:
+- Multiple systems write directly to satisfaction
+  at different points in year loop
+- Police, court, trade policy write lifeQuality/
+  satisfaction directly, not through eventModifier
+- eventModifier cleared at wrong time
+
+Correct year-end flow:
+
+In game.js nextYear() function, enforce this order:
+1. world.year += 1
+2. clearEventModifiers() — reset all eventModifiers to 0
+3. updateEconomy() — grain, commerce, market prices
+4. updateLabor() — labor allocation
+5. updatePopulation() — births, deaths
+6. updateResearch() — tech progress
+7. updateXikou() — diplomacy
+8. applyPolicies() — policy effects → eventModifier only
+9. applyInstitutionEffects() — police/court/health
+   → eventModifier only, NOT lifeQuality directly
+10. calculateLifeQuality() — 4 dimensions → lifeQuality
+11. calculateClassSatisfaction() — satisfaction =
+    lifeQuality + eventModifier (FINAL, called ONCE)
+12. checkUnlocks() — check new unlocks
+13. updateYearLog() — record events
+
+Rules for all systems:
+- Short-term policy shocks → eventModifier
+- Long-term economic changes → lifeQuality dimensions
+- NO system except calculateClassSatisfaction()
+  may write directly to farmerSatisfaction /
+  merchantSatisfaction / officialSatisfaction /
+  landlordSatisfaction
+- NO system except calculateLifeQuality() may write
+  directly to farmerLifeQuality / merchantLifeQuality /
+  officialLifeQuality / landlordLifeQuality
+
+Refactor these functions to use eventModifier:
+- applyPoliceLifeQualityEffects()
+- applyCourtTaxLifeQualityEffects()
+- applyTradePolicySettings()
+- applyBureaucracyPolicies()
+- applyStabilityPolicies()
+
+All of the above must write to eventModifier fields
+only, not directly to lifeQuality or satisfaction.
+
+**Files to modify:**
+- js/economy/currency.js (fix 1)
+- js/society/stability.js (fix 2)
+- js/game.js (fix 3: enforce year-end order)
+- js/society/satisfaction.js (fix 3: final calc only)
+- js/economy/commerce.js (fix 3: use eventModifier)
+- js/society/stability.js (fix 3: use eventModifier)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any ui/ files, diplomacy/xikou.js,
+economy/market.js economy/labor.js
+economy/agriculture.js tech/research.js
+state.js
+
+**Definition of Done (Bugfix v2):**
+- Coupon issuance moves grain from free to locked
+- backingRatio = lockedGrainReserve / couponCirculating
+- Paper supply ratio same for all institutions
+- All satisfaction written only in calculateClassSatisfaction
+- All lifeQuality written only in calculateLifeQuality
+- eventModifier cleared at year start
+- Year-end order strictly enforced in nextYear()
+- No direct writes to satisfaction/lifeQuality
+  anywhere except designated functions
