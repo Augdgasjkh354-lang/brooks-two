@@ -23,6 +23,18 @@ function getMonetary(stateObj = state) {
   return stateObj?.monetary ?? stateObj?.world?.__monetary ?? stateObj?.world ?? {};
 }
 
+function getClasses(stateObj = state) {
+  return stateObj?.classes ?? stateObj?.world?.__classes ?? stateObj?.world ?? {};
+}
+
+function getEducation(stateObj = state) {
+  return stateObj?.education ?? stateObj?.world?.__education ?? stateObj?.world ?? {};
+}
+
+function getInstitutions(stateObj = state) {
+  return stateObj?.institutions ?? stateObj?.world?.__institutions ?? stateObj?.world ?? {};
+}
+
 
 const LEDGER_DEFAULTS = {
   taxRevenue: 0, rentRevenue: 0, commerceTaxRevenue: 0, landTaxRevenue: 0, moneylenderTaxRevenue: 0,
@@ -222,7 +234,7 @@ function setStudentsDownToVillage(target) {
   }
 
   const safeTarget = Math.max(0, Math.floor(Number(target ?? 0)));
-  state.world.studentsDownToVillage = safeTarget;
+  getEducation().studentsDownToVillage = safeTarget;
   state.yearLog.unshift(`Year ${state.calendar.year}: 学子下乡人数设置为 ${safeTarget}。`);
   render();
 }
@@ -235,7 +247,8 @@ function settleEducationYear() {
   const commercialTuition =
     (edu.commercialPrimaryEnrolled + edu.commercialSecondaryEnrolled) *
     gdpPerCapita * 0.15;
-  state.world.merchantIncomePool = (state.world.merchantIncomePool ?? 0) + commercialTuition;
+  const classes = getClasses();
+  classes.merchantIncomePool = (classes.merchantIncomePool ?? 0) + commercialTuition;
 
   const govEnrolled =
     Math.max(0, (edu.primaryEnrolled ?? 0) - (edu.commercialPrimaryEnrolled ?? 0)) +
@@ -255,7 +268,7 @@ function settleEducationYear() {
   }
   state.ledger.educationCost += Math.max(0, Number(govCost ?? 0));
 
-  const downStudents = Math.max(0, Math.floor(Number(state.world.studentsDownToVillage ?? 0)));
+  const downStudents = Math.max(0, Math.floor(Number(getEducation().studentsDownToVillage ?? 0)));
   const downCost = downStudents * gdpPerCapita * 1.5;
   if (state.world.grainCouponsUnlocked) {
     const fromCoupon = Math.min(monetary.couponTreasury ?? 0, downCost);
@@ -266,7 +279,7 @@ function settleEducationYear() {
     state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - downCost);
   }
   state.ledger.educationCost += Math.max(0, Number(downCost ?? 0));
-  state.world.farmerIncomePool = (state.world.farmerIncomePool ?? 0) + downCost;
+  classes.farmerIncomePool = (classes.farmerIncomePool ?? 0) + downCost;
 
   return { commercialTuition, govCost, downCost, edu };
 }
@@ -308,9 +321,10 @@ function borrowFromMoneylenderPool(amount) {
 
 function syncGovernmentInstitutionSettings() {
   const fiscal = getFiscal();
-  state.world.seniorOfficialCount = Math.max(0, Math.floor(Number(state.world.seniorOfficialCount ?? 0)));
-  state.world.midOfficialCount = Math.max(0, Math.floor(Number(state.world.midOfficialCount ?? 0)));
-  state.world.juniorOfficialCount = Math.max(0, Math.floor(Number(state.world.juniorOfficialCount ?? 0)));
+  const institutions = getInstitutions();
+  institutions.seniorOfficialCount = Math.max(0, Math.floor(Number(institutions.seniorOfficialCount ?? 0)));
+  institutions.midOfficialCount = Math.max(0, Math.floor(Number(institutions.midOfficialCount ?? 0)));
+  institutions.juniorOfficialCount = Math.max(0, Math.floor(Number(institutions.juniorOfficialCount ?? 0)));
   state.population.sanitationWorkerCount = Math.max(0, Math.floor(Number(state.population.sanitationWorkerCount ?? 0)));
   state.population.cleaningWorkerCount = Math.max(0, Math.floor(Number(state.population.cleaningWorkerCount ?? 0)));
 
@@ -330,7 +344,7 @@ function syncPoliceInstitutionSettings() {
   const adminTalent = Math.max(0, Number(state.population.adminTalent ?? 0));
   state.world.adminTalentDeployedPolice = Math.min(adminTalent, state.world.policeOfficerCount);
   const mandatoryDeployed =
-    Number(state.world.adminTalentDeployedGov ?? 0) +
+    Number(getEducation().adminTalentDeployedGov ?? 0) +
     Number(state.world.adminTalentDeployedPolice ?? 0) +
     Number(state.world.adminTalentDeployedCourt ?? 0) +
     Number(state.world.adminTalentDeployedTax ?? 0);
@@ -347,7 +361,7 @@ function syncHealthInstitutionSettings() {
   state.world.adminTalentDeployedHealth = Math.min(adminTalent, state.world.healthOfficerCount);
 
   const mandatoryDeployed =
-    Number(state.world.adminTalentDeployedGov ?? 0) +
+    Number(getEducation().adminTalentDeployedGov ?? 0) +
     Number(state.world.adminTalentDeployedPolice ?? 0) +
     Number(state.world.adminTalentDeployedHealth ?? 0) +
     Number(state.world.adminTalentDeployedCourt ?? 0) +
@@ -508,7 +522,8 @@ function nextYear() {
   const policeEffects = calculatePoliceEffects(state.world);
   applyPoliceCommerceEffects(state.world, policeEffects);
   applyPoliceLifeQualityEffects(state.world, policeEffects);
-  state.world.stabilityIndex = Math.max(0, Math.min(100, Number(state.world.stabilityIndex ?? 0) + Number(policeEffects.stabilityDelta ?? 0)));
+  const classes = getClasses();
+  classes.stabilityIndex = Math.max(0, Math.min(100, Number(classes.stabilityIndex ?? 0) + Number(policeEffects.stabilityDelta ?? 0)));
   state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
 
   if (policeEffects.message) {
@@ -810,8 +825,9 @@ function buildPublicToilets() {
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.land.publicToilets = Math.max(0, Number(state.land.publicToilets ?? 0)) + count;
-  state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.8;
-  state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.2;
+  const classes = getClasses();
+  classes.farmerIncomePool = Math.max(0, Number(classes.farmerIncomePool ?? 0)) + totalCost * 0.8;
+  classes.merchantIncomePool = Math.max(0, Number(classes.merchantIncomePool ?? 0)) + totalCost * 0.2;
 
   state.yearLog.unshift(`Year ${state.calendar.year}: 新建公共厕所${count}座（花费${totalCost}粮，农户收入池+${Math.round(totalCost*0.8)}，商人收入池+${Math.round(totalCost*0.2)}）。`);
   if (input) input.value = '';
@@ -839,8 +855,9 @@ function buildRoads() {
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.land.roadLength = Math.max(0, Number(state.land.roadLength ?? 0)) + li;
-  state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.7;
-  state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.3;
+  const classes = getClasses();
+  classes.farmerIncomePool = Math.max(0, Number(classes.farmerIncomePool ?? 0)) + totalCost * 0.7;
+  classes.merchantIncomePool = Math.max(0, Number(classes.merchantIncomePool ?? 0)) + totalCost * 0.3;
 
   state.yearLog.unshift(`Year ${state.calendar.year}: 新建道路${li}里（花费${totalCost}粮，农户收入池+${Math.round(totalCost*0.7)}，商人收入池+${Math.round(totalCost*0.3)}）。`);
   if (input) input.value = '';
@@ -880,7 +897,8 @@ function useGrainRedistribution() {
   state.agriculture.grainTreasury -= 5000;
   ensureLedgerState();
   state.ledger.subsidyCost += 5000;
-  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
+  const classes = getClasses();
+  classes.stabilityIndex = Math.min(100, (classes.stabilityIndex ?? 0) + stabilityGain);
   state.world.grainRedistributionUsed = true;
 
   state.yearLog.unshift(
@@ -912,7 +930,8 @@ function useMerchantTax() {
     (state.world.merchantIncomePerHead ?? 0) * (1 - merchantIncomeReduction);
   state.world.incomeGap =
     (state.world.merchantIncomePerHead ?? 0) - (state.world.farmerIncomePerHead ?? 0);
-  state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
+  const classes = getClasses();
+  classes.stabilityIndex = Math.min(100, (classes.stabilityIndex ?? 0) + stabilityGain);
 
   const taxGain = Math.round((state.population.merchantCount ?? 0) * treasuryGainPerMerchant);
   state.agriculture.grainTreasury += taxGain;
@@ -1329,7 +1348,7 @@ function bindEvents() {
     if (rateKeys.has(key)) fiscal[key] = Number(value ?? 0);
 
     if (key === 'adminTalentDeployedGov') {
-      state.world.adminTalentDeployedGov = Math.max(0, Math.floor(value));
+      getEducation().adminTalentDeployedGov = Math.max(0, Math.floor(value));
     }
 
     syncGovernmentInstitutionSettings();
