@@ -6155,3 +6155,144 @@ economy/ files.
 - 5 core transactions use transfer()
 - index.html loads transfer.js first
 - Game runs identically after change
+## Bugfix v6: Salt Consumption + Production + Tax (Current)
+
+Fixing 3 confirmed logic bugs. No new features.
+
+---
+
+**FIX 1: Salt consumption uses wrong base (agriculture.js)**
+
+Current wrong logic:
+- saltSpending = privateSector.farmerGrain * saltPrice * 15
+- Uses grain STOCK as multiplier (wrong)
+- More grain = more salt spending (no relation)
+
+Correct logic:
+- farmerSaltDemand = farmingLaborAllocated *
+  SALT_CONSUMPTION_PER_PERSON (15 jin/person/year)
+- saltAffordable = privateSector.farmerGrain /
+  max(saltPrice, 1)
+  (how much salt farmer can afford with grain)
+- saltConsumed = min(farmerSaltDemand,
+  world.saltReserve, saltAffordable)
+- saltSpending = saltConsumed * saltPrice
+- privateSector.farmerGrain -= saltSpending
+- world.saltReserve -= saltConsumed
+
+Same fix for cloth consumption:
+- farmerClothDemand = farmingLaborAllocated *
+  CLOTH_CONSUMPTION_PER_PERSON (0.3 bolts/year)
+- clothAffordable = privateSector.farmerGrain /
+  max(world.clothPrice, 1)
+- clothConsumed = min(farmerClothDemand,
+  world.clothReserve, clothAffordable)
+- clothSpending = clothConsumed * world.clothPrice
+- privateSector.farmerGrain -= clothSpending
+- world.clothReserve -= clothConsumed
+
+---
+
+**FIX 2: farmer_retention uses self-transfer
+(agriculture.js + transfer.js)**
+
+Current wrong logic:
+- transfer({ from: 'private.farmer.grain',
+    to: 'private.farmer.grain', ... })
+- Self-transfer does nothing to balance
+- Production is not a transfer
+
+Correct logic:
+Add new function produce() to transfer.js:
+
+function produce({
+  to,        // account receiving new assets
+  asset,     // 'grain' / 'cloth' / 'salt' etc
+  amount,    // quantity produced
+  gdpTreatment, // 'production' / 'none'
+  reason     // description
+}, state)
+
+- Adds amount to 'to' account
+- No 'from' needed (new value created)
+- Records in ledger as production
+- Updates ledger.constructionSpendingThisYear
+  if reason includes 'construction'
+
+Replace farmer_retention with:
+produce({
+  to: 'private.farmer.grain',
+  asset: 'grain',
+  amount: retainedGrain,
+  gdpTreatment: 'production',
+  reason: 'farmer_grain_retention'
+}, state)
+
+Also add consume() function to transfer.js:
+
+function consume({
+  from,      // account losing assets
+  asset,     // asset type
+  amount,    // quantity consumed
+  reason     // description
+}, state)
+
+- Deducts amount from 'from' account
+- Records as consumption (not GDP)
+- Returns false if insufficient balance
+
+---
+
+**FIX 3: Commerce tax fails silently when
+merchant has no coupons (commerce.js)**
+
+Current wrong logic:
+- Tax only tries private.merchant.coupon
+- If balance insufficient: tax = 0, no consequence
+
+Correct logic:
+Tax collection priority order:
+1. Try private.merchant.coupon first
+2. If insufficient: try private.merchant.grain
+   (convert at current grainPrice)
+3. If still insufficient: record as tax arrears
+
+Add to state:
+- merchantTaxArrears: 0
+- taxArrearsAccumulated: 0
+
+Tax arrears effects:
+- merchantTaxArrears > 0:
+  taxBureauEfficiency -= 10
+  merchantLifeQuality -= 5
+  yearLog: "商业税收欠缴，税务局压力增加"
+- taxArrearsAccumulated > commerceGDP * 0.5:
+  merchantSatisfaction -= 10
+  courtEfficiency -= 5
+  yearLog: "累计欠税严重，影响营商环境"
+
+Arrears repayment:
+- Each year: attempt to collect arrears first
+  before new tax
+- If merchant assets sufficient: clear arrears
+- merchantTaxArrears decreases as paid
+
+**Files to modify:**
+- js/economy/transfer.js (add produce() + consume())
+- js/economy/agriculture.js (fix 1 + fix 2)
+- js/economy/commerce.js (fix 3)
+- js/state.js (merchantTaxArrears fields)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ diplomacy/ tech/ ui/ files
+economy/market.js economy/labor.js
+economy/currency.js
+
+**Definition of Done (Bugfix v6):**
+- Salt consumption based on population not grain stock
+- Cloth consumption based on population not grain stock
+- farmer_retention uses produce() not self-transfer
+- Commerce tax tries coupon then grain then arrears
+- Tax arrears tracked and affect efficiency
+- Arrears repaid when merchant assets available
+- yearLog records consumption and tax events
