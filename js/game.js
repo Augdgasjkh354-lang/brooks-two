@@ -83,7 +83,7 @@ function logYearSummary({
 }) {
   const populationDirection = populationDelta >= 0 ? 'grow' : 'decline';
   const treasuryDirection = agriculturalTax >= 0 ? 'increased' : 'decreased';
-  const utilization = Math.round(state.world.landUtilizationPercent);
+  const utilization = Math.round(state.agriculture.landUtilizationPercent);
 
   state.yearLog.unshift(
     `Year ${state.calendar.year}: Population continued to ${populationDirection}, land utilization reached ${utilization}%, grain output was ${grainOutput}/${potentialGrainOutput} (lost ${lostGrainOutput}), grain treasury ${treasuryDirection} by ${agriculturalTax}, salt import ${state.world.actualSaltImport ?? 0}, salt consumed ${state.world.saltConsumed ?? 0}, shortfall ${Math.round((state.world.saltShortfallRatio ?? 0) * 100)}%.`
@@ -156,13 +156,13 @@ function resolveByEmergencyRedemption() {
     return;
   }
 
-  if ((state.world.grainTreasury ?? 0) < 20000) {
+  if ((state.agriculture.grainTreasury ?? 0) < 20000) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 紧急赎回 failed - requires 20000 grain treasury.`);
     render();
     return;
   }
 
-  state.world.grainTreasury -= 20000;
+  state.agriculture.grainTreasury -= 20000;
   state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 20000);
   state.world.lockedGrainReserve = Math.max(0, (state.world.lockedGrainReserve ?? 0) - 20000);
   state.world.creditCrisisResolved = true;
@@ -234,9 +234,9 @@ function settleEducationYear() {
     const fromCoupon = Math.min(state.world.couponTreasury ?? 0, govCost);
     state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
     const remaining = govCost - fromCoupon;
-    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - remaining);
+    state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - remaining);
   } else {
-    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - govCost);
+    state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - govCost);
   }
   state.ledger.educationCost += Math.max(0, Number(govCost ?? 0));
 
@@ -246,9 +246,9 @@ function settleEducationYear() {
     const fromCoupon = Math.min(state.world.couponTreasury ?? 0, downCost);
     state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
     const remaining = downCost - fromCoupon;
-    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - remaining);
+    state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - remaining);
   } else {
-    state.world.grainTreasury = Math.max(0, (state.world.grainTreasury ?? 0) - downCost);
+    state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - downCost);
   }
   state.ledger.educationCost += Math.max(0, Number(downCost ?? 0));
   state.world.farmerIncomePool = (state.world.farmerIncomePool ?? 0) + downCost;
@@ -533,10 +533,10 @@ function nextYear() {
   if (tradeBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${tradeBureauEffects.message}`);
   if (engineeringBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${engineeringBureauEffects.message}`);
 
-  if (Array.isArray(state.world.pendingCanals) && state.world.pendingCanals.length > 0) {
+  if (Array.isArray(state.land.pendingCanals) && state.land.pendingCanals.length > 0) {
     const completedCanals = [];
     const remainingCanals = [];
-    for (const canal of state.world.pendingCanals) {
+    for (const canal of state.land.pendingCanals) {
       if ((canal?.finishYear ?? Number.MAX_SAFE_INTEGER) <= (state.calendar.year ?? 0)) {
         completedCanals.push(canal);
       } else {
@@ -547,13 +547,13 @@ function nextYear() {
     if (completedCanals.length > 0) {
       const completed = completedCanals.length;
       const addedMu = completedCanals.reduce((sum, c) => sum + Math.max(0, Number(c?.muCount ?? 0)), 0);
-      state.world.irrigationCanalCount = Math.max(0, Number(state.world.irrigationCanalCount ?? 0)) + completed;
-      state.world.farmlandAreaMu = Math.max(0, Number(state.world.farmlandAreaMu ?? 0)) + addedMu;
-      state.world.baseGrainYieldPerMu = Math.max(0, Number(state.world.baseGrainYieldPerMu ?? 500)) + completed * 50;
+      state.land.irrigationCanalCount = Math.max(0, Number(state.land.irrigationCanalCount ?? 0)) + completed;
+      state.land.farmlandAreaMu = Math.max(0, Number(state.land.farmlandAreaMu ?? 0)) + addedMu;
+      state.agriculture.baseGrainYieldPerMu = Math.max(0, Number(state.agriculture.baseGrainYieldPerMu ?? 500)) + completed * 50;
       state.yearLog.unshift(`Year ${state.calendar.year}: 水渠工程完工${completed}条，新增耕地${Math.round(addedMu)}亩，灌溉能力提升。`);
     }
 
-    state.world.pendingCanals = remainingCanals;
+    state.land.pendingCanals = remainingCanals;
     state.world.pendingIrrigationCanals = remainingCanals.length;
   }
 
@@ -577,9 +577,9 @@ function nextYear() {
   }
 
   if ((state.world.landlordSatisfaction ?? 70) < 40) {
-    const blockedFarmland = Math.max(0, state.world.pendingFarmlandMu ?? 0);
+    const blockedFarmland = Math.max(0, state.land.pendingFarmlandMu ?? 0);
     if (blockedFarmland > 0) {
-      state.world.pendingFarmlandMu = 0;
+      state.land.pendingFarmlandMu = 0;
       state.world.reclaimedThisYear = 0;
     }
   }
@@ -685,13 +685,13 @@ function openHempLand() {
   }
 
   const totalCost = Math.round(mu * costPerMu);
-  if ((state.world.grainTreasury ?? 0) < totalCost) {
+  if ((state.agriculture.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 开垦麻田失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
     return;
   }
 
-  state.world.grainTreasury -= totalCost;
+  state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.pendingHempLandMu = (state.world.pendingHempLandMu ?? 0) + mu;
@@ -721,7 +721,7 @@ function openMulberryLand() {
   }
 
   const totalCost = Math.round(mu * costPerMu);
-  if ((state.world.grainTreasury ?? 0) < totalCost) {
+  if ((state.agriculture.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 开垦桑田失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
     return;
@@ -735,7 +735,7 @@ function openMulberryLand() {
     : [];
   pendingProjects.push({ mu, maturesOnYear });
 
-  state.world.grainTreasury -= totalCost;
+  state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
   state.world.pendingMulberryProjects = pendingProjects;
@@ -778,16 +778,16 @@ function buildPublicToilets() {
 
   const infraMultiplier = Math.max(0.5, Number(state.world.infrastructureCostMultiplier ?? 1));
   const totalCost = Math.round(count * 50000 * infraMultiplier);
-  if ((state.world.grainTreasury ?? 0) < totalCost) {
+  if ((state.agriculture.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 公厕修建失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
     return;
   }
 
-  state.world.grainTreasury -= totalCost;
+  state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
-  state.world.publicToilets = Math.max(0, Number(state.world.publicToilets ?? 0)) + count;
+  state.land.publicToilets = Math.max(0, Number(state.land.publicToilets ?? 0)) + count;
   state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.8;
   state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.2;
 
@@ -807,16 +807,16 @@ function buildRoads() {
 
   const infraMultiplier = Math.max(0.5, Number(state.world.infrastructureCostMultiplier ?? 1));
   const totalCost = Math.round(li * 10000 * infraMultiplier);
-  if ((state.world.grainTreasury ?? 0) < totalCost) {
+  if ((state.agriculture.grainTreasury ?? 0) < totalCost) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 道路修建失败 - 粮仓不足（需要${totalCost}粮）。`);
     render();
     return;
   }
 
-  state.world.grainTreasury -= totalCost;
+  state.agriculture.grainTreasury -= totalCost;
   ensureLedgerState();
   state.ledger.constructionCost += Math.max(0, Number(totalCost ?? 0));
-  state.world.roadLength = Math.max(0, Number(state.world.roadLength ?? 0)) + li;
+  state.land.roadLength = Math.max(0, Number(state.land.roadLength ?? 0)) + li;
   state.world.farmerIncomePool = Math.max(0, Number(state.world.farmerIncomePool ?? 0)) + totalCost * 0.7;
   state.world.merchantIncomePool = Math.max(0, Number(state.world.merchantIncomePool ?? 0)) + totalCost * 0.3;
 
@@ -844,7 +844,7 @@ function useGrainRedistribution() {
     return;
   }
 
-  if (state.world.grainTreasury < 5000) {
+  if (state.agriculture.grainTreasury < 5000) {
     state.yearLog.unshift(
       `Year ${state.calendar.year}: Grain Redistribution failed - requires 5000 grain in treasury.`
     );
@@ -855,7 +855,7 @@ function useGrainRedistribution() {
   const policyEffectMultiplier = state.world.officialPolicyEffectMultiplier ?? 1;
   const stabilityGain = Math.round(15 * policyEffectMultiplier);
 
-  state.world.grainTreasury -= 5000;
+  state.agriculture.grainTreasury -= 5000;
   ensureLedgerState();
   state.ledger.subsidyCost += 5000;
   state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
@@ -893,7 +893,7 @@ function useMerchantTax() {
   state.world.stabilityIndex = Math.min(100, (state.world.stabilityIndex ?? 0) + stabilityGain);
 
   const taxGain = Math.round((state.population.merchantCount ?? 0) * treasuryGainPerMerchant);
-  state.world.grainTreasury += taxGain;
+  state.agriculture.grainTreasury += taxGain;
   ensureLedgerState();
   state.ledger.taxRevenue += Math.max(0, Number(taxGain ?? 0));
   state.world.merchantTaxUsed = true;
@@ -923,13 +923,13 @@ function sendEnvoyToXikou() {
     return;
   }
 
-  if ((state.world.grainTreasury ?? 0) < 5000) {
+  if ((state.agriculture.grainTreasury ?? 0) < 5000) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 派遣使者失败 - 粮仓不足5000。`);
     render();
     return;
   }
 
-  state.world.grainTreasury -= 5000;
+  state.agriculture.grainTreasury -= 5000;
   xikou.diplomaticContact = true;
   xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 10));
   xikou.attitudeDeltaThisYear = 10;
@@ -980,7 +980,7 @@ function tradeGrainForSalt() {
     return;
   }
 
-  if ((state.world.grainTreasury ?? 0) < grainAmount) {
+  if ((state.agriculture.grainTreasury ?? 0) < grainAmount) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 我方粮仓不足。`);
     render();
     return;
@@ -1003,7 +1003,7 @@ function tradeGrainForSalt() {
     return;
   }
 
-  state.world.grainTreasury -= grainAmount;
+  state.agriculture.grainTreasury -= grainAmount;
   state.world.saltReserve = (state.world.saltReserve ?? 0) + saltReceived;
   xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
   xikou.saltReserve = Math.max(0, (xikou.saltReserve ?? 0) - saltReceived);
@@ -1046,7 +1046,7 @@ function tradeGrainForCloth() {
     return;
   }
 
-  if ((state.world.grainTreasury ?? 0) < grainAmount) {
+  if ((state.agriculture.grainTreasury ?? 0) < grainAmount) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 我方粮仓不足。`);
     render();
     return;
@@ -1068,7 +1068,7 @@ function tradeGrainForCloth() {
     return;
   }
 
-  state.world.grainTreasury -= grainAmount;
+  state.agriculture.grainTreasury -= grainAmount;
   state.world.clothReserve = (state.world.clothReserve ?? 0) + clothReceived;
   xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
   state.world.clothTradeUsed = true;
@@ -1291,11 +1291,11 @@ function bindEvents() {
 
     if (intKeys.has(key)) state.world[key] = Math.max(0, Math.floor(value));
 
-    if (key === 'sanitationWorkerCount' && (state.world.publicToilets ?? 0) < 1) {
+    if (key === 'sanitationWorkerCount' && (state.land.publicToilets ?? 0) < 1) {
       state.population.sanitationWorkerCount = 0;
       state.yearLog.unshift(`Year ${state.calendar.year}: 尚未建成公共厕所，无法配置挑粪工。`);
     }
-    if (key === 'cleaningWorkerCount' && (state.world.roadLength ?? 0) < 1) {
+    if (key === 'cleaningWorkerCount' && (state.land.roadLength ?? 0) < 1) {
       state.population.cleaningWorkerCount = 0;
       state.yearLog.unshift(`Year ${state.calendar.year}: 尚未建成道路，无法配置清洁工。`);
     }

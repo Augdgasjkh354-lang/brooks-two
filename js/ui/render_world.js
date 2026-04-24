@@ -45,6 +45,7 @@ export function renderHeaderStats(state) {
   const world = state.world;
   const calendar = state.calendar ?? world;
   const population = state.population ?? world;
+  const agriculture = state.agriculture ?? world;
   const mount = document.getElementById('header-stats');
   if (!mount) return;
 
@@ -52,7 +53,7 @@ export function renderHeaderStats(state) {
   mount.innerHTML = [
     `Year ${formatNumber(calendar.year)}`,
     `Population ${formatNumber(population.totalPopulation)}`,
-    `Grain ${formatNumber(world.grainTreasury)}`,
+    `Grain ${formatNumber(agriculture.grainTreasury)}`,
     `Stability ${formatNumber(world.stabilityIndex ?? 80)}`,
     `Purchasing ${formatDecimal(world.purchasingPower ?? 100, 1)} (${purchasingPowerDisplay.label})`,
   ].join(' ｜ ');
@@ -62,6 +63,8 @@ export function renderCoreStats(state) {
   const world = state.world;
   const calendar = state.calendar ?? world;
   const population = state.population ?? world;
+  const land = state.land ?? world;
+  const agriculture = state.agriculture ?? world;
   const el = document.getElementById('core-stats');
   if (!el) return;
 
@@ -76,10 +79,10 @@ export function renderCoreStats(state) {
     statItem('Commerce Labor', formatNumber(population.laborAssignedCommerce ?? 0)),
     statItem('Merchants', formatNumber(population.merchantCount ?? 0)),
     statItem('Idle Labor', formatNumber(world.idleLabor ?? 0)),
-    statItem('Land Utilization', `${Math.round(world.landUtilizationPercent ?? 0)}%`),
+    statItem('Land Utilization', `${Math.round(agriculture.landUtilizationPercent ?? 0)}%`),
     statItem('Children', formatNumber(population.children)),
     statItem('Elderly', formatNumber(population.elderly)),
-    statItem('Farmland (mu)', formatNumber(world.farmlandAreaMu)),
+    statItem('Farmland (mu)', formatNumber(land.farmlandAreaMu)),
     statItem('Income Pool - Farmer', formatNumber(world.farmerIncomePool ?? 0)),
     statItem('Income Pool - Merchant', formatNumber(world.merchantIncomePool ?? 0)),
     statItem('Income Pool - Official', formatNumber(world.officialIncomePool ?? 0)),
@@ -93,9 +96,9 @@ export function renderCoreStats(state) {
         <br/>卫生局前置：${world.healthBureauPrereqMet ? '已满足' : '未满足'}
         <br/>
         <label>新建公厕（座）<input id="public-toilet-input" type="number" min="1" step="1" value="1" /></label>
-        <button id="build-public-toilet-btn" ${(world.grainTreasury ?? 0) < 50000 ? 'disabled' : ''}>建造公厕（50000粮/座）</button>
+        <button id="build-public-toilet-btn" ${(agriculture.grainTreasury ?? 0) < 50000 ? 'disabled' : ''}>建造公厕（50000粮/座）</button>
         <label style="margin-left:8px;">新建道路（里）<input id="road-length-input" type="number" min="1" step="1" value="1" /></label>
-        <button id="build-road-btn" ${(world.grainTreasury ?? 0) < 10000 ? 'disabled' : ''}>修建道路（10000粮/里）</button>
+        <button id="build-road-btn" ${(agriculture.grainTreasury ?? 0) < 10000 ? 'disabled' : ''}>修建道路（10000粮/里）</button>
       </div>
     </div>`,
   ].join('');

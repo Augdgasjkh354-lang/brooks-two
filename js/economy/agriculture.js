@@ -63,6 +63,15 @@ function ensureLedger(world) {
   });
   return world.ledger;
 }
+
+function getLandState(world) {
+  return world.__land ?? world;
+}
+
+function getAgricultureState(world) {
+  return world.__agriculture ?? world;
+}
+
 export function getFoodSecurityStatus(grainCoverageRatio) {
   if (grainCoverageRatio >= 1) return 'Secure';
   if (grainCoverageRatio >= 0.85) return 'Strained';
@@ -80,6 +89,8 @@ export function getFertilizerBonus(dungCoverage) {
 
 export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
+  const land = getLandState(world);
+  const agriculture = getAgricultureState(world);
   const ledger = ensureLedger(world);
   const savingsStart = {
     farmer: Math.max(0, Number(world.farmerSavings ?? 0)),
@@ -99,10 +110,10 @@ export function updateEconomy(world, options = {}) {
   const bureaucracyEffects = getBureaucracyEffects(world);
   const roadEffects = applyRoadMarketEffects(world);
 
-  const maturedHempLand = Math.max(0, Math.floor(world.pendingHempLandMu ?? 0));
+  const maturedHempLand = Math.max(0, Math.floor(land.pendingHempLandMu ?? 0));
   if (maturedHempLand > 0) {
-    world.hempLandMu = clamp((world.hempLandMu ?? 0) + maturedHempLand);
-    world.pendingHempLandMu = 0;
+    land.hempLandMu = clamp((land.hempLandMu ?? 0) + maturedHempLand);
+    land.pendingHempLandMu = 0;
     behaviorMessages.push(`麻田开垦完成：新增${maturedHempLand}亩麻田`);
   }
 
@@ -119,17 +130,17 @@ export function updateEconomy(world, options = {}) {
     }
   }
   world.pendingMulberryProjects = stillPendingMulberry;
-  world.pendingMulberryLandMu = stillPendingMulberry.reduce(
+  land.pendingMulberryLandMu = stillPendingMulberry.reduce(
     (sum, project) => sum + Math.max(0, Math.floor(project?.mu ?? 0)),
     0
   );
-  world.mulberryMaturationYear =
+  land.mulberryMaturationYear =
     stillPendingMulberry.length > 0
       ? Math.min(...stillPendingMulberry.map((project) => project.maturesOnYear))
       : 0;
 
   if (maturedMulberryLand > 0) {
-    world.mulberryLandMu = clamp((world.mulberryLandMu ?? 0) + maturedMulberryLand);
+    land.mulberryLandMu = clamp((land.mulberryLandMu ?? 0) + maturedMulberryLand);
     world.mulberryMatureLandMu = clamp((world.mulberryMatureLandMu ?? 0) + maturedMulberryLand);
     behaviorMessages.push(`桑田首收：新增成熟桑田${maturedMulberryLand}亩`);
   }
@@ -138,11 +149,11 @@ export function updateEconomy(world, options = {}) {
 
   const literacyEffects = applyLiteracyEffectsToWorld(world);
 
-  const paperMaterial = clamp((world.hempLandMu ?? 0) * 20);
-  const hempStalks = clamp((world.hempLandMu ?? 0) * 200);
-  const buildingFiber = clamp((world.hempLandMu ?? 0) * 10);
+  const paperMaterial = clamp((land.hempLandMu ?? 0) * 20);
+  const hempStalks = clamp((land.hempLandMu ?? 0) * 200);
+  const buildingFiber = clamp((land.hempLandMu ?? 0) * 10);
 
-  const paperMaterialReserveCap = clamp((world.hempLandMu ?? 0) * 100);
+  const paperMaterialReserveCap = clamp((land.hempLandMu ?? 0) * 100);
   const nextPaperMaterialReserve = clamp(
     Math.min(
       paperMaterialReserveCap,
@@ -153,16 +164,16 @@ export function updateEconomy(world, options = {}) {
   const paperOutput = world.techBonuses?.bureaucracyUnlocked ? clamp(nextPaperMaterialReserve / 50) : 0;
 
   const nextBuildingFiberReserve = clamp(Math.max(0, Number(world.buildingFiberReserve ?? 0)) + buildingFiber);
-  const structuralThreshold = clamp((world.farmlandAreaMu ?? 0) * 5);
+  const structuralThreshold = clamp((land.farmlandAreaMu ?? 0) * 5);
   const structuralBonus = structuralThreshold > 0 && nextBuildingFiberReserve >= structuralThreshold;
   const laborEfficiency = structuralBonus ? 1.02 : 1.0;
 
   let constructionCostReduction = 0;
-  if ((world.hempLandMu ?? 0) >= 5000) {
+  if ((land.hempLandMu ?? 0) >= 5000) {
     constructionCostReduction = 0.15;
-  } else if ((world.hempLandMu ?? 0) >= 2000) {
+  } else if ((land.hempLandMu ?? 0) >= 2000) {
     constructionCostReduction = 0.1;
-  } else if ((world.hempLandMu ?? 0) >= 500) {
+  } else if ((land.hempLandMu ?? 0) >= 500) {
     constructionCostReduction = 0.05;
   }
 
@@ -174,16 +185,16 @@ export function updateEconomy(world, options = {}) {
   const effectiveHempEfficiency = hempEfficiency * laborEfficiency;
   const effectiveMulberryEfficiency = mulberryEfficiency * laborEfficiency;
 
-  const baseYield = world.baseGrainYieldPerMu ?? world.grainYieldPerMu;
-  world.baseGrainYieldPerMu = clamp(baseYield);
+  const baseYield = agriculture.baseGrainYieldPerMu ?? agriculture.grainYieldPerMu;
+  agriculture.baseGrainYieldPerMu = clamp(baseYield);
 
   const techYieldBonus = Math.max(0, Number(world.techBonuses?.grainYieldBonus ?? 0));
-  const effectiveYieldPerMu = Math.min(MAX_GRAIN_YIELD_PER_MU, Math.max(0, world.baseGrainYieldPerMu + techYieldBonus));
+  const effectiveYieldPerMu = Math.min(MAX_GRAIN_YIELD_PER_MU, Math.max(0, agriculture.baseGrainYieldPerMu + techYieldBonus));
 
-  const potentialGrainOutput = clamp(world.farmlandAreaMu * effectiveYieldPerMu);
+  const potentialGrainOutput = clamp(land.farmlandAreaMu * effectiveYieldPerMu);
   const preStabilityGrainOutput = clamp(potentialGrainOutput * effectiveFarmEfficiency);
   const agriculturalTax = clamp(
-    preStabilityGrainOutput * world.agriculturalTaxRate * (1 + bureaucracyEffects.taxEfficiencyBonus)
+    preStabilityGrainOutput * agriculture.agriculturalTaxRate * (1 + bureaucracyEffects.taxEfficiencyBonus)
   );
 
   const operatingShops = Math.min(world.shopCount ?? 0, world.merchantCount ?? 0);
@@ -194,7 +205,7 @@ export function updateEconomy(world, options = {}) {
   const demandEfficiencyRate = demandSaturation > 1 ? 1 / demandSaturation : 1;
 
   const totalGrainDemand = clamp(operatingShops * 200);
-  const availableGrainForCommerce = Math.max(0, world.grainTreasury ?? 0);
+  const availableGrainForCommerce = Math.max(0, agriculture.grainTreasury ?? 0);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
   const grainSupplyEfficiency =
     totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
