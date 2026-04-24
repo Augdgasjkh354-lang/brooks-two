@@ -37,7 +37,7 @@ import {
 } from '../society/stability.js';
 import {
   FARMLAND_RECLAIM_COST_PER_MU, HEMP_RECLAIM_COST_PER_MU, MULBERRY_RECLAIM_COST_PER_MU,
-  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
+  MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO
 } from '../config/constants.js';
 
 
@@ -74,6 +74,31 @@ function getAgricultureState(world) {
 
 function getPrivateSectorState(world) {
   return world.__privateSector ?? world.privateSector ?? null;
+}
+
+function getPopulationGrainDemand(world) {
+  const infantPop = Math.max(0, Number(world.infantPop ?? 0));
+  const childPop = Math.max(0, Number(world.childPop ?? 0));
+  const teenPop = Math.max(0, Number(world.teenPop ?? 0));
+  const youthPop = Math.max(0, Number(world.youthPop ?? 0));
+  const primeAdultPop = Math.max(0, Number(world.primeAdultPop ?? 0));
+  const middleAgePop = Math.max(0, Number(world.middleAgePop ?? 0));
+  const elderlyPop = Math.max(0, Number(world.elderlyPop ?? 0));
+
+  const demandFromCohorts =
+    infantPop * 240 +
+    childPop * 300 +
+    teenPop * 400 +
+    youthPop * 400 +
+    primeAdultPop * 400 +
+    middleAgePop * 400 +
+    elderlyPop * 360;
+
+  if (demandFromCohorts > 0) {
+    return demandFromCohorts;
+  }
+
+  return Math.max(0, Number(world.totalPopulation ?? 0) * 360);
 }
 
 export function getFoodSecurityStatus(grainCoverageRatio) {
@@ -206,11 +231,11 @@ export function updateEconomy(world, options = {}) {
 
   const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
   const demandSaturation = maxMarketDemand > 0 ? operatingShops / maxMarketDemand : 0;
-  const totalGrainDemand = clamp(operatingShops * 200);
+  const commerceGrainDemand = clamp(operatingShops * 200);
   const availableGrainForCommerce = Math.max(0, agriculture.grainTreasury ?? 0);
-  const grainConsumedByCommerce = Math.min(availableGrainForCommerce, totalGrainDemand);
+  const grainConsumedByCommerce = Math.min(availableGrainForCommerce, commerceGrainDemand);
   const grainSupplyEfficiency =
-    totalGrainDemand > 0 ? grainConsumedByCommerce / totalGrainDemand : 1;
+    commerceGrainDemand > 0 ? grainConsumedByCommerce / commerceGrainDemand : 1;
 
   const { circulationRatio, commerceActivityBonus } = getCommerceActivityBonus(world);
   const {
@@ -442,7 +467,7 @@ export function updateEconomy(world, options = {}) {
     reserve: clothReserve,
   });
 
-  const grainAnnualDemand = Math.max(0, world.totalPopulation * 360);
+  const grainAnnualDemand = clamp(getPopulationGrainDemand(world));
   const localClothRatio =
     clothAnnualDemand > 0 ? Math.max(0, totalClothOutput / clothAnnualDemand) : 0;
 
@@ -454,7 +479,7 @@ export function updateEconomy(world, options = {}) {
       Math.max(0, Number(agriculture.grainYieldPerMu ?? effectiveYieldPerMu)) *
       (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
     const annualFarmerConsumption =
-      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
+      Math.max(0, Number(world.farmingLaborAllocated ?? 0)) * 360;
     const saltSpending = Math.max(0, Number(privateSector.farmerGrain ?? 0)) * Math.max(0, Number(saltPricing.nextPrice ?? world.saltPrice ?? 0)) * 15;
 
     privateSector.farmerGrain = Math.max(
@@ -485,7 +510,7 @@ export function updateEconomy(world, options = {}) {
   world.operatingShops = clamp(operatingShops);
   world.idleShops = clamp(idleShops);
 
-  world.totalGrainDemand = totalGrainDemand;
+  world.totalGrainDemand = grainAnnualDemand;
   world.grainPrice = grainPrice;
   world.supplyRatio = supplyRatio;
   world.saltPrice = saltPricing.nextPrice;
@@ -766,7 +791,7 @@ export function updateEconomy(world, options = {}) {
   const constructionGDP = clamp(constructionSpendingThisYear * 0.7);
   const governmentGDP = clamp((world.totalWageBill ?? 0) * 0.8);
 
-  const grainDemandTotal = clamp(world.totalPopulation * (world.grainDemandPerPerson ?? 0));
+  const grainDemandTotal = grainAnnualDemand;
   const grainBalance = adjustedGrainOutput - grainDemandTotal;
   const grainPerCapita =
     world.totalPopulation > 0 ? clamp(adjustedGrainOutput / world.totalPopulation) : 0;
@@ -933,7 +958,7 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push(`粮仓容量上限生效：当前容量${Math.round(grainStorageCapacity)}`);
   }
 
-  world.grainSurplus = clamp((world.grainTreasury ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
+  world.grainSurplus = clamp((world.actualGrainOutput ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
   const severeShortageThreshold = (world.totalPopulation ?? 0) * -100;
   if (world.grainSurplus < severeShortageThreshold) {
     world.stabilityIndex = Math.max(0, (world.stabilityIndex ?? 0) - 10);

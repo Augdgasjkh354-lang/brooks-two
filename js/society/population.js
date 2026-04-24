@@ -1,8 +1,7 @@
 // Society population module
 
 import {
-  BASE_GROWTH_RATE, MIN_GROWTH_RATE, LABOR_PER_MU, CHILDREN_RATIO, ELDERLY_RATIO,
-  LABOR_RATIO, MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY,
+  BASE_GROWTH_RATE, MIN_GROWTH_RATE, LABOR_PER_MU, MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY,
   HIGHER_SCHOOL_GRAD_MIN, HIGHER_SCHOOL_YEAR_MIN, GRADUATE_DECAY_RATE, ELIGIBLE_POOL_DECAY,
   PRIMARY_PROGRAM_YEARS, SECONDARY_PROGRAM_YEARS, HIGHER_PROGRAM_YEARS
 } from '../config/constants.js';
@@ -412,31 +411,143 @@ export function processEducationYear(world) {
 
 export function updatePopulation(world) {
   const population = getPopulationState(world);
-  const total = population.totalPopulation;
-  const growthDetails = getPopulationGrowthDetails(world);
 
-  const nextTotal = clamp(total * (1 + growthDetails.growthRate));
-  const nextChildren = clamp(nextTotal * LANDLORD_INIT_LITERACY);
-  const nextElderly = clamp(nextTotal * LANDLORD_INIT_LITERACY);
-  const nextLaborForce = clamp(nextTotal - nextChildren - nextElderly);
+  const previousTotalPopulation = Math.max(0, Number(population.totalPopulation ?? 0));
 
-  population.totalPopulation = nextTotal;
-  population.children = nextChildren;
-  population.elderly = nextElderly;
-  population.laborForce = nextLaborForce;
+  let infantPop = Math.max(0, Number(population.infantPop ?? 0));
+  let childPop = Math.max(0, Number(population.childPop ?? 0));
+  let teenPop = Math.max(0, Number(population.teenPop ?? 0));
+  let youthPop = Math.max(0, Number(population.youthPop ?? 0));
+  let primeAdultPop = Math.max(0, Number(population.primeAdultPop ?? 0));
+  let middleAgePop = Math.max(0, Number(population.middleAgePop ?? 0));
+  let elderlyPop = Math.max(0, Number(population.elderlyPop ?? 0));
 
-  world.populationGrowthRate = growthDetails.growthRate;
-  world.populationGrowthBaseRate = growthDetails.baseGrowthRate;
-  world.populationGrowthCommerceBonus = growthDetails.commerceProsperityBonus;
-  world.populationGrowthDemandPenalty = growthDetails.demandShortfallPenalty;
-  world.populationGrowthTechBonus = growthDetails.techGrowthBonus;
-  world.populationGrowthHealthModifier = growthDetails.healthGrowthModifier;
-  world.populationGrowthFamineSeverePenalty = growthDetails.famineSeverePenalty;
-  world.populationGrowthFamineStressPenalty = growthDetails.famineStressPenalty;
-  world.populationGrowthHealthCrisisPenalty = growthDetails.healthCrisisPenalty;
-  world.populationGrowthStabilityCrisisPenalty = growthDetails.stabilityCrisisPenalty;
+  // Annual cohort aging transitions.
+  const infantToChild = infantPop / 4;
+  const childToTeen = childPop / 9;
+  const teenToYouth = teenPop / 6;
+  const youthToPrime = youthPop / 7;
+  const primeToMiddle = primeAdultPop / 15;
+  const middleToElderly = middleAgePop / 15;
 
-  updateLaborAllocation(world);
+  infantPop = infantPop - infantToChild;
+  childPop = childPop + infantToChild - childToTeen;
+  teenPop = teenPop + childToTeen - teenToYouth;
+  youthPop = youthPop + teenToYouth - youthToPrime;
+  primeAdultPop = primeAdultPop + youthToPrime - primeToMiddle;
+  middleAgePop = middleAgePop + primeToMiddle - middleToElderly;
+  elderlyPop = elderlyPop + middleToElderly;
+
+  // Fertility rate and births from prime-age women.
+  let fertilityRate = 0.04;
+  const grainSurplus = Number(world.grainSurplus ?? 0);
+  const healthIndex = Number(world.healthIndex ?? 50);
+  const stabilityIndex = Number(world.stabilityIndex ?? 80);
+  const farmerLifeQuality = Number(world.farmerLifeQuality ?? 50);
+
+  if (grainSurplus > 0) fertilityRate += 0.005;
+  if (grainSurplus < 0) fertilityRate -= 0.01;
+  if (healthIndex >= 70) fertilityRate += 0.005;
+  if (stabilityIndex < 40) fertilityRate -= 0.01;
+  if (farmerLifeQuality > 70) fertilityRate += 0.003;
+
+  fertilityRate = Math.max(0.01, Math.min(0.08, fertilityRate));
+  const births = primeAdultPop * 0.5 * fertilityRate;
+  infantPop += births;
+
+  // Mortality with global modifiers.
+  let mortalityMultiplier = 1;
+  if (healthIndex < 20) {
+    mortalityMultiplier *= 2.0;
+  } else if (healthIndex < 40) {
+    mortalityMultiplier *= 1.5;
+  }
+
+  const stagedTotalPopulation =
+    infantPop + childPop + teenPop + youthPop + primeAdultPop + middleAgePop + elderlyPop;
+  if (grainSurplus < -stagedTotalPopulation * 100) {
+    mortalityMultiplier *= 1.8;
+  }
+  if (stabilityIndex < 30) {
+    mortalityMultiplier *= 1.2;
+  }
+
+  const mortalityRates = {
+    infant: 0.05 * mortalityMultiplier,
+    child: 0.01 * mortalityMultiplier,
+    teen: 0.005 * mortalityMultiplier,
+    youth: 0.008 * mortalityMultiplier,
+    prime: 0.01 * mortalityMultiplier,
+    middle: 0.02 * mortalityMultiplier,
+    elderly: 0.08 * mortalityMultiplier,
+  };
+
+  const infantDeaths = infantPop * mortalityRates.infant;
+  const childDeaths = childPop * mortalityRates.child;
+  const teenDeaths = teenPop * mortalityRates.teen;
+  const youthDeaths = youthPop * mortalityRates.youth;
+  const primeDeaths = primeAdultPop * mortalityRates.prime;
+  const middleDeaths = middleAgePop * mortalityRates.middle;
+  const elderlyDeaths = elderlyPop * mortalityRates.elderly;
+
+  infantPop = Math.max(0, infantPop - infantDeaths);
+  childPop = Math.max(0, childPop - childDeaths);
+  teenPop = Math.max(0, teenPop - teenDeaths);
+  youthPop = Math.max(0, youthPop - youthDeaths);
+  primeAdultPop = Math.max(0, primeAdultPop - primeDeaths);
+  middleAgePop = Math.max(0, middleAgePop - middleDeaths);
+  elderlyPop = Math.max(0, elderlyPop - elderlyDeaths);
+
+  population.infantPop = clamp(infantPop);
+  population.childPop = clamp(childPop);
+  population.teenPop = clamp(teenPop);
+  population.youthPop = clamp(youthPop);
+  population.primeAdultPop = clamp(primeAdultPop);
+  population.middleAgePop = clamp(middleAgePop);
+  population.elderlyPop = clamp(elderlyPop);
+
+  const totalPopulation =
+    population.infantPop +
+    population.childPop +
+    population.teenPop +
+    population.youthPop +
+    population.primeAdultPop +
+    population.middleAgePop +
+    population.elderlyPop;
+
+  const effectiveLaborForce =
+    population.teenPop * 0.5 +
+    population.youthPop * 1.0 +
+    population.primeAdultPop * 1.0 +
+    population.middleAgePop * 0.8;
+
+  const children = population.infantPop + population.childPop + population.teenPop;
+  const elderly = population.elderlyPop;
+
+  population.totalPopulation = clamp(totalPopulation);
+  population.laborForce = Math.max(0, Math.floor(effectiveLaborForce));
+  population.children = clamp(children);
+  population.elderly = clamp(elderly);
+  population.fertilityRate = fertilityRate;
+  population.birthsThisYear = clamp(births);
+  population.deathsThisYear = clamp(
+    infantDeaths + childDeaths + teenDeaths + youthDeaths + primeDeaths + middleDeaths + elderlyDeaths
+  );
+
+  const totalGrainDemand =
+    population.infantPop * 240 +
+    population.childPop * 300 +
+    population.teenPop * 400 +
+    population.youthPop * 400 +
+    population.primeAdultPop * 400 +
+    population.middleAgePop * 400 +
+    population.elderlyPop * 360;
+
+  world.totalGrainDemand = clamp(totalGrainDemand);
+  world.populationGrowthRate =
+    previousTotalPopulation > 0
+      ? (population.totalPopulation - previousTotalPopulation) / previousTotalPopulation
+      : BASE_GROWTH_RATE;
 
   const literacyAppearanceLogs = ensureClassLiteracyActivation(world);
   updateClassPopulationShares(world);
@@ -446,11 +557,14 @@ export function updatePopulation(world) {
   updateTalentPools(world);
 
   return {
-    populationDelta: nextTotal - total,
-    growthRate: growthDetails.growthRate,
-    commerceProsperityBonusApplied: growthDetails.commerceProsperityBonus > 0,
-    demandShortfallPenaltyApplied: growthDetails.demandShortfallPenalty > 0,
+    populationDelta: population.totalPopulation - previousTotalPopulation,
+    growthRate: world.populationGrowthRate,
+    commerceProsperityBonusApplied: false,
+    demandShortfallPenaltyApplied: false,
+    births: population.birthsThisYear,
+    deaths: population.deathsThisYear,
     literacyAppearanceLogs,
     higherSchoolUnlockedThisYear,
   };
 }
+

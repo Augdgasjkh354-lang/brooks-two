@@ -27,6 +27,28 @@ function getInstitutionsState(world) {
   return world.__institutions ?? world;
 }
 
+
+function deriveEffectiveLaborForceFromCohorts(population) {
+  const hasCohortData = [
+    'teenPop',
+    'youthPop',
+    'primeAdultPop',
+    'middleAgePop',
+  ].every((key) => Number.isFinite(Number(population[key])));
+
+  if (!hasCohortData) {
+    return Math.max(0, Math.floor(Number(population.laborForce ?? 0)));
+  }
+
+  const effectiveLaborForce =
+    Math.max(0, Number(population.teenPop ?? 0)) * 0.5 +
+    Math.max(0, Number(population.youthPop ?? 0)) * 1.0 +
+    Math.max(0, Number(population.primeAdultPop ?? 0)) * 1.0 +
+    Math.max(0, Number(population.middleAgePop ?? 0)) * 0.8;
+
+  return Math.max(0, Math.floor(effectiveLaborForce));
+}
+
 function calculateInstitutionWorkers(world) {
   const institutions = getInstitutionsState(world);
   return Math.max(
@@ -49,6 +71,7 @@ export function calculateLaborAllocation(world) {
   const land = getLandState(world);
   const agriculture = getAgricultureState(world);
   const population = getPopulationState(world);
+  population.laborForce = deriveEffectiveLaborForceFromCohorts(population);
   const requiredFarmingLabor = Math.floor((land.farmlandAreaMu ?? 0) / LABOR_PER_MU);
   const farmingLaborAllocated = Math.min(population.laborForce, requiredFarmingLabor);
 
