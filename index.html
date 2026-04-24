@@ -11,7 +11,16 @@
     <header class="fixed-header">
       <div class="header-top-row">
         <h1>Policy-Driven Society Simulation</h1>
-        <button id="next-year-btn" class="primary">Next Year</button>
+        <div class="header-actions">
+          <button id="save-btn" type="button">💾 Save</button>
+          <button id="load-btn" type="button">📂 Load</button>
+          <button id="export-btn" type="button">📤 Export</button>
+          <label for="import-input" class="btn-like">📥 Import</label>
+          <input id="import-input" type="file" accept="application/json" hidden />
+          <button id="reset-btn" type="button">🔄 Reset</button>
+          <span id="autosave-indicator" class="muted" aria-live="polite"></span>
+          <button id="next-year-btn" class="primary">Next Year</button>
+        </div>
       </div>
       <div id="header-stats" class="header-stats"></div>
     </header>
@@ -107,6 +116,7 @@
   <script type="module" src="js/ui/render_society.js"></script>
   <script type="module" src="js/ui/render_diplomacy.js"></script>
   <script type="module" src="js/ui/render_tech.js"></script>
+  <script type="module" src="js/save.js"></script>
   <script type="module" src="js/render.js"></script>
   <script type="module" src="js/policies.js"></script>
   <script type="module" src="js/unlocks.js"></script>

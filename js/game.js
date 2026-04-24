@@ -7,6 +7,7 @@ import { approveMoneylenderLicenses, finalizeMoneylenderYear, syncMoneylenderCap
 import { applyPolicy } from './unlocks.js';
 import { policies } from './policies.js';
 import { renderAll } from './render.js';
+import { saveGame, loadGame, exportSave, importSave, resetGame, hasSave } from './save.js';
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
 import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, ensureTradeBureauInstitution, ensureEngineeringBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects, calculateTradeBureauEffects, calculateEngineeringBureauEffects } from './society/stability.js';
 import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calculateLifeQuality, calculateClassSatisfaction, clearEventModifiers } from './society/satisfaction.js';
@@ -598,6 +599,7 @@ function nextYear() {
     });
   }
 
+  saveGame(state, { auto: true });
   render();
 }
 
@@ -1092,6 +1094,94 @@ function issueCouponsFromInput() {
   render();
 }
 
+
+function hydrateStateFromSave(savedState) {
+  if (!savedState || typeof savedState !== 'object' || !savedState.world || !savedState.research) {
+    state.yearLog.unshift(`Year ${state.world.year}: 读取存档失败 - 存档格式无效。`);
+    return false;
+  }
+
+  const fresh = createGameState();
+
+  state.yearLog = Array.isArray(savedState.yearLog) ? [...savedState.yearLog] : [...fresh.yearLog];
+  state.economyHistory = Array.isArray(savedState.economyHistory)
+    ? [...savedState.economyHistory]
+    : [...fresh.economyHistory];
+
+  state.world = {
+    ...fresh.world,
+    ...savedState.world,
+  };
+
+  state.xikou = {
+    ...fresh.xikou,
+    ...(savedState.xikou ?? {}),
+  };
+
+  state.research = {
+    ...fresh.research,
+    ...(savedState.research ?? {}),
+  };
+
+  if (Array.isArray(savedState.research?.queue)) {
+    state.research.queue = [...savedState.research.queue];
+  }
+  if (Array.isArray(savedState.research?.completed)) {
+    state.research.completed = [...savedState.research.completed];
+  }
+
+  syncGovernmentInstitutionSettings();
+  syncPoliceInstitutionSettings();
+  syncHealthInstitutionSettings();
+  syncCourtTaxInstitutionSettings();
+  syncTradeEngineeringSettings();
+  calculateGovernmentWageBill(state.world);
+
+  return true;
+}
+
+function handleManualSave() {
+  saveGame(state);
+}
+
+function handleManualLoad() {
+  const saved = loadGame();
+  if (!saved) {
+    state.yearLog.unshift(`Year ${state.world.year}: 未发现可读取存档。`);
+    render();
+    return;
+  }
+
+  const loaded = hydrateStateFromSave(saved);
+  if (loaded) {
+    state.yearLog.unshift(`Year ${state.world.year}: 已载入本地存档。`);
+  }
+  render();
+}
+
+function handleExportSave() {
+  exportSave(state);
+}
+
+async function handleImportSave(file) {
+  const imported = await importSave(file);
+  if (!imported) {
+    state.yearLog.unshift(`Year ${state.world.year}: 导入存档失败。`);
+    render();
+    return;
+  }
+
+  const loaded = hydrateStateFromSave(imported);
+  if (loaded) {
+    state.yearLog.unshift(`Year ${state.world.year}: 已导入并载入外部存档。`);
+  }
+  render();
+}
+
+function handleResetGame() {
+  resetGame();
+}
+
 function bindEvents() {
   document.getElementById('next-year-btn').addEventListener('click', nextYear);
   document.getElementById('issue-coupon-btn').addEventListener('click', issueCouponsFromInput);
@@ -1204,11 +1294,24 @@ function render() {
     executeOfficialSaltSaleFromInput,
     openHempLand,
     openMulberryLand,
-    startResearchById
+    startResearchById,
+    handleManualSave,
+    handleManualLoad,
+    handleExportSave,
+    handleImportSave,
+    handleResetGame
   );
 }
 
 function init() {
+  const shouldLoadExistingSave = hasSave() && window.confirm('发现存档，是否继续？');
+  if (shouldLoadExistingSave) {
+    const saved = loadGame();
+    if (saved) {
+      hydrateStateFromSave(saved);
+    }
+  }
+
   initResearch(state);
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
@@ -1237,6 +1340,9 @@ function init() {
   const econResult = updateEconomy(state.world, { collectTax: false });
   recordEconomySnapshot(econResult, false);
   bindEvents();
+  if (shouldLoadExistingSave) {
+    state.yearLog.unshift(`Year ${state.world.year}: 已从本地存档恢复游戏。`);
+  }
   render();
 }
 

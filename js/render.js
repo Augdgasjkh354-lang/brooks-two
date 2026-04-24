@@ -11,6 +11,7 @@ import { renderDiplomacyTab } from './ui/render_diplomacy.js';
 import { renderTechPanel } from './ui/render_tech.js';
 
 let tabsBound = false;
+let saveControlsBound = false;
 
 function bindTabNavigation() {
   if (tabsBound) return;
@@ -30,6 +31,23 @@ function bindTabNavigation() {
   });
 }
 
+function bindSaveControls(onSave, onLoad, onExport, onImport, onReset) {
+  if (saveControlsBound) return;
+  saveControlsBound = true;
+
+  document.getElementById('save-btn')?.addEventListener('click', () => onSave?.());
+  document.getElementById('load-btn')?.addEventListener('click', () => onLoad?.());
+  document.getElementById('export-btn')?.addEventListener('click', () => onExport?.());
+  document.getElementById('reset-btn')?.addEventListener('click', () => onReset?.());
+
+  const importInput = document.getElementById('import-input');
+  importInput?.addEventListener('change', (event) => {
+    const file = event?.target?.files?.[0] ?? null;
+    onImport?.(file);
+    event.target.value = '';
+  });
+}
+
 export function renderAll(
   state,
   onEnactPolicy,
@@ -44,9 +62,15 @@ export function renderAll(
   onOfficialSaltSale,
   onOpenHempLand,
   onOpenMulberryLand,
-  onStartResearch
+  onStartResearch,
+  onSave,
+  onLoad,
+  onExport,
+  onImport,
+  onReset
 ) {
   bindTabNavigation();
+  bindSaveControls(onSave, onLoad, onExport, onImport, onReset);
 
   renderHeaderStats(state);
   renderCoreStats(state);
