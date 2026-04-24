@@ -5692,3 +5692,170 @@ ui/render_diplomacy.js
   agriculture / commerce / construction / government
   total GDP
 - yearLog records GDP components each year
+## Phase 9B-2: Population Age Cohort Model (Current)
+
+Phase 9B-1 complete. Now replacing fixed ratio
+population with real age cohort model.
+
+**Age groups and grain consumption:**
+
+infantPop (幼儿 0-3): grainDemand = 240/year
+childPop (儿童 4-12): grainDemand = 300/year
+teenPop (青少年 13-18): grainDemand = 400/year
+youthPop (青年 19-25): grainDemand = 400/year
+primeAdultPop (壮年 26-40): grainDemand = 400/year
+middleAgePop (中年 41-55): grainDemand = 400/year
+elderlyPop (老年 55+): grainDemand = 360/year
+
+**Initial population distribution (total 5000):**
+- infantPop: 500 (10%)
+- childPop: 750 (15%)
+- teenPop: 500 (10%)
+- youthPop: 750 (15%)
+- primeAdultPop: 1250 (25%)
+- middleAgePop: 750 (15%)
+- elderlyPop: 500 (10%)
+
+**Effective labor force:**
+effectiveLaborForce =
+  teenPop * 0.5 +
+  youthPop * 1.0 +
+  primeAdultPop * 1.0 +
+  middleAgePop * 0.8
+
+laborForce = floor(effectiveLaborForce)
+
+**Annual cohort transitions:**
+Each year, fraction of each group ages up:
+
+infantPop:
+  aging = infantPop / 4 (4 year group)
+  infantPop -= aging
+  childPop += aging
+
+childPop:
+  aging = childPop / 9 (9 year group)
+  childPop -= aging
+  teenPop += aging
+
+teenPop:
+  aging = teenPop / 6 (6 year group)
+  teenPop -= aging
+  youthPop += aging
+
+youthPop:
+  aging = youthPop / 7 (7 year group)
+  youthPop -= aging
+  primeAdultPop += aging
+
+primeAdultPop:
+  aging = primeAdultPop / 15 (15 year group)
+  primeAdultPop -= aging
+  middleAgePop += aging
+
+middleAgePop:
+  aging = middleAgePop / 15 (15 year group)
+  middleAgePop -= aging
+  elderlyPop += aging
+
+**Births:**
+fertilityRate = 0.04 (default, 4% of prime women)
+births = primeAdultPop * 0.5 * fertilityRate
+  (assume 50% female, 4% birth rate)
+
+Fertility modifiers:
+- grainSurplus > 0: fertilityRate += 0.005
+- grainSurplus < 0: fertilityRate -= 0.01
+- healthIndex >= 70: fertilityRate += 0.005
+- stabilityIndex < 40: fertilityRate -= 0.01
+- farmerLifeQuality > 70: fertilityRate += 0.003
+fertilityRate floored at 0.01, capped at 0.08
+
+infantPop += births each year
+
+**Deaths:**
+Mortality rates per group:
+- infantPop: mortalityRate = 0.05
+  (high infant mortality, historical)
+- childPop: mortalityRate = 0.01
+- teenPop: mortalityRate = 0.005
+- youthPop: mortalityRate = 0.008
+- primeAdultPop: mortalityRate = 0.01
+- middleAgePop: mortalityRate = 0.02
+- elderlyPop: mortalityRate = 0.08
+
+Mortality modifiers (apply to all groups):
+- healthIndex < 20: all mortalityRates *= 2.0
+- healthIndex < 40: all mortalityRates *= 1.5
+- grainSurplus < -totalPopulation * 100:
+  all mortalityRates *= 1.8 (famine)
+- stabilityIndex < 30: mortalityRates *= 1.2
+
+Apply deaths:
+each group -= group * mortalityRate
+
+**Total population recalculation:**
+totalPopulation = sum of all age groups
+children = infantPop + childPop + teenPop
+  (for display compatibility)
+elderly = elderlyPop
+  (for display compatibility)
+laborForce = effectiveLaborForce
+  (replaces old fixed 60% calculation)
+
+**Total grain demand:**
+totalGrainDemand =
+  infantPop * 240 +
+  childPop * 300 +
+  teenPop * 400 +
+  youthPop * 400 +
+  primeAdultPop * 400 +
+  middleAgePop * 400 +
+  elderlyPop * 360
+
+grainSurplus = actualGrainOutput - totalGrainDemand
+
+**State additions in world{}:**
+- infantPop: 500
+- childPop: 750
+- teenPop: 500
+- youthPop: 750
+- primeAdultPop: 1250
+- middleAgePop: 750
+- elderlyPop: 500
+- fertilityRate: 0.04
+- totalGrainDemand: 0
+
+Remove old fields (keep for compatibility via getter):
+- children (now = infantPop + childPop + teenPop)
+- elderly (now = elderlyPop)
+
+**Files to modify:**
+- js/state.js (new age group fields)
+- js/society/population.js (full cohort model)
+- js/economy/agriculture.js (grain demand update)
+- js/economy/labor.js (labor from cohort)
+- js/ui/render_world.js (age group display)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/commerce.js economy/currency.js
+economy/market.js society/satisfaction.js
+society/stability.js diplomacy/xikou.js
+tech/research.js any ui/ except render_world.js
+
+**Definition of Done (Phase 9B-2):**
+- All 7 age groups tracked separately
+- Annual aging transitions calculated correctly
+- Births from prime adult women
+- Deaths per group with modifiers
+- fertilityRate responds to conditions
+- laborForce derived from cohort not fixed ratio
+- totalGrainDemand uses per-group consumption
+- grainSurplus based on real demand
+- UI shows population panel in 总览 tab:
+  each age group count
+  fertility rate / birth count this year
+  death count this year
+  effective labor force
+  total grain demand
+- yearLog records births, deaths, population change
