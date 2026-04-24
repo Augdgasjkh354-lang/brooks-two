@@ -31,6 +31,32 @@ function ensureLedger(world) {
   return world.ledger;
 }
 
+
+export function getTotalGrainDemand(world) {
+  const explicitDemand = Number(world?.totalGrainDemand ?? world?.grainAnnualDemand ?? 0);
+  if (Number.isFinite(explicitDemand) && explicitDemand > 0) {
+    return Math.max(0, explicitDemand);
+  }
+
+  const totalPopulation = Math.max(0, Number(world?.totalPopulation ?? 0));
+  return totalPopulation * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
+}
+
+export function getGrainComfortReserve(world, grainDemand = null) {
+  const demand = Number.isFinite(Number(grainDemand))
+    ? Math.max(0, Number(grainDemand))
+    : getTotalGrainDemand(world);
+  return demand * 2;
+}
+
+export function getGrainSupplyRatio(world, grainTreasuryOverride = null, grainDemandOverride = null) {
+  const grainTreasury = Number.isFinite(Number(grainTreasuryOverride))
+    ? Math.max(0, Number(grainTreasuryOverride))
+    : Math.max(0, Number(world?.grainTreasury ?? 0));
+  const comfortReserve = Math.max(1, getGrainComfortReserve(world, grainDemandOverride));
+  return grainTreasury / comfortReserve;
+}
+
 export function getGrainPrice(supplyRatio, previousPrice = null) {
   let targetPrice = 1.0;
   if (supplyRatio >= 1.5) targetPrice *= 0.85;

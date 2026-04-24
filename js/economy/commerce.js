@@ -89,17 +89,22 @@ export function calculateGdpPerCapita(world, gdpOverride = null) {
 
 export function calculateProductionCommerceGDP(world, options = {}) {
   const operatingShops = Math.max(0, Number(options.operatingShops ?? world?.operatingShops ?? 0));
+  const maxMarketDemand = Math.max(0, Number(options.maxMarketDemand ?? world?.maxMarketDemand ?? 0));
   const demandSaturation = Math.max(0, Number(options.demandSaturation ?? world?.demandSaturation ?? 0));
   const commerceActivityBonus = Math.max(0, Number(options.commerceActivityBonus ?? world?.commerceActivityBonus ?? 1));
   const tradeEfficiency =
     Math.max(0, Number(options.tradeEfficiency ?? world?.techBonuses?.tradeEfficiency ?? 0));
 
+  const servedDemand = Math.min(operatingShops, maxMarketDemand > 0 ? maxMarketDemand : operatingShops);
+  const demandEfficiency = operatingShops > 0 ? Math.max(0, servedDemand / operatingShops) : 1;
+  const tradeMultiplier = 1 + tradeEfficiency;
+
   const commerceGDP =
     operatingShops *
     SHOP_GDP_PER_UNIT *
-    demandSaturation *
+    demandEfficiency *
     commerceActivityBonus *
-    (1 + tradeEfficiency);
+    tradeMultiplier;
 
   const moneylenderShops = Math.max(0, Number(world?.moneylenderShops ?? 0));
   const civilianLoanOutstanding = Math.max(0, Number(world?.civilianLoanOutstanding ?? 0));
@@ -109,6 +114,9 @@ export function calculateProductionCommerceGDP(world, options = {}) {
     commerceGDP: clampMoney(commerceGDP),
     moneylenderGDP: clampMoney(moneylenderGDP),
     totalCommerceGDP: clampMoney(commerceGDP + moneylenderGDP),
+    servedDemand: clampMoney(servedDemand),
+    demandEfficiency: clampPercent(demandEfficiency, 0, 1),
+    demandSaturation,
   };
 }
 

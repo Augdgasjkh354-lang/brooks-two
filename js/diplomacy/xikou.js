@@ -48,7 +48,11 @@ export function updateXikouVillageEconomy(world) {
       : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * XIKOU_SALT_OUTPUT);
   const saltOutputJin = clamp(baseSaltOutput * tradeMultiplier);
 
-  const annualConsumption = clamp((xikou.population ?? 0) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR);
+  const annualConsumption = clamp(
+    Number(xikou.totalGrainDemand ?? 0) > 0
+      ? Number(xikou.totalGrainDemand ?? 0)
+      : (xikou.population ?? 0) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
+  );
   const nextGrainTreasury = Math.max(0, Math.round((xikou.grainTreasury ?? 0) + grainOutput - annualConsumption));
 
   xikou.saltMineWorkers = clamp(saltWorkers);
