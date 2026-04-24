@@ -5859,3 +5859,124 @@ tech/research.js any ui/ except render_world.js
   effective labor force
   total grain demand
 - yearLog records births, deaths, population change
+## Phase 9B-3: Labor Economic Choice (Current)
+
+Phase 9B-2 complete. Now replacing fixed priority
+labor allocation with wage-driven labor flow.
+
+**Goal:** Labor moves toward higher-paying sectors
+each year. Farming has minimum guarantee.
+No more hard priority queue.
+
+**Sector wages:**
+
+farmingWage:
+- = 10 * grainYieldPerMu * (1 - agriculturalTaxRate)
+  * grainPrice
+- (10 mu per farmer, after tax, valued at grain price)
+
+commerceWage:
+- = (commerceGDP / max(commerceLaborDemand, 1))
+- Per worker in commerce sector
+
+institutionWage:
+- = averageOfficialWage (from fiscal settings)
+- Fixed by player, not market-driven
+
+hempWage:
+- = (hempLandMu * 5 * blendedClothPrice)
+  / max(hempLaborRequired, 1)
+- Per worker in hemp sector
+
+mulberryWage:
+- = (mulberryLandMu * 15 * blendedClothPrice)
+  / max(mulberryLaborRequired, 1)
+- Per worker in mulberry sector
+
+averageWage:
+- = (farmingWage + commerceWage) / 2
+  (simple average for flow calculation)
+
+**Labor flow rules:**
+
+Step 1: Fixed allocations first (player-controlled)
+- institutionWorkers: set by player, deducted first
+- merchantCount: set by player, deducted second
+- Remaining = availableLabor
+
+Step 2: Minimum farming guarantee
+- minFarmingLabor = farmlandAreaMu / 10
+  (must have enough to farm all land)
+- minFarmingLabor capped at availableLabor
+
+Step 3: Wage-driven flow for remaining labor
+- flowSpeed = 0.05 (5% of sector labor moves per year)
+- For each non-institution sector:
+  wageDiff = sectorWage - averageWage
+  laborChange = currentSectorLabor * flowSpeed
+    * (wageDiff / max(averageWage, 1))
+  laborChange capped at ±10% of sector labor
+
+Step 4: Apply flow with constraints
+- farming cannot go below minFarmingLabor
+- commerce cannot exceed shopCount * 4
+- hemp cannot exceed hempLaborRequired
+- mulberry cannot exceed mulberryLaborRequired
+- All allocations floored at 0
+
+Step 5: Recalculate unemployment
+- unemployed = availableLabor
+  - farmingLaborAllocated
+  - commerceLaborAllocated
+  - hempLaborAllocated
+  - mulberryLaborAllocated
+- unemployed = max(0, unemployed)
+
+**Initial labor allocation:**
+On game start, allocate optimally:
+- farmingLaborAllocated = min(farmlandAreaMu/10,
+  availableLabor)
+- All remaining labor = idle/unemployed
+
+**Wage display:**
+Show sector wages in UI so player understands
+why labor is flowing where it is.
+
+**State additions in world{}:**
+- farmingWage: 0
+- commerceWagePerWorker: 0
+- hempWage: 0
+- mulberryWage: 0
+- averageWage: 0
+- farmingLaborAllocated: existing field, now
+  market-driven not fixed
+- commerceLaborAllocated: 0 (rename from
+  laborAssignedCommerce)
+- hempLaborAllocated: 0
+- mulberryLaborAllocated: 0
+
+**Files to modify:**
+- js/state.js (new wage fields)
+- js/economy/labor.js (full rewrite of allocation)
+- js/economy/agriculture.js (use new labor fields)
+- js/economy/commerce.js (use new labor fields)
+- js/ui/render_world.js (wage display)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ diplomacy/ tech/ files
+ui/render_economy.js ui/render_society.js
+ui/render_tech.js ui/render_diplomacy.js
+
+**Definition of Done (Phase 9B-3):**
+- Institution and merchant labor fixed by player
+- Farming has minimum guarantee (all land farmed)
+- Remaining labor flows toward higher wages
+- Flow speed capped at 5% per year
+- Sector constraints enforced
+- Unemployment calculated from residual
+- UI shows labor panel in 总览 tab:
+  each sector: labor count / wage per worker
+  average wage
+  labor flow direction this year
+  unemployment count and rate
+- yearLog records significant labor shifts
