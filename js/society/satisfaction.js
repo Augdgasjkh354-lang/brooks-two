@@ -3,7 +3,8 @@
 import { calculateLivingCost } from '../economy/market.js';
 import {
   STABILITY_MIN, STABILITY_MAX, BASE_LIFE_QUALITY, FARMER_INIT_LITERACY,
-  MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY
+  MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY, LANDLORD_INIT_LITERACY,
+  GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
 } from '../config/constants.js';
 
 export function clampPercentIndex(value) {
@@ -187,6 +188,7 @@ export function calculateLifeQuality(world) {
   };
 
   const cost = calculateLivingCost(world);
+  world.grainDemandPerPerson = GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
   const totalLivingCost = Math.max(1, Number(cost.totalLivingCost ?? 1));
   const classIncome = getClassIncomePerHead(world);
   const classPop = getPopulationByClass(world);

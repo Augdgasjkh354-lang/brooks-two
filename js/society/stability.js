@@ -553,24 +553,59 @@ export function calculatePoliceEffects(world) {
 
   let ratioEffects = getPoliceRatioTier(policeRatio);
 
-  const efficiencyScale = efficiency < 60 ? 0.5 : 1;
   if (efficiency < 30) {
+    const stabilityDelta = ratioEffects.stabilityDelta >= 0
+      ? ratioEffects.stabilityDelta * 0.2
+      : ratioEffects.stabilityDelta * 1.5;
+    const merchantLifeQualityDelta = ratioEffects.merchantLifeQualityDelta >= 0
+      ? ratioEffects.merchantLifeQualityDelta * 0.2
+      : ratioEffects.merchantLifeQualityDelta * 1.5;
+    const farmerLifeQualityDelta = ratioEffects.farmerLifeQualityDelta >= 0
+      ? ratioEffects.farmerLifeQualityDelta * 0.2
+      : ratioEffects.farmerLifeQualityDelta * 1.5;
+
+    let commerceMultiplier = ratioEffects.commerceMultiplier;
+    if (commerceMultiplier >= 1) {
+      commerceMultiplier = 1 + (commerceMultiplier - 1) * 0.2;
+    } else {
+      commerceMultiplier = 1 - (1 - commerceMultiplier) * 1.5;
+    }
+
     ratioEffects = {
       ...ratioEffects,
-      stabilityDelta: -ratioEffects.stabilityDelta,
-      commerceMultiplier: ratioEffects.commerceMultiplier === 1 ? 1 : 1 - (ratioEffects.commerceMultiplier - 1),
-      merchantLifeQualityDelta: -ratioEffects.merchantLifeQualityDelta,
-      farmerLifeQualityDelta: -ratioEffects.farmerLifeQualityDelta,
-      message: '警察系统效率低下，执法混乱',
-      label: `${ratioEffects.label}（反转）`,
+      stabilityDelta,
+      commerceMultiplier,
+      merchantLifeQualityDelta,
+      farmerLifeQualityDelta,
+      message: '警察系统效率极低，执法混乱加剧不稳',
+      label: `${ratioEffects.label}（效率极低）`,
     };
-  } else if (efficiency < 60) {
+  } else if (efficiency < 50) {
+    const stabilityDelta = ratioEffects.stabilityDelta >= 0
+      ? ratioEffects.stabilityDelta * 0.6
+      : ratioEffects.stabilityDelta * 1.2;
+    const merchantLifeQualityDelta = ratioEffects.merchantLifeQualityDelta >= 0
+      ? ratioEffects.merchantLifeQualityDelta * 0.6
+      : ratioEffects.merchantLifeQualityDelta * 1.2;
+    const farmerLifeQualityDelta = ratioEffects.farmerLifeQualityDelta >= 0
+      ? ratioEffects.farmerLifeQualityDelta * 0.6
+      : ratioEffects.farmerLifeQualityDelta * 1.2;
+
+    let commerceMultiplier = ratioEffects.commerceMultiplier;
+    if (commerceMultiplier >= 1) {
+      commerceMultiplier = 1 + (commerceMultiplier - 1) * 0.6;
+    } else {
+      commerceMultiplier = 1 - (1 - commerceMultiplier) * 1.2;
+    }
+
     ratioEffects = {
       ...ratioEffects,
-      stabilityDelta: ratioEffects.stabilityDelta * efficiencyScale,
-      commerceMultiplier: 1 + (ratioEffects.commerceMultiplier - 1) * efficiencyScale,
-      merchantLifeQualityDelta: ratioEffects.merchantLifeQualityDelta * efficiencyScale,
-      farmerLifeQualityDelta: ratioEffects.farmerLifeQualityDelta * efficiencyScale,
+      stabilityDelta,
+      commerceMultiplier,
+      merchantLifeQualityDelta,
+      farmerLifeQualityDelta,
+      message: '警察系统效率偏低，治理效果受限',
+      label: `${ratioEffects.label}（效率偏低）`,
     };
   }
 

@@ -1,7 +1,7 @@
 // Market module: prices, purchasing power, living-cost helpers, salt market
 
 import {
-  GRAIN_CONSUMPTION_PER_PERSON,
+  GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR,
   SALT_BASE_PRICE,
   CLOTH_BASE_PRICE,
   SALT_CONSUMPTION_PER_PERSON,
@@ -31,10 +31,22 @@ function ensureLedger(world) {
   return world.ledger;
 }
 
-export function getGrainPrice(supplyRatio) {
-  if (supplyRatio > 2) return 1.2;
-  if (supplyRatio >= 1) return 1.0;
-  return Math.max(0, supplyRatio);
+export function getGrainPrice(supplyRatio, previousPrice = null) {
+  let targetPrice = 1.0;
+  if (supplyRatio >= 1.5) targetPrice *= 0.85;
+  else if (supplyRatio >= 1.0) targetPrice *= 1.0;
+  else if (supplyRatio >= 0.7) targetPrice *= 1.3;
+  else if (supplyRatio >= 0.4) targetPrice *= 1.8;
+  else targetPrice *= 2.5;
+
+  const safePreviousPrice = Number(previousPrice);
+  if (Number.isFinite(safePreviousPrice) && safePreviousPrice > 0) {
+    const lowerYearlyBound = safePreviousPrice * 0.6;
+    const upperYearlyBound = safePreviousPrice * 1.4;
+    targetPrice = Math.max(lowerYearlyBound, Math.min(upperYearlyBound, targetPrice));
+  }
+
+  return Math.max(0.5, Math.min(5.0, targetPrice));
 }
 
 export function getCommodityPriceMultiplier(supplyDemandRatio) {
@@ -72,7 +84,7 @@ export function calculateLivingCost(world) {
   const monetary = getMonetary(world);
   const saltPrice = Math.max(0, Number(monetary?.saltPrice ?? SALT_BASE_PRICE));
   const clothPrice = Math.max(0, Number(monetary?.clothPrice ?? CLOTH_BASE_PRICE));
-  const grainCost = GRAIN_CONSUMPTION_PER_PERSON;
+  const grainCost = GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR;
   const saltCost = SALT_CONSUMPTION_PER_PERSON * saltPrice;
   const clothCost = CLOTH_CONSUMPTION_PER_PERSON * clothPrice;
   const totalLivingCost = grainCost + saltCost + clothCost;
