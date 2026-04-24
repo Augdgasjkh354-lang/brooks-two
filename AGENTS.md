@@ -3872,3 +3872,233 @@ ui/render_diplomacy.js ui/render_tech.js
   engineering bureau: engineer count / efficiency /
     active projects / construction cost reduction
 - yearLog records all major events
+## Bugfix: Reality Correction v1 (Current)
+
+Phase 7D complete. Fixing 8 confirmed logic errors
+before continuing new features.
+
+**NO new features. Fix existing logic only.**
+
+---
+
+**BUG 1: Grain coupon double accounting (currency.js)**
+
+Current wrong logic:
+- issueGrainCoupons() requires issueAmount <= grainTreasury
+- Then does grainTreasury += issueAmount (WRONG)
+- And couponCirculating += issueAmount
+
+Correct logic:
+- Issuing coupons means farmers hand over grain
+- grainTreasury += issueAmount (grain flows IN)
+- couponCirculating += issueAmount (coupons flow OUT)
+- BUT: grainTreasury must already have capacity
+- The grain farmers give up comes FROM farmers,
+  not from existing treasury
+- Correct: grainTreasury += issueAmount
+  (this is correct, farmers trade grain for coupons)
+- But backing ratio must use LOCKED grain:
+  lockedGrainReserve += issueAmount
+  (separate from free grainTreasury)
+  backingRatio = lockedGrainReserve / couponCirculating
+- Free grainTreasury is NOT backing, it is operational
+
+Add new state field: lockedGrainReserve: 0
+Coupon redemption: lockedGrainReserve -= redeemed
+backingRatio = lockedGrainReserve / couponCirculating
+
+---
+
+**BUG 2: Satisfaction overwritten by lifeQuality
+(agriculture.js + satisfaction.js)**
+
+Current wrong logic:
+- agriculture.js calculates satisfaction modifiers
+- satisfaction.js then sets:
+  world.farmerSatisfaction = world.farmerLifeQuality
+  (overwrites all previous modifications)
+
+Correct logic:
+- lifeQuality is the BASE (economic foundation)
+- satisfaction = lifeQuality + event modifiers
+- agriculture.js should NOT set satisfaction directly
+- satisfaction.js should be the ONLY place that
+  sets final satisfaction values
+- Formula:
+  farmerSatisfaction = farmerLifeQuality +
+    farmerEventModifier (capped 0-100)
+- farmerEventModifier resets to 0 each year
+  then accumulates event-based changes
+
+Add new state fields:
+- farmerEventModifier: 0
+- merchantEventModifier: 0
+- officialEventModifier: 0
+- landlordEventModifier: 0
+
+All event-based satisfaction changes go to
+eventModifier fields, not directly to satisfaction.
+Final satisfaction calculated once in satisfaction.js.
+
+---
+
+**BUG 3: Paper supply always 100% (all institution files)**
+
+Current wrong logic:
+- requiredPaper = paperOutput * share
+- supply = paperOutput / requiredPaper = always 1.0
+- This means paper is never scarce
+
+Correct logic:
+- paperDemand per institution based on staff count:
+  government: seniorOfficialCount * 50 +
+    midOfficialCount * 30 + juniorOfficialCount * 10
+  police: policeOfficerCount * 20
+  court: judgeCount * 100 (most paper intensive)
+  taxBureau: taxOfficerCount * 80
+  tradeBureau: tradeOfficerCount * 40
+  engineeringBureau: engineerCount * 30
+  healthBureau: healthOfficerCount * 20
+
+- totalPaperDemand = sum of all institution demands
+- paperSupplyRatio = paperOutput / totalPaperDemand
+  (capped at 1.0)
+- If paperOutput = 0: paperSupplyRatio = 0.3
+  (managing with no paper at all)
+- Each institution gets its share of available paper:
+  institutionPaperRatio = institutionDemand /
+    totalPaperDemand * paperSupplyRatio
+
+---
+
+**BUG 4: Government borrowing doesn't reduce
+lending pool (commerce.js)**
+
+Current wrong logic:
+- borrowGovernmentDebt() increases grainTreasury
+- lendingPoolSize stays the same
+- No crowding out of civilian lending
+
+Correct logic:
+- lendingPoolAvailable = lendingPoolSize -
+  governmentDebt - civilianLendingAccumulator
+- Government can only borrow up to lendingPoolAvailable
+- After government borrows:
+  lendingPoolAvailable -= borrowAmount
+- Civilian auto-lending uses remaining available pool:
+  civilianLending = lendingPoolAvailable * 0.3
+- This creates real crowding out effect
+
+Add new state field: lendingPoolAvailable: 0
+
+---
+
+**BUG 5: Landlord income uses satisfaction as input
+(satisfaction.js)**
+
+Current wrong logic:
+landlordIncomePerHead = farmlandRentRate *
+  farmlandAreaMu + landlordSatisfaction * 100
+
+Correct logic:
+landlordIncomePerHead = (farmlandRentRate *
+  farmlandAreaMu) / max(landlordPopulation, 1)
+(pure economic calculation, no circular dependency)
+
+---
+
+**BUG 6: Irrigation canal timestamp overwritten
+(game.js)**
+
+Current wrong logic:
+- All canals share single irrigationCanalYear
+- New canal order overwrites previous completion date
+
+Correct logic:
+- Replace irrigationCanalYear with array:
+  pendingCanals: [] 
+  each entry: { startYear, finishYear, muCount }
+- Each year-advance: check all pendingCanals
+  if finishYear <= world.year:
+    farmlandAreaMu += muCount
+    remove from pendingCanals
+- Remove single irrigationCanalYear field
+
+---
+
+**BUG 7: Population growth floor prevents famine
+death (population.js)**
+
+Current wrong logic:
+- growthRate = Math.max(0.005, calculatedRate)
+- Population always grows at least 0.5%
+
+Correct logic:
+- Remove Math.max(0.005, ...) floor
+- Allow negative growth:
+  grainSurplus < -totalPopulation * 100:
+    growthRate -= 0.02 (famine, serious decline)
+  grainSurplus < -totalPopulation * 50:
+    growthRate -= 0.01 (food stress)
+  healthIndex < 20: growthRate -= 0.01
+  stabilityIndex < 30: growthRate -= 0.005
+- growthRate can go negative (population shrinks)
+- Absolute floor: -0.05 (max 5% annual decline)
+
+---
+
+**BUG 8: Graduate accumulation never decays
+(population.js)**
+
+Current wrong logic:
+- primaryGraduates, secondaryGraduates,
+  higherGraduates only increase
+- Talent pools: adminTalent *= 0.98 (arbitrary decay)
+
+Correct logic:
+- Annual graduate cohort (not cumulative total):
+  annualPrimaryGrads: already tracked
+  annualSecondaryGrads: already tracked
+  annualHigherGrads: already tracked
+
+- Cumulative totals get annual decay:
+  primaryGraduates *= 0.97 (3% age out per year)
+  secondaryGraduates *= 0.97
+  higherGraduates *= 0.97
+  then += this year's new graduates
+
+- Talent pools use same decay logic:
+  adminTalent *= 0.97 (not 0.98, consistent)
+  commerceTalent *= 0.97
+  techTalent *= 0.97
+
+- scholarPool = literatePopulation * 0.1
+  (derived from living literate population,
+  not from cumulative graduates)
+
+---
+
+**Files to modify:**
+- js/state.js (new fields)
+- js/economy/currency.js (bug 1)
+- js/society/satisfaction.js (bug 2, 5)
+- js/economy/agriculture.js (bug 2 cleanup)
+- js/society/stability.js (bug 3)
+- js/economy/commerce.js (bug 4)
+- js/game.js (bug 6)
+- js/society/population.js (bug 7, 8)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any ui/ files, diplomacy/xikou.js,
+economy/market.js, economy/labor.js,
+tech/research.js
+
+**Definition of Done:**
+- backingRatio uses lockedGrainReserve not grainTreasury
+- satisfaction = lifeQuality + eventModifier
+- Paper demand based on staff count not paperOutput share
+- Government borrowing reduces lendingPoolAvailable
+- Landlord income has no circular dependency
+- Irrigation canals use array not single timestamp
+- Population can shrink during famine/crisis
+- Graduate pools decay 3% annually
