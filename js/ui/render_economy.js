@@ -321,9 +321,13 @@ export function renderEconomyTab(state) {
 
   mount.innerHTML = `
     <section class="panel"><h2>GDP</h2><div class="tab-grid">
+      ${statItem('Grain GDP', formatNumber(world.grainGDP ?? 0))}
+      ${statItem('Cloth+Silk GDP', formatNumber((world.agricultureGDP ?? 0) - (world.grainGDP ?? 0)))}
       ${statItem('Agriculture GDP', formatNumber(world.agricultureGDP ?? 0))}
       ${statItem('Commerce GDP', formatNumber(world.commerceGDP ?? 0))}
       ${statItem('Construction GDP', formatNumber(world.constructionGDP ?? 0))}
+      ${statItem('Government GDP', formatNumber(world.governmentGDP ?? 0))}
+      ${statItem('Construction Spending (Year)', formatNumber(world.constructionSpendingThisYear ?? 0))}
       ${statItem('GDP Estimate', formatNumber(world.gdpEstimate ?? 0))}
     </div></section>
     <section class="panel"><h2>Commerce</h2><div class="tab-grid">
