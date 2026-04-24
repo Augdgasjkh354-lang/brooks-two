@@ -4905,3 +4905,92 @@ ui/render_diplomacy.js ui/render_tech.js
     Official: gross/net/savings change
   Last 10 years net balance history (simple list)
 - yearLog records surplus/deficit each year
+## Phase 8D-1: State Refactor - Population + Calendar (Current)
+
+Phase 8C complete. Now refactoring state.world into
+organized sub-objects. Doing in small batches.
+Batch 1: population and calendar only.
+
+**Goal:** Extract population and calendar fields from
+state.world into state.population and state.calendar.
+Update all references across all files.
+
+**New structure:**
+
+state.calendar = {
+  year: 1
+}
+
+state.population = {
+  totalPopulation: 5000,
+  laborForce: 3000,
+  children: 1000,
+  elderly: 1000,
+  laborAssignedFarming: 0,
+  laborAssignedCommerce: 0,
+  laborIdle: 0,
+  merchantCount: 0,
+  hempLaborRequired: 0,
+  mulberryLaborRequired: 0,
+  sanitationWorkerCount: 0,
+  cleaningWorkerCount: 0,
+  farmerLiteracy: 0.05,
+  merchantLiteracy: 0,
+  officialLiteracy: 0,
+  workerLiteracy: 0,
+  landlordLiteracy: 0,
+  overallLiteracy: 0.05,
+  primaryGraduates: 0,
+  secondaryGraduates: 0,
+  higherGraduates: 0,
+  annualPrimaryGrads: 0,
+  annualSecondaryGrads: 0,
+  annualHigherGrads: 0,
+  secondaryEligiblePool: 0,
+  higherEligiblePool: 0,
+  higherSchoolUnlocked: false,
+  adminTalent: 0,
+  commerceTalent: 0,
+  techTalent: 0,
+  adminTalentDeployed: 0,
+  commerceTalentDeployed: 0,
+  techTalentDeployed: 0,
+  scholarPool: 0
+}
+
+**Migration rules:**
+- state.world.year → state.calendar.year
+- state.world.totalPopulation →
+  state.population.totalPopulation
+- (and so on for all fields listed above)
+
+**Keep state.world for all other fields not listed
+above. Do not touch them yet.**
+
+**Backward compatibility:**
+Add getter properties to state.world so existing
+code that hasn't been updated still works:
+Object.defineProperty(state.world, 'year', {
+  get: () => state.calendar.year,
+  set: (v) => { state.calendar.year = v }
+})
+(Do this for all migrated fields)
+
+This allows gradual migration without breaking
+anything.
+
+**Files to modify:**
+- js/state.js (restructure)
+- js/society/population.js (update references)
+- js/economy/labor.js (update references)
+- js/ui/render_world.js (update references)
+- js/game.js (update references)
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 8D-1):**
+- state.calendar and state.population exist
+- All fields correctly moved
+- Backward compatibility getters in state.world
+- Game runs identically after refactor
+- No references to old paths broken
