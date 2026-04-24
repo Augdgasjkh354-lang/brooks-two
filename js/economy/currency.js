@@ -8,7 +8,7 @@ import {
   INFLATION_RATE_MID,
   INFLATION_RATE_HIGH,
 } from '../config/constants.js';
-import { transfer } from './transfer.js';
+import { consume, produce, mint, burn } from './transfer.js';
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -159,37 +159,58 @@ export function issueGrainCoupons(state, amount) {
 
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
-  const monetary = state.monetary ?? state.world;
-  const movedToBacking = transfer({
+  const consumed = consume({
     from: 'private.farmer.grain',
+    asset: 'grain',
+    amount: issueAmount,
+    reason: 'coupon_backing_purchase',
+  }, state);
+  if (!consumed) {
+    return { success: false, reason: 'Insufficient farmer grain for coupon backing purchase.' };
+  }
+
+  const locked = produce({
     to: 'monetary.locked',
     asset: 'grain',
     amount: issueAmount,
     gdpTreatment: 'none',
-    reason: 'coupon_backing'
+    reason: 'grain_locked_as_reserve',
   }, state);
-
-  if (!movedToBacking) {
-    return { success: false, reason: 'Insufficient farmer grain for coupon backing.' };
+  if (!locked) {
+    produce({
+      to: 'private.farmer.grain',
+      asset: 'grain',
+      amount: issueAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_issue_rollback',
+    }, state);
+    return { success: false, reason: 'Failed to lock grain reserve for issuance.' };
   }
 
-  state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) + issueAmount;
-  monetary.couponCirculating = clampMoney(monetary.couponCirculating ?? 0) + issueAmount;
-
-  const issuedCoupons = transfer({
-    from: 'monetary.circulating',
+  const minted = mint({
     to: 'private.farmer.coupon',
     asset: 'coupon',
     amount: issueAmount,
-    gdpTreatment: 'none',
-    reason: 'coupon_issuance'
+    reason: 'coupon_issuance',
   }, state);
 
-  if (!issuedCoupons) {
-    return { success: false, reason: 'Coupon issuance transfer failed.' };
+  if (!minted) {
+    consume({
+      from: 'monetary.locked',
+      asset: 'grain',
+      amount: issueAmount,
+      reason: 'coupon_issue_rollback',
+    }, state);
+    produce({
+      to: 'private.farmer.grain',
+      asset: 'grain',
+      amount: issueAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_issue_rollback',
+    }, state);
+    return { success: false, reason: 'Coupon mint operation failed.' };
   }
 
-  monetary.couponTotalIssued = clampMoney(monetary.couponTotalIssued ?? 0) + issueAmount;
   state.world.lastCouponIssueAmount = issueAmount;
   state.world.lastCouponDenominationBreakdown = denominationBreakdown;
 
@@ -197,6 +218,142 @@ export function issueGrainCoupons(state, amount) {
     success: true,
     issueAmount,
     denominationBreakdown,
+  };
+}
+
+export function redeemGrainCoupons(state, amount) {
+  if (!state.systems.grainCouponsUnlocked) {
+    return { success: false, reason: 'Grain coupons are not unlocked yet.' };
+  }
+
+  const redeemAmount = clamp(amount);
+  if (redeemAmount <= 0) {
+    return { success: false, reason: 'Redeem amount must be greater than zero.' };
+  }
+
+  const monetary = state.monetary ?? state.world;
+  const privateSector = getPrivateSector(state);
+  if (!privateSector) {
+    return { success: false, reason: 'Private sector ledger is unavailable.' };
+  }
+
+  const farmerCoupons = clampMoney(privateSector.farmerCoupons ?? 0);
+  const lockedReserve = clampMoney(monetary.lockedGrainReserve ?? 0);
+  if (redeemAmount > farmerCoupons) {
+    return { success: false, reason: `Redeem amount exceeds farmer coupon balance (${farmerCoupons}).` };
+  }
+  if (redeemAmount > lockedReserve) {
+    return { success: false, reason: `Redeem amount exceeds locked reserve (${lockedReserve}).` };
+  }
+
+  const farmerCouponConsumed = consume({
+    from: 'private.farmer.coupon',
+    asset: 'coupon',
+    amount: redeemAmount,
+    reason: 'coupon_redemption_collection',
+  }, state);
+  if (!farmerCouponConsumed) {
+    return { success: false, reason: 'Insufficient farmer coupon balance for redemption.' };
+  }
+
+  const movedToCirculating = produce({
+    to: 'monetary.circulating',
+    asset: 'coupon',
+    amount: redeemAmount,
+    gdpTreatment: 'none',
+    reason: 'coupon_redemption_pooling',
+  }, state);
+  if (!movedToCirculating) {
+    produce({
+      to: 'private.farmer.coupon',
+      asset: 'coupon',
+      amount: redeemAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    return { success: false, reason: 'Unable to pool coupons for redemption burn.' };
+  }
+
+  const burned = burn({
+    from: 'monetary.circulating',
+    asset: 'coupon',
+    amount: redeemAmount,
+    reason: 'coupon_redemption',
+  }, state);
+  if (!burned) {
+    consume({
+      from: 'monetary.circulating',
+      asset: 'coupon',
+      amount: redeemAmount,
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    produce({
+      to: 'private.farmer.coupon',
+      asset: 'coupon',
+      amount: redeemAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    return { success: false, reason: 'Coupon burn operation failed.' };
+  }
+
+  const reserveReleased = consume({
+    from: 'monetary.locked',
+    asset: 'grain',
+    amount: redeemAmount,
+    reason: 'reserve_release',
+  }, state);
+  if (!reserveReleased) {
+    mint({
+      to: 'private.farmer.coupon',
+      asset: 'coupon',
+      amount: redeemAmount,
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    produce({
+      to: 'monetary.locked',
+      asset: 'grain',
+      amount: redeemAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    return { success: false, reason: 'Insufficient locked grain reserve for redemption.' };
+  }
+
+  const grainReturned = produce({
+    to: 'private.farmer.grain',
+    asset: 'grain',
+    amount: redeemAmount,
+    gdpTreatment: 'none',
+    reason: 'grain_returned_to_farmer',
+  }, state);
+
+  if (!grainReturned) {
+    consume({
+      from: 'private.farmer.grain',
+      asset: 'grain',
+      amount: redeemAmount,
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    produce({
+      to: 'monetary.locked',
+      asset: 'grain',
+      amount: redeemAmount,
+      gdpTreatment: 'none',
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    mint({
+      to: 'private.farmer.coupon',
+      asset: 'coupon',
+      amount: redeemAmount,
+      reason: 'coupon_redemption_rollback',
+    }, state);
+    return { success: false, reason: 'Failed to return grain to farmer.' };
+  }
+
+  return {
+    success: true,
+    redeemAmount,
   };
 }
 

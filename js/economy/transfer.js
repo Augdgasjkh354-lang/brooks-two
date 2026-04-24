@@ -62,12 +62,23 @@ function refreshPrivateTotals(state) {
   );
 }
 
+function ensureLedger(world) {
+  if (!world) return null;
+  if (!world.ledger) world.ledger = {};
+  if (!Array.isArray(world.ledger.transfers)) world.ledger.transfers = [];
+  if (!Array.isArray(world.ledger.consumption)) world.ledger.consumption = [];
+  if (!Array.isArray(world.ledger.monetaryExpansion)) world.ledger.monetaryExpansion = [];
+  if (!Array.isArray(world.ledger.monetaryContraction)) world.ledger.monetaryContraction = [];
+  return world.ledger;
+}
+
 function writeLedger(state, gdpTreatment, reason, amount, from, to, asset) {
   if (gdpTreatment === 'none') return;
   const world = getWorld(state);
-  if (!world.ledger) world.ledger = {};
-  if (!Array.isArray(world.ledger.transfers)) world.ledger.transfers = [];
-  world.ledger.transfers.push({
+  const ledger = ensureLedger(world);
+  if (!ledger) return;
+
+  ledger.transfers.push({
     year: Number(world.year ?? 0),
     reason,
     gdpTreatment,
@@ -89,15 +100,12 @@ export function transfer({ from, to, asset, amount, gdpTreatment = 'none', reaso
   const fromBalance = clampAmount(fromRef.holder[fromRef.key] ?? 0);
   const toBalance = clampAmount(toRef.holder[toRef.key] ?? 0);
 
-  const isCouponIssuanceMint = reason === 'coupon_issuance' && from === 'monetary.circulating';
-  if (!isCouponIssuanceMint && from !== to && fromBalance < safeAmount) {
+  if (from !== to && fromBalance < safeAmount) {
     return false;
   }
 
   if (from !== to) {
-    if (!isCouponIssuanceMint) {
-      fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
-    }
+    fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
     toRef.holder[toRef.key] = clampAmount(toBalance + safeAmount);
   }
 
@@ -105,7 +113,6 @@ export function transfer({ from, to, asset, amount, gdpTreatment = 'none', reaso
   writeLedger(state, gdpTreatment, reason, safeAmount, from, to, asset);
   return true;
 }
-
 
 export function produce({ to, asset, amount, gdpTreatment = 'none', reason = '' }, state) {
   const safeAmount = clampAmount(amount);
@@ -142,15 +149,82 @@ export function consume({ from, asset, amount, reason = '' }, state) {
   fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
 
   const world = getWorld(state);
-  if (!world.ledger) world.ledger = {};
-  if (!Array.isArray(world.ledger.consumption)) world.ledger.consumption = [];
-  world.ledger.consumption.push({
-    year: Number(world.year ?? 0),
-    from,
-    asset,
-    amount: safeAmount,
-    reason,
-  });
+  const ledger = ensureLedger(world);
+  if (ledger) {
+    ledger.consumption.push({
+      year: Number(world.year ?? 0),
+      from,
+      asset,
+      amount: safeAmount,
+      reason,
+    });
+  }
+
+  refreshPrivateTotals(state);
+  return true;
+}
+
+export function mint({ to, asset, amount, reason = '' }, state) {
+  const safeAmount = clampAmount(amount);
+  if (safeAmount <= 0) return true;
+  if (asset !== 'coupon') return false;
+  if (to !== 'monetary.circulating' && to !== 'private.farmer.coupon') return false;
+
+  const monetary = getMonetary(state);
+  const toRef = resolveAccount(state, to);
+  if (!monetary || !toRef) return false;
+
+  const toBalance = clampAmount(toRef.holder[toRef.key] ?? 0);
+  toRef.holder[toRef.key] = clampAmount(toBalance + safeAmount);
+
+  monetary.couponCirculating = clampAmount(Number(monetary.couponCirculating ?? 0) + safeAmount);
+  monetary.couponTotalIssued = clampAmount(Number(monetary.couponTotalIssued ?? 0) + safeAmount);
+
+  const world = getWorld(state);
+  const ledger = ensureLedger(world);
+  if (ledger) {
+    ledger.monetaryExpansion.push({
+      year: Number(world.year ?? 0),
+      to,
+      asset,
+      amount: safeAmount,
+      reason,
+      type: 'mint',
+    });
+  }
+
+  refreshPrivateTotals(state);
+  return true;
+}
+
+export function burn({ from, asset, amount, reason = '' }, state) {
+  const safeAmount = clampAmount(amount);
+  if (safeAmount <= 0) return true;
+  if (asset !== 'coupon') return false;
+  if (from !== 'monetary.circulating') return false;
+
+  const monetary = getMonetary(state);
+  const fromRef = resolveAccount(state, from);
+  if (!monetary || !fromRef) return false;
+
+  const fromBalance = clampAmount(fromRef.holder[fromRef.key] ?? 0);
+  if (fromBalance < safeAmount) return false;
+
+  fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
+  monetary.couponCirculating = clampAmount(fromRef.holder[fromRef.key]);
+
+  const world = getWorld(state);
+  const ledger = ensureLedger(world);
+  if (ledger) {
+    ledger.monetaryContraction.push({
+      year: Number(world.year ?? 0),
+      from,
+      asset,
+      amount: safeAmount,
+      reason,
+      type: 'burn',
+    });
+  }
 
   refreshPrivateTotals(state);
   return true;
