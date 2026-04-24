@@ -6296,3 +6296,188 @@ economy/currency.js
 - Tax arrears tracked and affect efficiency
 - Arrears repaid when merchant assets available
 - yearLog records consumption and tax events
+## Phase 9E: Full Ledger Operations + Softmax Labor (Current)
+
+Bugfix v6 complete. Now expanding ledger to 5
+operation types and replacing labor heuristic
+with true Softmax algorithm.
+
+---
+
+**PART A: Expand transfer.js to 5 operation types**
+
+Current: only transfer() and produce() and consume()
+Add: mint() and burn()
+
+mint({ to, asset, amount, reason }, state):
+- Creates new monetary assets (coupons)
+- to: 'monetary.circulating' or 'private.farmer.coupon'
+- asset: 'coupon' only
+- Records as monetary expansion
+- Updates couponTotalIssued
+
+burn({ from, asset, amount, reason }, state):
+- Destroys monetary assets
+- from: 'monetary.circulating'
+- asset: 'coupon' only
+- Records as monetary contraction
+- Updates couponCirculating
+
+Replace coupon issuance in currency.js with:
+Step 1: consume({
+  from: 'private.farmer.grain',
+  asset: 'grain',
+  amount: issueAmount,
+  reason: 'coupon_backing_purchase'
+}, state)
+Step 2: produce({
+  to: 'monetary.locked',
+  asset: 'grain',
+  amount: issueAmount,
+  gdpTreatment: 'none',
+  reason: 'grain_locked_as_reserve'
+}, state)
+Step 3: mint({
+  to: 'private.farmer.coupon',
+  asset: 'coupon',
+  amount: issueAmount,
+  reason: 'coupon_issuance'
+}, state)
+
+Replace coupon redemption with:
+Step 1: burn({
+  from: 'monetary.circulating',
+  asset: 'coupon',
+  amount: redeemAmount,
+  reason: 'coupon_redemption'
+}, state)
+Step 2: consume({
+  from: 'monetary.locked',
+  asset: 'grain',
+  amount: redeemAmount,
+  reason: 'reserve_release'
+}, state)
+Step 3: produce({
+  to: 'private.farmer.grain',
+  asset: 'grain',
+  amount: redeemAmount,
+  gdpTreatment: 'none',
+  reason: 'grain_returned_to_farmer'
+}, state)
+
+---
+
+**PART B: True Softmax labor allocation (labor.js)**
+
+Replace current heuristic with proper algorithm.
+
+Sector definitions (array):
+const sectors = [
+  {
+    id: 'farming',
+    wage: farmingWage,
+    risk: grainSurplus < 0 ? 0.3 : 0.0,
+    mobilityCost: 0.05,
+    min: foodSecurityLaborFloor,
+    max: farmingLaborRequired,
+    currentLabor: world.farmingLaborAllocated
+  },
+  {
+    id: 'commerce',
+    wage: commerceWagePerWorker,
+    risk: 0.02,
+    mobilityCost: 0.15,
+    min: 0,
+    max: operatingShops * 4,
+    currentLabor: world.commerceLaborAllocated
+  },
+  {
+    id: 'hemp',
+    wage: hempWage,
+    risk: 0.01,
+    mobilityCost: 0.10,
+    min: 0,
+    max: world.hempLandMu / 10,
+    currentLabor: world.hempLaborAllocated
+  },
+  {
+    id: 'mulberry',
+    wage: mulberryWage,
+    risk: 0.01,
+    mobilityCost: 0.12,
+    min: 0,
+    max: world.mulberryLandMu / 5,
+    currentLabor: world.mulberryLaborAllocated
+  }
+]
+
+Step 1: Calculate utility per sector
+utility(s) = s.wage * (1 - s.risk) - s.mobilityCost
+  * averageWage
+
+Step 2: Calculate weighted average wage
+averageWage = sum(s.wage * s.currentLabor) /
+  max(sum(s.currentLabor), 1)
+(weighted by current allocation, all sectors)
+
+Step 3: Softmax weights
+temperature = max(averageWage * 0.5, 1)
+weight(s) = exp(utility(s) / temperature)
+totalWeight = sum(all weights)
+targetShare(s) = weight(s) / totalWeight
+
+Step 4: Calculate target labor
+movableLabor = laborForce - institutionWorkers
+  - merchantCount
+targetLabor(s) = targetShare(s) * movableLabor
+
+Step 5: Project to constraints
+for each sector:
+  targetLabor(s) = clamp(targetLabor(s), s.min, s.max)
+
+remaining = movableLabor - sum(clampedTargets)
+if remaining > 0:
+  farming gets remaining up to its max
+  if still remaining: becomes unemployed
+
+Step 6: Apply mobility speed
+flowSpeed = 0.08
+newLabor(s) = s.currentLabor +
+  flowSpeed * (targetLabor(s) - s.currentLabor)
+newLabor(s) = clamp(newLabor(s), s.min, s.max)
+
+Step 7: Calculate unemployment
+unemployed = movableLabor - sum(newLabor values)
+unemployed = max(0, unemployed)
+unemploymentRate = unemployed / max(laborForce, 1)
+
+foodSecurityLaborFloor:
+= min(farmlandAreaMu / 10, movableLabor)
+
+Helper function:
+function softmaxLaborAllocation(sectors,
+  movableLabor, temperature):
+  returns array of { id, targetLabor }
+
+**Files to modify:**
+- js/economy/transfer.js (add mint + burn)
+- js/economy/currency.js (use mint/burn/consume/produce)
+- js/economy/labor.js (true Softmax algorithm)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ diplomacy/ tech/ ui/ files
+economy/agriculture.js economy/commerce.js
+economy/market.js state.js game.js
+
+**Definition of Done (Phase 9E):**
+- mint() creates coupons correctly
+- burn() destroys coupons correctly
+- Coupon issuance uses mint/consume/produce chain
+- Coupon redemption uses burn/consume/produce chain
+- Softmax weights calculated from utility
+- All sectors defined with min/max/wage/risk
+- averageWage weighted by all sector labor
+- flowSpeed caps adjustment at 8%/year
+- Farming always meets foodSecurityLaborFloor
+- Unemployment = residual after all sectors
+- yearLog records significant labor shifts
