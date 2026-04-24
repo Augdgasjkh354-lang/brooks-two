@@ -38,10 +38,24 @@ function getPopulationGrowthDetails(world) {
 
   const techGrowthBonus = Number(world.techBonuses?.populationGrowthBonus ?? 0);
   const healthGrowthModifier = Number(world.healthGrowthModifier ?? 0);
-  const growthRate = Math.max(
-    0.005,
-    baseGrowthRate + techGrowthBonus + commerceProsperityBonus - demandShortfallPenalty + healthGrowthModifier
-  );
+  const grainSurplus = Number(world.grainSurplus ?? 0);
+  const totalPopulation = Math.max(1, Number(world.totalPopulation ?? 1));
+  const famineSeverePenalty = grainSurplus < -totalPopulation * 100 ? 0.02 : 0;
+  const famineStressPenalty = !famineSeverePenalty && grainSurplus < -totalPopulation * 50 ? 0.01 : 0;
+  const healthCrisisPenalty = Number(world.healthIndex ?? 50) < 20 ? 0.01 : 0;
+  const stabilityCrisisPenalty = Number(world.stabilityIndex ?? 80) < 30 ? 0.005 : 0;
+
+  const calculatedRate =
+    baseGrowthRate +
+    techGrowthBonus +
+    commerceProsperityBonus -
+    demandShortfallPenalty +
+    healthGrowthModifier -
+    famineSeverePenalty -
+    famineStressPenalty -
+    healthCrisisPenalty -
+    stabilityCrisisPenalty;
+  const growthRate = Math.max(-0.05, calculatedRate);
 
   return {
     growthRate,
@@ -50,6 +64,10 @@ function getPopulationGrowthDetails(world) {
     demandShortfallPenalty,
     techGrowthBonus,
     healthGrowthModifier,
+    famineSeverePenalty,
+    famineStressPenalty,
+    healthCrisisPenalty,
+    stabilityCrisisPenalty,
   };
 }
 
@@ -250,9 +268,9 @@ function updateTalentPools(world) {
   const commerceGrowth = commerceGrowthBase * commerceGrowthMultiplier;
   const techGrowth = techGrowthBase * techGrowthMultiplier;
 
-  const adminAfterDecay = clampTalent((world.adminTalent ?? 0) * 0.98);
-  const commerceAfterDecay = clampTalent((world.commerceTalent ?? 0) * 0.98);
-  const techAfterDecay = clampTalent((world.techTalent ?? 0) * 0.98);
+  const adminAfterDecay = clampTalent((world.adminTalent ?? 0) * 0.97);
+  const commerceAfterDecay = clampTalent((world.commerceTalent ?? 0) * 0.97);
+  const techAfterDecay = clampTalent((world.techTalent ?? 0) * 0.97);
 
   world.adminTalent = adminAfterDecay + adminGrowth;
   world.commerceTalent = commerceAfterDecay + commerceGrowth;
@@ -306,11 +324,15 @@ export function processEducationYear(world) {
   world.annualSecondaryGrads = annualSecondaryGrads;
   world.annualHigherGrads = annualHigherGrads;
 
-  world.primaryGraduates = Math.max(0, Math.floor((world.primaryGraduates ?? 0) + annualPrimaryGrads));
-  world.secondaryGraduates = Math.max(0, Math.floor((world.secondaryGraduates ?? 0) + annualSecondaryGrads));
-  world.higherGraduates = Math.max(0, Math.floor((world.higherGraduates ?? 0) + annualHigherGrads));
+  const decayedPrimary = Math.max(0, Math.floor(Number(world.primaryGraduates ?? 0) * 0.97));
+  const decayedSecondary = Math.max(0, Math.floor(Number(world.secondaryGraduates ?? 0) * 0.97));
+  const decayedHigher = Math.max(0, Math.floor(Number(world.higherGraduates ?? 0) * 0.97));
+  world.primaryGraduates = Math.max(0, Math.floor(decayedPrimary + annualPrimaryGrads));
+  world.secondaryGraduates = Math.max(0, Math.floor(decayedSecondary + annualSecondaryGrads));
+  world.higherGraduates = Math.max(0, Math.floor(decayedHigher + annualHigherGrads));
 
-  world.scholarPool = Math.max(0, Math.floor((world.higherGraduates ?? 0) * 0.4));
+  const literatePopulation = Math.max(0, Math.floor(totalPopulation * Math.max(0, Number(world.overallLiteracy ?? 0))));
+  world.scholarPool = Math.max(0, Math.floor(literatePopulation * 0.1));
 
   return {
     gdpPerCapita,
@@ -345,6 +367,10 @@ export function updatePopulation(world) {
   world.populationGrowthDemandPenalty = growthDetails.demandShortfallPenalty;
   world.populationGrowthTechBonus = growthDetails.techGrowthBonus;
   world.populationGrowthHealthModifier = growthDetails.healthGrowthModifier;
+  world.populationGrowthFamineSeverePenalty = growthDetails.famineSeverePenalty;
+  world.populationGrowthFamineStressPenalty = growthDetails.famineStressPenalty;
+  world.populationGrowthHealthCrisisPenalty = growthDetails.healthCrisisPenalty;
+  world.populationGrowthStabilityCrisisPenalty = growthDetails.stabilityCrisisPenalty;
 
   updateLaborAllocation(world);
 

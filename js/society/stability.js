@@ -172,6 +172,49 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Number(value ?? 0)));
 }
 
+function getInstitutionPaperDemand(world) {
+  const seniorOfficialCount = Math.max(0, Number(world?.seniorOfficialCount ?? 0));
+  const midOfficialCount = Math.max(0, Number(world?.midOfficialCount ?? 0));
+  const juniorOfficialCount = Math.max(0, Number(world?.juniorOfficialCount ?? 0));
+  const policeOfficerCount = Math.max(0, Number(world?.policeOfficerCount ?? 0));
+  const judgeCount = Math.max(0, Number(world?.judgeCount ?? 0));
+  const taxOfficerCount = Math.max(0, Number(world?.taxOfficerCount ?? 0));
+  const tradeOfficerCount = Math.max(0, Number(world?.tradeOfficerCount ?? 0));
+  const engineerCount = Math.max(0, Number(world?.engineerCount ?? 0));
+  const healthOfficerCount = Math.max(0, Number(world?.healthOfficerCount ?? 0));
+
+  return {
+    government: seniorOfficialCount * 50 + midOfficialCount * 30 + juniorOfficialCount * 10,
+    police: policeOfficerCount * 20,
+    court: judgeCount * 100,
+    taxBureau: taxOfficerCount * 80,
+    tradeBureau: tradeOfficerCount * 40,
+    engineeringBureau: engineerCount * 30,
+    healthBureau: healthOfficerCount * 20,
+  };
+}
+
+function getPaperSupplyRatio(world) {
+  const paperOutput = Math.max(0, Number(world?.paperOutput ?? 0));
+  const demand = getInstitutionPaperDemand(world);
+  const totalPaperDemand = Object.values(demand).reduce((sum, v) => sum + v, 0);
+  const paperSupplyRatio =
+    paperOutput <= 0 ? 0.3 : (totalPaperDemand > 0 ? Math.min(1, paperOutput / totalPaperDemand) : 1);
+
+  world.totalPaperDemand = totalPaperDemand;
+  world.paperSupplyRatio = paperSupplyRatio;
+
+  return { demand, totalPaperDemand, paperSupplyRatio };
+}
+
+function getInstitutionPaperPercent(world, institutionKey) {
+  const { demand, totalPaperDemand, paperSupplyRatio } = getPaperSupplyRatio(world);
+  const institutionDemand = Math.max(0, Number(demand[institutionKey] ?? 0));
+  const institutionPaperRatio =
+    totalPaperDemand > 0 ? (institutionDemand / totalPaperDemand) * paperSupplyRatio : paperSupplyRatio;
+  return clampPercent(institutionPaperRatio * 100);
+}
+
 export function ensureGovernmentInstitution(world, yearLog = null) {
   if (!world) return false;
   if (!world.governmentEstablished && Number(world.adminTalent ?? 0) >= 10) {
@@ -197,14 +240,7 @@ export function calculateGovernmentEfficiency(world) {
 
   const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
 
-  const paperOutput = Math.max(0, Number(world.paperOutput ?? 0));
-  const requiredPaper = paperOutput * 0.1;
-  let paperSupply = 50;
-  if (paperOutput > 0) {
-    const availablePaper = paperOutput * 0.1;
-    const ratio = requiredPaper > 0 ? availablePaper / requiredPaper : 1;
-    paperSupply = Math.max(30, Math.min(100, ratio * 100));
-  }
+  const paperSupply = getInstitutionPaperPercent(world, 'government');
 
   const requiredStaff = institutionSize * 5;
   const actualStaff = Math.max(0, Number(world.juniorOfficialCount ?? 0) + Number(world.midOfficialCount ?? 0));
@@ -456,9 +492,7 @@ export function calculatePoliceEffects(world) {
 
   const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
 
-  const paperOutput = Math.max(0, Number(world?.paperOutput ?? 0));
-  const policePaperDemand = paperOutput * 0.08;
-  const paperSupply = paperOutput > 0 ? 100 : 50;
+  const paperSupply = getInstitutionPaperPercent(world, 'police');
 
   const requiredStaff = institutionSize * 5;
   const staffingRatio = requiredStaff > 0 ? officerCount / requiredStaff : 1;
@@ -467,7 +501,7 @@ export function calculatePoliceEffects(world) {
   let efficiency = clampPercent(talentAdequacy * 0.4 + paperSupply * 0.3 + staffing * 0.3);
   let paperInsufficient = false;
 
-  if (policePaperDemand <= 0) {
+  if (paperSupply < 30) {
     paperInsufficient = true;
     efficiency = clampPercent(efficiency - 20);
   }
@@ -529,7 +563,7 @@ export function calculatePoliceEffects(world) {
 }
 
 
-function calculateInstitutionEfficiency({ institutionSize, deployedTalent, paperOutput, paperShare, staffCount, staffTalentBonus = 0 }) {
+function calculateInstitutionEfficiency({ institutionSize, deployedTalent, world, institutionKey, staffCount, staffTalentBonus = 0 }) {
   const requiredTalent = institutionSize * 2;
   const talentRatio = requiredTalent > 0 ? deployedTalent / requiredTalent : 1;
 
@@ -540,12 +574,7 @@ function calculateInstitutionEfficiency({ institutionSize, deployedTalent, paper
   else if (talentRatio > 1.0) talentTierMultiplier = 1.1;
 
   const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
-  const requiredPaper = Math.max(0, paperOutput * paperShare);
-  let paperSupply = 50;
-  if (paperOutput > 0) {
-    const ratio = requiredPaper > 0 ? (paperOutput * paperShare) / requiredPaper : 1;
-    paperSupply = Math.max(30, Math.min(100, ratio * 100));
-  }
+  const paperSupply = getInstitutionPaperPercent(world, institutionKey);
 
   const requiredStaff = institutionSize * 5;
   const staffingRaw = requiredStaff > 0 ? (staffCount + staffTalentBonus) / requiredStaff : 1;
@@ -635,8 +664,8 @@ export function calculateTradeBureauEffects(world) {
   const eff = calculateInstitutionEfficiency({
     institutionSize,
     deployedTalent: world.commerceTalentDeployedTrade * 2,
-    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
-    paperShare: 0.12,
+    world,
+    institutionKey: 'tradeBureau',
     staffCount: world.tradeOfficerCount,
   });
 
@@ -692,8 +721,8 @@ export function calculateEngineeringBureauEffects(world) {
   const eff = calculateInstitutionEfficiency({
     institutionSize,
     deployedTalent: world.techTalentDeployedEngineering * 2,
-    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
-    paperShare: 0.08,
+    world,
+    institutionKey: 'engineeringBureau',
     staffCount: world.engineerCount,
   });
 
@@ -757,8 +786,8 @@ export function calculateCourtEffects(world) {
   const eff = calculateInstitutionEfficiency({
     institutionSize,
     deployedTalent: world.adminTalentDeployedCourt,
-    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
-    paperShare: 0.15,
+    world,
+    institutionKey: 'court',
     staffCount: world.judgeCount,
   });
 
@@ -819,8 +848,8 @@ export function calculateTaxBureauEffects(world) {
   const eff = calculateInstitutionEfficiency({
     institutionSize,
     deployedTalent: world.adminTalentDeployedTax,
-    paperOutput: Math.max(0, Number(world.paperOutput ?? 0)),
-    paperShare: 0.2,
+    world,
+    institutionKey: 'taxBureau',
     staffCount: world.taxOfficerCount,
     staffTalentBonus: Math.max(0, Number(world.techTalentDeployedTax ?? 0)) * 0.5,
   });
@@ -923,14 +952,7 @@ export function calculateHealthEffects(world) {
 
   const talentAdequacy = clampPercent(Math.min(1.1, talentRatio) * 100 * talentTierMultiplier);
 
-  const paperOutput = Math.max(0, Number(world.paperOutput ?? 0));
-  const requiredPaper = paperOutput * 0.05;
-  let paperSupply = 50;
-  if (paperOutput > 0) {
-    const availablePaper = paperOutput * 0.05;
-    const ratio = requiredPaper > 0 ? availablePaper / requiredPaper : 1;
-    paperSupply = Math.max(30, Math.min(100, ratio * 100));
-  }
+  const paperSupply = getInstitutionPaperPercent(world, 'healthBureau');
 
   const requiredStaff = institutionSize * 5;
   const staffingRatio = requiredStaff > 0 ? world.healthOfficerCount / requiredStaff : 1;

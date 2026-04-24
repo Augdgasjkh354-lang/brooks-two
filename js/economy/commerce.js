@@ -224,7 +224,12 @@ export function processCivilianLending(world) {
   }
 
   const lendingPoolSize = clampMoney(world.lendingPoolSize);
-  const civilianLending = lendingPoolSize * 0.3;
+  const lendingPoolAvailable = Math.max(
+    0,
+    lendingPoolSize - clampMoney(world.governmentDebt ?? 0) - clampMoney(world.civilianLendingAccumulator ?? 0)
+  );
+  world.lendingPoolAvailable = lendingPoolAvailable;
+  const civilianLending = lendingPoolAvailable * 0.3;
   const civilianInterestIncome = civilianLending * 0.08;
 
   world.civilianLendingAccumulator =

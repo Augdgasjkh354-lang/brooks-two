@@ -32,7 +32,7 @@ export function getInflationState(world) {
 
   const couponCirculating = Math.max(0, world.couponCirculating ?? 0);
   const backingRatio =
-    couponCirculating > 0 ? Math.max(0, (world.grainTreasury ?? 0) / couponCirculating) : 1.0;
+    couponCirculating > 0 ? Math.max(0, (world.lockedGrainReserve ?? 0) / couponCirculating) : 1.0;
 
   if (backingRatio >= 1.0) {
     return {
@@ -124,6 +124,7 @@ export function issueGrainCoupons(state, amount) {
   state.world.grainTreasury += issueAmount;
   state.world.couponCirculating += issueAmount;
   state.world.couponTotalIssued += issueAmount;
+  state.world.lockedGrainReserve = clampMoney(state.world.lockedGrainReserve ?? 0) + issueAmount;
   state.world.lastCouponIssueAmount = issueAmount;
   state.world.lastCouponDenominationBreakdown = denominationBreakdown;
 
@@ -137,6 +138,10 @@ export function issueGrainCoupons(state, amount) {
 export function borrowGovernmentDebt(world, amount) {
   const borrowAmount = Math.floor(clampMoney(amount));
   const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
+  const currentDebt = clampMoney(world.governmentDebt ?? 0);
+  const currentCivilianLending = clampMoney(world.civilianLendingAccumulator ?? 0);
+  const lendingPoolAvailable = Math.max(0, lendingPoolSize - currentDebt - currentCivilianLending);
+  world.lendingPoolAvailable = lendingPoolAvailable;
 
   if (borrowAmount <= 0) {
     return { success: false, reason: 'Borrow amount must be greater than 0.' };
@@ -145,7 +150,7 @@ export function borrowGovernmentDebt(world, amount) {
     return { success: false, reason: 'No lending pool available.' };
   }
 
-  const maxSingleBorrow = lendingPoolSize * 0.5;
+  const maxSingleBorrow = lendingPoolAvailable * 0.5;
   if (borrowAmount > maxSingleBorrow) {
     return {
       success: false,
@@ -153,14 +158,13 @@ export function borrowGovernmentDebt(world, amount) {
     };
   }
 
-  const currentDebt = clampMoney(world.governmentDebt ?? 0);
   if (currentDebt > lendingPoolSize) {
     return { success: false, reason: 'Cannot borrow while debt is over lending pool size.' };
   }
 
   const projectedDebt = currentDebt + borrowAmount;
-  if (projectedDebt > lendingPoolSize) {
-    return { success: false, reason: 'Projected debt would exceed lending pool size.' };
+  if (borrowAmount > lendingPoolAvailable) {
+    return { success: false, reason: 'Borrow exceeds currently available lending pool.' };
   }
 
   const debtCurrency = world.grainCouponsUnlocked ? 'coupon' : 'grain';
@@ -176,6 +180,7 @@ export function borrowGovernmentDebt(world, amount) {
 
   world.governmentDebt = projectedDebt;
   world.governmentDebtCurrency = debtCurrency;
+  world.lendingPoolAvailable = Math.max(0, lendingPoolAvailable - borrowAmount);
 
   return {
     success: true,

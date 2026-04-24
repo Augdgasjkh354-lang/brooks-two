@@ -465,8 +465,12 @@ export function updateEconomy(world, options = {}) {
     Math.max(0, Number(world.engineeringReclaimBonus ?? 0));
   world.farmerLiteracyEfficiencyBonus = literacyEffects.farmerEfficiencyBonus;
   world.merchantLiteracyEfficiencyBonus = literacyEffects.merchantGDPMultiplierBonus;
+  world.farmerEventModifier = 0;
+  world.merchantEventModifier = 0;
+  world.officialEventModifier = 0;
+  world.landlordEventModifier = 0;
 
-  const satisfaction = calculateClassSatisfaction(world);
+  calculateClassSatisfaction(world);
   calculateGovernmentEfficiency(world);
   const fireLeakageInfo = calculateFireLeakage(world);
   const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);
@@ -479,22 +483,12 @@ export function updateEconomy(world, options = {}) {
     farmlandRentPenalty = 10;
   }
 
-  world.farmerSatisfaction = clampPercentIndex(
-    satisfaction.farmerSatisfaction + structuralFarmerBonus + incomePoolEffects.farmerSatisfactionBonus - farmlandRentPenalty
-  );
+  world.farmerEventModifier += structuralFarmerBonus + incomePoolEffects.farmerSatisfactionBonus - farmlandRentPenalty;
   const merchantSatisfactionTechBonus = Number(world.techBonuses?.merchantSatisfactionBonus ?? 0);
   const merchantSatisfactionPolicyBonus = bureaucracyEffects.merchantSatisfactionPermanentBonus;
-  world.merchantSatisfaction = clampPercentIndex(
-    satisfaction.merchantSatisfaction + merchantSatisfactionTechBonus + merchantSatisfactionPolicyBonus + incomePoolEffects.merchantSatisfactionBonus
-  );
-  world.officialSatisfaction = clampPercentIndex(
-    satisfaction.officialSatisfaction + paperSatisfactionBonus + incomePoolEffects.officialSatisfactionBonus
-  );
-  world.landlordSatisfaction = satisfaction.landlordSatisfaction;
-  world.farmerSatisfaction = world.farmerLifeQuality;
-  world.merchantSatisfaction = world.merchantLifeQuality;
-  world.officialSatisfaction = world.officialLifeQuality;
-  world.landlordSatisfaction = world.landlordLifeQuality;
+  world.merchantEventModifier +=
+    merchantSatisfactionTechBonus + merchantSatisfactionPolicyBonus + incomePoolEffects.merchantSatisfactionBonus;
+  world.officialEventModifier += paperSatisfactionBonus + incomePoolEffects.officialSatisfactionBonus;
 
   const activeBehaviorWarnings = [];
   const publicToilets = Math.max(0, Number(world.publicToilets ?? 0));
@@ -585,14 +579,16 @@ export function updateEconomy(world, options = {}) {
   }
 
   if (world.saltShortfallRatio > 0.3) {
-    world.farmerSatisfaction = clampPercentIndex((world.farmerSatisfaction ?? 70) - 20);
+    world.farmerEventModifier -= 20;
     world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 15, 10, 150);
     behaviorMessages.push('盐荒严重，民间怨声载道');
   } else if (world.saltShortfallRatio > 0.1) {
-    world.farmerSatisfaction = clampPercentIndex((world.farmerSatisfaction ?? 70) - 10);
+    world.farmerEventModifier -= 10;
     world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 8, 10, 150);
     behaviorMessages.push('盐供应紧张');
   }
+
+  calculateClassSatisfaction(world);
 
   if (world.farmerSatisfaction < 40) {
     adjustedGrainOutput = clamp(adjustedGrainOutput * 0.8);
@@ -646,6 +642,7 @@ export function updateEconomy(world, options = {}) {
     const dumpedAmount = clamp(previousCirculating * 0.7);
     world.couponCirculating = Math.max(0, previousCirculating - dumpedAmount);
     world.grainTreasury = (world.grainTreasury ?? 0) - dumpedAmount;
+    world.lockedGrainReserve = Math.max(0, (world.lockedGrainReserve ?? 0) - dumpedAmount);
 
     if (world.grainTreasury < 0) {
       world.grainTreasury = 0;
@@ -654,11 +651,12 @@ export function updateEconomy(world, options = {}) {
       world.stabilityPenaltyReason = `${world.stabilityPenaltyReason}; bank run treasury collapse -30`;
     }
 
-    world.merchantSatisfaction = clampPercentIndex((world.merchantSatisfaction ?? 0) - 20);
+    world.merchantEventModifier -= 20;
+    calculateClassSatisfaction(world);
 
     const postCrisisBacking =
       (world.couponCirculating ?? 0) > 0
-        ? Math.max(0, (world.grainTreasury ?? 0) / world.couponCirculating)
+        ? Math.max(0, (world.lockedGrainReserve ?? 0) / world.couponCirculating)
         : 1;
     world.backingRatio = postCrisisBacking;
     creditCrisisTriggered = true;
