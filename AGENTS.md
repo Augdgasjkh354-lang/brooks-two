@@ -4759,3 +4759,149 @@ Since modules use ES module syntax, use:
 - Clear pass/fail output per year
 - Summary at end showing total pass rate
 - Any NaN or out-of-range values clearly reported
+## Phase 8C: Account Ledger (Current)
+
+Phase 8E complete. Now adding annual account ledger.
+Every grain/coupon flow recorded. No logic changes,
+only add tracking layer on top of existing flows.
+
+**Goal:** Complete annual income/expense tracking
+for government and civilian accounts.
+Player can see exactly where every jin came from
+and went to each year.
+
+**Rules:**
+
+New state object: state.ledger
+Resets to zero at start of each year-advance.
+
+Government ledger (国库账本):
+- taxRevenue: 0 (agricultural tax collected)
+- rentRevenue: 0 (farmland rent collected)
+- commerceTaxRevenue: 0 (commerce tax)
+- landTaxRevenue: 0 (land tax)
+- moneylenderTaxRevenue: 0 (moneylender tax)
+- couponTaxRevenue: 0 (coupon-denominated taxes)
+- tradeRevenue: 0 (export/trade income)
+- debtBorrowed: 0 (new government borrowing)
+- totalIncome: sum of above
+
+- wageBill: 0 (all civil servant wages)
+- researchCost: 0 (tech research spending)
+- constructionCost: 0 (roads, toilets, buildings)
+- educationCost: 0 (government school costs)
+- importCost: 0 (salt, cloth, dung imports)
+- subsidyCost: 0 (trade subsidies, salt subsidy)
+- debtRepayment: 0 (debt paid back)
+- debtInterest: 0 (interest on government debt)
+- totalExpense: sum of above
+
+- netBalance: totalIncome - totalExpense
+  (positive = surplus, negative = deficit)
+
+Civilian ledger (民间账本):
+- farmerGrossIncome: 0 (grain留成 + income pool)
+- farmerTaxPaid: 0 (tax + rent paid)
+- farmerNetIncome: farmerGross - farmerTaxPaid
+- farmerConsumption: 0 (salt + cloth spending)
+- farmerSavingsChange: 0 (net change in savings)
+
+- merchantGrossIncome: 0 (commerce GDP share)
+- merchantTaxPaid: 0 (commerce tax paid)
+- merchantNetIncome: merchantGross - merchantTaxPaid
+- merchantConsumption: 0
+- merchantSavingsChange: 0
+
+- officialGrossIncome: 0 (wages received)
+- officialNetIncome: 0 (after personal expenses)
+- officialSavingsChange: 0
+
+Flow tracking:
+Every existing function that moves grain/coupon
+must add to ledger:
+
+updateAgriculture() →
+  ledger.taxRevenue += tax collected
+  ledger.farmerGrossIncome += farmer留成
+
+updateCommerce() →
+  ledger.commerceTaxRevenue += commerce tax
+  ledger.merchantGrossIncome += merchant income
+
+updateMarket() →
+  ledger.importCost += salt/cloth imports paid
+  ledger.farmerConsumption += salt/cloth farmer spending
+  ledger.merchantConsumption += merchant spending
+
+updateLabor() / wage payment →
+  ledger.wageBill += total wages paid
+  ledger.officialGrossIncome += wages received
+
+updateResearch() →
+  ledger.researchCost += research spending
+
+construction buttons →
+  ledger.constructionCost += building costs
+
+education costs →
+  ledger.educationCost += school costs
+
+debt functions →
+  ledger.debtBorrowed += new loans
+  ledger.debtRepayment += repayments
+  ledger.debtInterest += interest paid
+
+All ledger fields updated in real-time as
+transactions happen during year-advance.
+
+At year end:
+  ledger.totalIncome = sum of income fields
+  ledger.totalExpense = sum of expense fields
+  ledger.netBalance = totalIncome - totalExpense
+
+Historical ledger:
+  ledgerHistory: [] (array of past years)
+  At end of each year: push copy of ledger to history
+  Keep last 10 years only
+  ledgerHistory[0] = most recent completed year
+
+State additions:
+- state.ledger = { all fields above, initialized to 0 }
+- state.ledgerHistory = []
+
+**Files to modify:**
+- js/state.js (add ledger + ledgerHistory)
+- js/economy/agriculture.js (track tax + farmer income)
+- js/economy/commerce.js (track commerce tax +
+  merchant income + debt)
+- js/economy/market.js (track import costs +
+  consumption)
+- js/economy/currency.js (track coupon operations)
+- js/society/stability.js (track policy costs)
+- js/tech/research.js (track research costs)
+- js/game.js (reset ledger yearly, push to history,
+  track construction costs)
+- js/ui/render_economy.js (add ledger panel)
+
+**Do NOT touch:** unlocks.js, policies.js,
+any society/ diplomacy/ files,
+ui/render_world.js ui/render_society.js
+ui/render_diplomacy.js ui/render_tech.js
+
+**Definition of Done (Phase 8C):**
+- ledger resets to 0 at start of each year
+- All major transactions recorded in ledger
+- totalIncome / totalExpense / netBalance calculated
+- ledgerHistory keeps last 10 years
+- UI shows ledger panel in 货币 tab:
+  Government account:
+    Income breakdown (tax/rent/commerce/land/trade)
+    Expense breakdown (wages/research/construction/
+    education/imports/subsidies/debt)
+    Net balance with color (green=surplus, red=deficit)
+  Civilian account:
+    Farmer: gross/tax/net/consumption/savings change
+    Merchant: gross/tax/net/consumption/savings change
+    Official: gross/net/savings change
+  Last 10 years net balance history (simple list)
+- yearLog records surplus/deficit each year
