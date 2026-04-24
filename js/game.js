@@ -9,7 +9,7 @@ import { policies } from './policies.js';
 import { renderAll } from './render.js';
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
 import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, ensureTradeBureauInstitution, ensureEngineeringBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects, calculateTradeBureauEffects, calculateEngineeringBureauEffects } from './society/stability.js';
-import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects } from './society/satisfaction.js';
+import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calculateLifeQuality, calculateClassSatisfaction, clearEventModifiers } from './society/satisfaction.js';
 
 const state = createGameState();
 
@@ -398,6 +398,7 @@ function nextYear() {
   state.world.mulberryReclamationUsedThisYear = false;
 
   state.world.year += 1;
+  clearEventModifiers(state.world);
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);
@@ -426,8 +427,8 @@ function nextYear() {
   state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost + state.world.tradeBureauAnnualCost + state.world.engineeringBureauAnnualCost;
 
   const schoolSettlement = settleEducationYear();
-  const popResult = updatePopulation(state.world);
   const econResult = updateEconomy(state.world);
+  const popResult = updatePopulation(state.world);
   const completedTech = updateResearch(state);
 
   const policeEffects = calculatePoliceEffects(state.world);
@@ -464,8 +465,7 @@ function nextYear() {
   applyTradeBureauCommerceEffects(state.world, tradeBureauEffects);
   state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
   if (courtEffects.merchantSatisfactionDelta) {
-    state.world.merchantSatisfaction = Math.max(0, Math.min(100, Number(state.world.merchantSatisfaction ?? 50) + Number(courtEffects.merchantSatisfactionDelta)));
-    state.world.merchantLifeQuality = state.world.merchantSatisfaction;
+    state.world.merchantEventModifier = Number(state.world.merchantEventModifier ?? 0) + Number(courtEffects.merchantSatisfactionDelta);
   }
 
 
@@ -565,6 +565,9 @@ function nextYear() {
     state.yearLog.unshift(`Year ${state.world.year}: 技术研究完成 - ${completedTech.name}。`);
   }
 
+  calculateLifeQuality(state.world);
+  calculateClassSatisfaction(state.world);
+
   syncMoneylenderCaps(state.world);
   if (canUseMoneylenderSystem(state.world)) {
     const debtResult = processGovernmentDebtYear(state.world);
@@ -636,11 +639,11 @@ function openHempLand() {
   state.world.pendingHempLandMu = (state.world.pendingHempLandMu ?? 0) + mu;
   state.world.landDevelopmentFarmerIncomeBoost =
     (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + totalCost;
-  state.world.farmerSatisfaction = Math.min(100, (state.world.farmerSatisfaction ?? 70) + 2);
+  state.world.farmerEventModifier = Number(state.world.farmerEventModifier ?? 0) + 2;
   state.world.hempReclamationUsedThisYear = true;
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: 下令开垦麻田${mu}亩（花费${totalCost}粮，次年可投入生产，农民满意度+2）。`
+    `Year ${state.world.year}: 下令开垦麻田${mu}亩（花费${totalCost}粮，次年可投入生产，农民事件修正+2）。`
   );
   if (input) input.value = '';
   render();
@@ -685,8 +688,8 @@ function openMulberryLand() {
     (state.world.landDevelopmentFarmerIncomeBoost ?? 0) + farmerShare;
   state.world.landDevelopmentCommerceBoost =
     (state.world.landDevelopmentCommerceBoost ?? 0) + commerceShare;
-  state.world.farmerSatisfaction = Math.min(100, (state.world.farmerSatisfaction ?? 70) + 2);
-  state.world.merchantSatisfaction = Math.min(100, (state.world.merchantSatisfaction ?? 70) + 1);
+  state.world.farmerEventModifier = Number(state.world.farmerEventModifier ?? 0) + 2;
+  state.world.merchantEventModifier = Number(state.world.merchantEventModifier ?? 0) + 1;
   state.world.mulberryReclamationUsedThisYear = true;
 
   if (state.xikou) {
@@ -697,7 +700,7 @@ function openMulberryLand() {
   }
 
   state.yearLog.unshift(
-    `Year ${state.world.year}: 下令开垦桑田${mu}亩（花费${totalCost}粮；农户收益${farmerShare}，商贸收益${commerceShare}；预计Year ${maturesOnYear}首收，农民满意度+2、商人满意度+1、溪口态度+1）。`
+    `Year ${state.world.year}: 下令开垦桑田${mu}亩（花费${totalCost}粮；农户收益${farmerShare}，商贸收益${commerceShare}；预计Year ${maturesOnYear}首收，农民事件修正+2、商人事件修正+1、溪口态度+1）。`
   );
   if (input) input.value = '';
   render();

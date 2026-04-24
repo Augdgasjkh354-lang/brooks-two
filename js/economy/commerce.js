@@ -362,9 +362,7 @@ export function applyTradePolicySettings(world) {
   if (world.tradeMonopolyGranted) merchantLifeQualityDelta -= 10;
 
   if (merchantLifeQualityDelta !== 0) {
-    const next = Math.max(0, Math.min(100, Number(world.merchantLifeQuality ?? world.merchantSatisfaction ?? 50) + merchantLifeQualityDelta));
-    world.merchantLifeQuality = next;
-    world.merchantSatisfaction = next;
+    world.merchantEventModifier = Number(world.merchantEventModifier ?? 0) + merchantLifeQualityDelta;
   }
 
   if (subsidyCost > 0) {

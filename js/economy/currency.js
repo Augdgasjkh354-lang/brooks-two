@@ -121,10 +121,10 @@ export function issueGrainCoupons(state, amount) {
 
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
-  state.world.grainTreasury += issueAmount;
-  state.world.couponCirculating += issueAmount;
-  state.world.couponTotalIssued += issueAmount;
+  state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) - issueAmount;
   state.world.lockedGrainReserve = clampMoney(state.world.lockedGrainReserve ?? 0) + issueAmount;
+  state.world.couponCirculating = clampMoney(state.world.couponCirculating ?? 0) + issueAmount;
+  state.world.couponTotalIssued = clampMoney(state.world.couponTotalIssued ?? 0) + issueAmount;
   state.world.lastCouponIssueAmount = issueAmount;
   state.world.lastCouponDenominationBreakdown = denominationBreakdown;
 

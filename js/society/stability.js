@@ -198,8 +198,7 @@ function getPaperSupplyRatio(world) {
   const paperOutput = Math.max(0, Number(world?.paperOutput ?? 0));
   const demand = getInstitutionPaperDemand(world);
   const totalPaperDemand = Object.values(demand).reduce((sum, v) => sum + v, 0);
-  const paperSupplyRatio =
-    paperOutput <= 0 ? 0.3 : (totalPaperDemand > 0 ? Math.min(1, paperOutput / totalPaperDemand) : 1);
+  const paperSupplyRatio = Math.min(1, paperOutput / Math.max(totalPaperDemand, 1));
 
   world.totalPaperDemand = totalPaperDemand;
   world.paperSupplyRatio = paperSupplyRatio;
@@ -208,11 +207,8 @@ function getPaperSupplyRatio(world) {
 }
 
 function getInstitutionPaperPercent(world, institutionKey) {
-  const { demand, totalPaperDemand, paperSupplyRatio } = getPaperSupplyRatio(world);
-  const institutionDemand = Math.max(0, Number(demand[institutionKey] ?? 0));
-  const institutionPaperRatio =
-    totalPaperDemand > 0 ? (institutionDemand / totalPaperDemand) * paperSupplyRatio : paperSupplyRatio;
-  return clampPercent(institutionPaperRatio * 100);
+  const { paperSupplyRatio } = getPaperSupplyRatio(world);
+  return clampPercent(paperSupplyRatio * 100);
 }
 
 export function ensureGovernmentInstitution(world, yearLog = null) {
