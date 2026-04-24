@@ -14,6 +14,16 @@ import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calcula
 
 const state = createGameState();
 
+
+function getFiscal(stateObj = state) {
+  return stateObj?.fiscal ?? stateObj?.world?.__fiscal ?? stateObj?.world ?? {};
+}
+
+function getMonetary(stateObj = state) {
+  return stateObj?.monetary ?? stateObj?.world?.__monetary ?? stateObj?.world ?? {};
+}
+
+
 const LEDGER_DEFAULTS = {
   taxRevenue: 0, rentRevenue: 0, commerceTaxRevenue: 0, landTaxRevenue: 0, moneylenderTaxRevenue: 0,
   couponTaxRevenue: 0, tradeRevenue: 0, debtBorrowed: 0, totalIncome: 0, wageBill: 0, researchCost: 0,
@@ -91,18 +101,19 @@ function logYearSummary({
 }
 
 function updateCreditCrisisResolutionState() {
-  const circulating = Math.max(0, state.world.couponCirculating ?? 0);
+  const monetary = getMonetary();
+  const circulating = Math.max(0, monetary.couponCirculating ?? 0);
   if (circulating <= 0) {
-    state.world.couponCirculating = 0;
-    state.world.lockedGrainReserve = 0;
-    state.world.backingRatio = 1;
-    state.world.creditCrisis = false;
+    monetary.couponCirculating = 0;
+    monetary.lockedGrainReserve = 0;
+    monetary.backingRatio = 1;
+    monetary.creditCrisis = false;
     return true;
   }
 
-  state.world.backingRatio = Math.max(0, (state.world.lockedGrainReserve ?? 0) / circulating);
-  if (state.world.backingRatio >= 0.6) {
-    state.world.creditCrisis = false;
+  monetary.backingRatio = Math.max(0, (monetary.lockedGrainReserve ?? 0) / circulating);
+  if (monetary.backingRatio >= 0.6) {
+    monetary.creditCrisis = false;
     return true;
   }
 
@@ -110,27 +121,28 @@ function updateCreditCrisisResolutionState() {
 }
 
 function resolveByEmergencyRecirculation() {
-  if (!state.world.creditCrisis) {
+  const monetary = getMonetary();
+  if (!monetary.creditCrisis) {
     state.yearLog.unshift(`Year ${state.calendar.year}: No active credit crisis to resolve.`);
     render();
     return;
   }
 
-  if (state.world.creditCrisisResolved) {
+  if (monetary.creditCrisisResolved) {
     state.yearLog.unshift(`Year ${state.calendar.year}: Credit crisis action already used this crisis.`);
     render();
     return;
   }
 
-  if ((state.world.couponTreasury ?? 0) < 10000) {
+  if ((monetary.couponTreasury ?? 0) < 10000) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 紧急回笼 failed - requires 10000 coupon treasury.`);
     render();
     return;
   }
 
-  state.world.couponTreasury -= 10000;
-  state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 10000);
-  state.world.creditCrisisResolved = true;
+  monetary.couponTreasury -= 10000;
+  monetary.couponCirculating = Math.max(0, (monetary.couponCirculating ?? 0) - 10000);
+  monetary.creditCrisisResolved = true;
 
   const resolved = updateCreditCrisisResolutionState();
 
@@ -144,13 +156,14 @@ function resolveByEmergencyRecirculation() {
 }
 
 function resolveByEmergencyRedemption() {
-  if (!state.world.creditCrisis) {
+  const monetary = getMonetary();
+  if (!monetary.creditCrisis) {
     state.yearLog.unshift(`Year ${state.calendar.year}: No active credit crisis to resolve.`);
     render();
     return;
   }
 
-  if (state.world.creditCrisisResolved) {
+  if (monetary.creditCrisisResolved) {
     state.yearLog.unshift(`Year ${state.calendar.year}: Credit crisis action already used this crisis.`);
     render();
     return;
@@ -163,9 +176,9 @@ function resolveByEmergencyRedemption() {
   }
 
   state.agriculture.grainTreasury -= 20000;
-  state.world.couponCirculating = Math.max(0, (state.world.couponCirculating ?? 0) - 20000);
-  state.world.lockedGrainReserve = Math.max(0, (state.world.lockedGrainReserve ?? 0) - 20000);
-  state.world.creditCrisisResolved = true;
+  monetary.couponCirculating = Math.max(0, (monetary.couponCirculating ?? 0) - 20000);
+  monetary.lockedGrainReserve = Math.max(0, (monetary.lockedGrainReserve ?? 0) - 20000);
+  monetary.creditCrisisResolved = true;
 
   const resolved = updateCreditCrisisResolutionState();
 
@@ -230,9 +243,11 @@ function settleEducationYear() {
     (edu.higherEnrolled ?? 0);
   const govCost = govEnrolled * gdpPerCapita * 0.2;
 
+  const monetary = getMonetary();
+
   if (state.world.grainCouponsUnlocked) {
-    const fromCoupon = Math.min(state.world.couponTreasury ?? 0, govCost);
-    state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
+    const fromCoupon = Math.min(monetary.couponTreasury ?? 0, govCost);
+    monetary.couponTreasury = (monetary.couponTreasury ?? 0) - fromCoupon;
     const remaining = govCost - fromCoupon;
     state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - remaining);
   } else {
@@ -243,8 +258,8 @@ function settleEducationYear() {
   const downStudents = Math.max(0, Math.floor(Number(state.world.studentsDownToVillage ?? 0)));
   const downCost = downStudents * gdpPerCapita * 1.5;
   if (state.world.grainCouponsUnlocked) {
-    const fromCoupon = Math.min(state.world.couponTreasury ?? 0, downCost);
-    state.world.couponTreasury = (state.world.couponTreasury ?? 0) - fromCoupon;
+    const fromCoupon = Math.min(monetary.couponTreasury ?? 0, downCost);
+    monetary.couponTreasury = (monetary.couponTreasury ?? 0) - fromCoupon;
     const remaining = downCost - fromCoupon;
     state.agriculture.grainTreasury = Math.max(0, (state.agriculture.grainTreasury ?? 0) - remaining);
   } else {
@@ -292,23 +307,25 @@ function borrowFromMoneylenderPool(amount) {
 }
 
 function syncGovernmentInstitutionSettings() {
+  const fiscal = getFiscal();
   state.world.seniorOfficialCount = Math.max(0, Math.floor(Number(state.world.seniorOfficialCount ?? 0)));
   state.world.midOfficialCount = Math.max(0, Math.floor(Number(state.world.midOfficialCount ?? 0)));
   state.world.juniorOfficialCount = Math.max(0, Math.floor(Number(state.world.juniorOfficialCount ?? 0)));
   state.population.sanitationWorkerCount = Math.max(0, Math.floor(Number(state.population.sanitationWorkerCount ?? 0)));
   state.population.cleaningWorkerCount = Math.max(0, Math.floor(Number(state.population.cleaningWorkerCount ?? 0)));
 
-  state.world.seniorOfficialWage = Math.max(0, Number(state.world.seniorOfficialWage ?? 0));
-  state.world.midOfficialWage = Math.max(0, Number(state.world.midOfficialWage ?? 0));
-  state.world.juniorOfficialWage = Math.max(0, Number(state.world.juniorOfficialWage ?? 0));
-  state.world.professionalWage = Math.max(0, Number(state.world.professionalWage ?? 0));
-  state.world.sanitationWorkerWage = Math.max(0, Number(state.world.sanitationWorkerWage ?? 0));
-  state.world.cleaningWorkerWage = Math.max(0, Number(state.world.cleaningWorkerWage ?? 0));
+  fiscal.seniorOfficialWage = Math.max(0, Number(fiscal.seniorOfficialWage ?? 0));
+  fiscal.midOfficialWage = Math.max(0, Number(fiscal.midOfficialWage ?? 0));
+  fiscal.juniorOfficialWage = Math.max(0, Number(fiscal.juniorOfficialWage ?? 0));
+  fiscal.professionalWage = Math.max(0, Number(fiscal.professionalWage ?? 0));
+  fiscal.sanitationWorkerWage = Math.max(0, Number(fiscal.sanitationWorkerWage ?? 0));
+  fiscal.cleaningWorkerWage = Math.max(0, Number(fiscal.cleaningWorkerWage ?? 0));
 }
 
 function syncPoliceInstitutionSettings() {
+  const fiscal = getFiscal();
   state.world.policeOfficerCount = Math.max(0, Math.floor(Number(state.world.policeOfficerCount ?? 0)));
-  state.world.officerWage = Math.max(0, Number(state.world.officerWage ?? 0));
+  fiscal.officerWage = Math.max(0, Number(fiscal.officerWage ?? 0));
 
   const adminTalent = Math.max(0, Number(state.population.adminTalent ?? 0));
   state.world.adminTalentDeployedPolice = Math.min(adminTalent, state.world.policeOfficerCount);
@@ -322,8 +339,9 @@ function syncPoliceInstitutionSettings() {
 }
 
 function syncHealthInstitutionSettings() {
+  const fiscal = getFiscal();
   state.world.healthOfficerCount = Math.max(0, Math.floor(Number(state.world.healthOfficerCount ?? 0)));
-  state.world.healthOfficerWage = Math.max(0, Number(state.world.healthOfficerWage ?? 0));
+  fiscal.healthOfficerWage = Math.max(0, Number(fiscal.healthOfficerWage ?? 0));
 
   const adminTalent = Math.max(0, Number(state.population.adminTalent ?? 0));
   state.world.adminTalentDeployedHealth = Math.min(adminTalent, state.world.healthOfficerCount);
@@ -339,24 +357,27 @@ function syncHealthInstitutionSettings() {
 }
 
 function syncCourtTaxInstitutionSettings() {
+  const fiscal = getFiscal();
+  const monetary = getMonetary();
   state.world.judgeCount = Math.max(0, Math.floor(Number(state.world.judgeCount ?? 0)));
   state.world.taxOfficerCount = Math.max(0, Math.floor(Number(state.world.taxOfficerCount ?? 0)));
   state.world.techTalentDeployedTax = Math.max(0, Math.floor(Number(state.world.techTalentDeployedTax ?? 0)));
-  state.world.judgeWage = Math.max(0, Number(state.world.judgeWage ?? 0));
-  state.world.taxOfficerWage = Math.max(0, Number(state.world.taxOfficerWage ?? 0));
-  state.world.commerceTaxRate = Math.max(0, Math.min(0.3, Number(state.world.commerceTaxRate ?? 0)));
-  state.world.landTaxRate = Math.max(0, Math.min(5, Number(state.world.landTaxRate ?? 0)));
-  state.world.creditRating = ['A', 'B', 'C', 'D'].includes(String(state.world.creditRating ?? 'B').toUpperCase())
-    ? String(state.world.creditRating).toUpperCase()
+  fiscal.judgeWage = Math.max(0, Number(fiscal.judgeWage ?? 0));
+  fiscal.taxOfficerWage = Math.max(0, Number(fiscal.taxOfficerWage ?? 0));
+  fiscal.commerceTaxRate = Math.max(0, Math.min(0.3, Number(fiscal.commerceTaxRate ?? 0)));
+  fiscal.landTaxRate = Math.max(0, Math.min(5, Number(fiscal.landTaxRate ?? 0)));
+  monetary.creditRating = ['A', 'B', 'C', 'D'].includes(String(monetary.creditRating ?? 'B').toUpperCase())
+    ? String(monetary.creditRating).toUpperCase()
     : 'B';
 }
 
 function syncTradeEngineeringSettings() {
+  const fiscal = getFiscal();
   state.world.tradeOfficerCount = Math.max(0, Math.floor(Number(state.world.tradeOfficerCount ?? 0)));
-  state.world.tradeOfficerWage = Math.max(0, Number(state.world.tradeOfficerWage ?? 0));
+  fiscal.tradeOfficerWage = Math.max(0, Number(fiscal.tradeOfficerWage ?? 0));
   state.world.engineerCount = Math.max(0, Math.floor(Number(state.world.engineerCount ?? 0)));
-  state.world.engineerWage = Math.max(0, Number(state.world.engineerWage ?? 0));
-  state.world.subsidyRate = Math.max(0, Math.min(0.2, Number(state.world.subsidyRate ?? 0)));
+  fiscal.engineerWage = Math.max(0, Number(fiscal.engineerWage ?? 0));
+  fiscal.subsidyRate = Math.max(0, Math.min(0.2, Number(fiscal.subsidyRate ?? 0)));
   state.world.protectLocalCloth = Boolean(state.world.protectLocalCloth);
   state.world.tradeMonopolyGranted = Boolean(state.world.tradeMonopolyGranted);
 }
@@ -524,8 +545,9 @@ function nextYear() {
 
   const cap = String(courtEffects.creditRatingCap ?? 'D');
   const rank = { A: 4, B: 3, C: 2, D: 1 };
-  if ((rank[state.world.creditRating] ?? 3) > (rank[cap] ?? 1)) {
-    state.world.creditRating = cap;
+  const monetary = getMonetary();
+  if ((rank[monetary.creditRating] ?? 3) > (rank[cap] ?? 1)) {
+    monetary.creditRating = cap;
   }
 
   if (courtEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${courtEffects.message}`);
@@ -596,7 +618,7 @@ function nextYear() {
 
   state.yearLog.unshift(`Year ${state.calendar.year}: 学校结算：在校生 P/S/H = ${schoolSettlement.edu.primaryEnrolled}/${schoolSettlement.edu.secondaryEnrolled}/${schoolSettlement.edu.higherEnrolled}；毕业生 +${schoolSettlement.edu.annualPrimaryGrads}/+${schoolSettlement.edu.annualSecondaryGrads}/+${schoolSettlement.edu.annualHigherGrads}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 教育财政：官办教育支出 ${Math.round(schoolSettlement.govCost)}，商办学费流入商人收入池 ${Math.round(schoolSettlement.commercialTuition)}，学子下乡支出 ${Math.round(schoolSettlement.downCost)}。`);
-  state.yearLog.unshift(`Year ${state.calendar.year}: 官员薪俸结算：总额 ${Math.round(state.world.totalWageBill ?? 0)}（粮/劵按薪资比例支付）。`);
+  state.yearLog.unshift(`Year ${state.calendar.year}: 官员薪俸结算：总额 ${Math.round(getFiscal().totalWageBill ?? 0)}（粮/劵按薪资比例支付）。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 警务支出结算：警员${Math.round(state.world.policeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.policeAnnualCost ?? 0)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 卫生支出结算：卫生员${Math.round(state.world.healthOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.healthAnnualCost ?? 0)}，健康指数 ${Math.round(state.world.healthIndex ?? 50)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 贸易局支出结算：贸易官${Math.round(state.world.tradeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.tradeBureauAnnualCost ?? 0)}。`);
@@ -640,7 +662,7 @@ function nextYear() {
 
     state.yearLog.unshift(
       `Year ${state.calendar.year}: 钱庄经营：放贷池${Math.round(
-        state.world.lendingPoolSize ?? 0
+        getMonetary().lendingPoolSize ?? 0
       )}，民间放贷${Math.round(moneylenderResult.civilianLending)}，税收${Math.round(
         moneylenderResult.moneylenderTax
       )}。`
@@ -1284,6 +1306,8 @@ function bindEvents() {
     const value = Number(event?.detail?.value ?? 0);
     if (!key) return;
     const intKeys = new Set(['seniorOfficialCount', 'midOfficialCount', 'juniorOfficialCount', 'sanitationWorkerCount', 'cleaningWorkerCount', 'adminTalentDeployedGov', 'policeOfficerCount', 'healthOfficerCount', 'judgeCount', 'taxOfficerCount', 'techTalentDeployedTax', 'tradeOfficerCount', 'engineerCount']);
+    const fiscal = getFiscal();
+    const monetary = getMonetary();
     const wageKeys = new Set(['seniorOfficialWage', 'midOfficialWage', 'juniorOfficialWage', 'professionalWage', 'sanitationWorkerWage', 'cleaningWorkerWage', 'officerWage', 'healthOfficerWage', 'judgeWage', 'taxOfficerWage', 'tradeOfficerWage', 'engineerWage']);
     const boolKeys = new Set(['taxBureauEstablished', 'courtEstablished', 'tradeBureauEstablished', 'engineeringBureauEstablished']);
     const ratingKeys = new Set(['creditRating']);
@@ -1299,10 +1323,10 @@ function bindEvents() {
       state.population.cleaningWorkerCount = 0;
       state.yearLog.unshift(`Year ${state.calendar.year}: 尚未建成道路，无法配置清洁工。`);
     }
-    if (wageKeys.has(key)) state.world[key] = Math.max(0, value);
+    if (wageKeys.has(key)) fiscal[key] = Math.max(0, value);
     if (boolKeys.has(key)) state.world[key] = Boolean(event?.detail?.checked);
-    if (ratingKeys.has(key)) state.world[key] = String(event?.detail?.valueText ?? 'B').toUpperCase();
-    if (rateKeys.has(key)) state.world[key] = Number(value ?? 0);
+    if (ratingKeys.has(key)) monetary[key] = String(event?.detail?.valueText ?? 'B').toUpperCase();
+    if (rateKeys.has(key)) fiscal[key] = Number(value ?? 0);
 
     if (key === 'adminTalentDeployedGov') {
       state.world.adminTalentDeployedGov = Math.max(0, Math.floor(value));
@@ -1332,7 +1356,7 @@ function bindEvents() {
   document.addEventListener('trade:config', (event) => {
     const key = String(event?.detail?.key ?? '');
     if (!key) return;
-    if (key === 'subsidyRate') state.world.subsidyRate = Math.max(0, Math.min(0.2, Number(event?.detail?.value ?? 0)));
+    if (key === 'subsidyRate') getFiscal().subsidyRate = Math.max(0, Math.min(0.2, Number(event?.detail?.value ?? 0)));
     if (key === 'protectLocalCloth') state.world.protectLocalCloth = Boolean(event?.detail?.checked);
     if (key === 'tradeMonopolyGranted') state.world.tradeMonopolyGranted = Boolean(event?.detail?.checked);
     render();

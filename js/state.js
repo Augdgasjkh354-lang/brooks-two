@@ -33,7 +33,6 @@ export const initialState = {
     foodSecurityStatus: 'Unknown',
     foodSecurityIndex: 0,
 
-    agriculturalTaxRate: 0.7,
     lastAgriculturalTax: 0,
     lastTaxCollectionYear: 0,
     grainTreasury: 15000000,
@@ -154,7 +153,6 @@ export const initialState = {
     farmerIncomePool: 0,
     merchantIncomePool: 0,
     officialIncomePool: 0,
-    farmlandRentRate: 0,
     lastFarmlandRentCollected: 0,
 
     moneylenderShops: 0,
@@ -407,8 +405,6 @@ export const initialState = {
     lostGrainOutput: 0,
     farmEfficiency: 1.0,
     landUtilizationPercent: 100,
-    agriculturalTaxRate: 0.7,
-    farmlandRentRate: 0,
     grainAnnualDemand: 0,
     grainSurplus: 0,
     fertilizerBonus: 1.0,
@@ -427,6 +423,77 @@ export const initialState = {
     fineClothOutput: 0,
     rawSilkOutput: 0,
     totalClothOutput: 0,
+  },
+  fiscal: {
+    agriculturalTaxRate: 0.7,
+    taxGrainRatio: 1.0,
+    salaryGrainRatio: 1.0,
+    farmlandRentRate: 0,
+    landTaxRate: 0,
+    commerceTaxRate: 0,
+    moneylenderTaxRate: MONEYLENDER_DEFAULT_TAX,
+    fireLeakageRate: 0.05,
+    actualTaxRevenue: 0,
+    theoreticalTaxRevenue: 0,
+    gdpPerCapita: 0,
+    totalWageBill: 0,
+    seniorOfficialWage: 0,
+    midOfficialWage: 0,
+    juniorOfficialWage: 0,
+    professionalWage: 0,
+    sanitationWorkerWage: 0,
+    cleaningWorkerWage: 0,
+    officerWage: 0,
+    judgeWage: 0,
+    taxOfficerWage: 0,
+    tradeOfficerWage: 0,
+    engineerWage: 0,
+    healthOfficerWage: 0,
+    subsidyRate: 0,
+    annualRepayment: 0,
+  },
+  monetary: {
+    couponTreasury: 0,
+    couponCirculating: 0,
+    couponTotalIssued: 0,
+    lockedGrainReserve: 0,
+    backingRatio: 1.0,
+    inflationRate: 0,
+    supplyRatio: 1.0,
+    creditCrisis: false,
+    creditCrisisResolved: false,
+    creditRating: 'B',
+    governmentDebt: 0,
+    governmentDebtInterest: 0,
+    lendingPoolSize: 0,
+    lendingPoolAvailable: 0,
+    civilianLoanOutstanding: 0,
+    civilianInvestmentProgress: 0,
+    moneylenderShops: 0,
+    approvedMoneylenders: 0,
+    licenseFee: MONEYLENDER_LICENSE_FEE,
+    moneylenderGDP: 0,
+    saltPrice: SALT_BASE_PRICE,
+    clothPrice: CLOTH_BASE_PRICE,
+    saltReserve: 0,
+    clothReserve: 0,
+    saltAnnualSupply: 0,
+    saltAnnualDemand: 0,
+    clothAnnualSupply: 0,
+    clothAnnualDemand: 0,
+    saltImportQuota: 0,
+    actualSaltImport: 0,
+    saltConsumed: 0,
+    saltShortfallRatio: 0,
+    officialSaltPrice: 0,
+    officialSaltAmount: 0,
+    officialSaltSaleUsed: false,
+    clothImportQuota: 0,
+    localClothRatio: 0,
+    blendedClothPrice: CLOTH_BASE_PRICE,
+    purchasingPower: 100,
+    totalLivingCost: 0,
+    giniRatio: 0,
   },
   population: {
     totalPopulation: INITIAL_POPULATION,
@@ -657,6 +724,80 @@ const AGRICULTURE_FIELD_MAP = {
   totalClothOutput: 'totalClothOutput',
 };
 
+
+const FISCAL_FIELD_MAP = {
+  agriculturalTaxRate: 'agriculturalTaxRate',
+  taxGrainRatio: 'taxGrainRatio',
+  salaryGrainRatio: 'salaryGrainRatio',
+  farmlandRentRate: 'farmlandRentRate',
+  landTaxRate: 'landTaxRate',
+  commerceTaxRate: 'commerceTaxRate',
+  moneylenderTaxRate: 'moneylenderTaxRate',
+  fireLeakageRate: 'fireLeakageRate',
+  actualTaxRevenue: 'actualTaxRevenue',
+  theoreticalTaxRevenue: 'theoreticalTaxRevenue',
+  gdpPerCapita: 'gdpPerCapita',
+  totalWageBill: 'totalWageBill',
+  seniorOfficialWage: 'seniorOfficialWage',
+  midOfficialWage: 'midOfficialWage',
+  juniorOfficialWage: 'juniorOfficialWage',
+  professionalWage: 'professionalWage',
+  sanitationWorkerWage: 'sanitationWorkerWage',
+  cleaningWorkerWage: 'cleaningWorkerWage',
+  officerWage: 'officerWage',
+  judgeWage: 'judgeWage',
+  taxOfficerWage: 'taxOfficerWage',
+  tradeOfficerWage: 'tradeOfficerWage',
+  engineerWage: 'engineerWage',
+  healthOfficerWage: 'healthOfficerWage',
+  subsidyRate: 'subsidyRate',
+  annualRepayment: 'annualRepayment',
+};
+
+const MONETARY_FIELD_MAP = {
+  couponTreasury: 'couponTreasury',
+  couponCirculating: 'couponCirculating',
+  couponTotalIssued: 'couponTotalIssued',
+  lockedGrainReserve: 'lockedGrainReserve',
+  backingRatio: 'backingRatio',
+  inflationRate: 'inflationRate',
+  supplyRatio: 'supplyRatio',
+  creditCrisis: 'creditCrisis',
+  creditCrisisResolved: 'creditCrisisResolved',
+  creditRating: 'creditRating',
+  governmentDebt: 'governmentDebt',
+  governmentDebtInterest: 'governmentDebtInterest',
+  lendingPoolSize: 'lendingPoolSize',
+  lendingPoolAvailable: 'lendingPoolAvailable',
+  civilianLoanOutstanding: 'civilianLoanOutstanding',
+  civilianInvestmentProgress: 'civilianInvestmentProgress',
+  moneylenderShops: 'moneylenderShops',
+  approvedMoneylenders: 'approvedMoneylenders',
+  licenseFee: 'licenseFee',
+  moneylenderGDP: 'moneylenderGDP',
+  saltPrice: 'saltPrice',
+  clothPrice: 'clothPrice',
+  saltReserve: 'saltReserve',
+  clothReserve: 'clothReserve',
+  saltAnnualSupply: 'saltAnnualSupply',
+  saltAnnualDemand: 'saltAnnualDemand',
+  clothAnnualSupply: 'clothAnnualSupply',
+  clothAnnualDemand: 'clothAnnualDemand',
+  saltImportQuota: 'saltImportQuota',
+  actualSaltImport: 'actualSaltImport',
+  saltConsumed: 'saltConsumed',
+  saltShortfallRatio: 'saltShortfallRatio',
+  officialSaltPrice: 'officialSaltPrice',
+  officialSaltAmount: 'officialSaltAmount',
+  officialSaltSaleUsed: 'officialSaltSaleUsed',
+  clothImportQuota: 'clothImportQuota',
+  localClothRatio: 'localClothRatio',
+  blendedClothPrice: 'blendedClothPrice',
+  purchasingPower: 'purchasingPower',
+  totalLivingCost: 'totalLivingCost',
+  giniRatio: 'giniRatio',
+};
+
 function defineCompatAccessors(state) {
   Object.entries(CALENDAR_FIELD_MAP).forEach(([legacyField, sourceField]) => {
     Object.defineProperty(state.world, legacyField, {
@@ -702,6 +843,29 @@ function defineCompatAccessors(state) {
     });
   });
 
+
+  Object.entries(FISCAL_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.fiscal[sourceField],
+      set: (value) => {
+        state.fiscal[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  Object.entries(MONETARY_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.monetary[sourceField],
+      set: (value) => {
+        state.monetary[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
   Object.defineProperty(state.world, '__calendar', {
     value: state.calendar,
     writable: true,
@@ -722,6 +886,18 @@ function defineCompatAccessors(state) {
   });
   Object.defineProperty(state.world, '__agriculture', {
     value: state.agriculture,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__fiscal', {
+    value: state.fiscal,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__monetary', {
+    value: state.monetary,
     writable: true,
     enumerable: false,
     configurable: true,

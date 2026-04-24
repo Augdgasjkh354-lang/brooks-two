@@ -19,6 +19,15 @@ function clampIndex(value) {
   return Math.max(0, Math.min(100, Number(value ?? 0)));
 }
 
+
+function getMonetary(world) {
+  return world?.__monetary ?? world?.monetary ?? world;
+}
+
+function getFiscal(world) {
+  return world?.__fiscal ?? world?.fiscal ?? world;
+}
+
 function ensureLedger(world) {
   if (!world) return null;
   if (!world.ledger) world.ledger = {};
@@ -38,7 +47,9 @@ function getBorrowingRateByCredit(creditRating = 'B') {
 }
 
 export function getInflationState(world) {
-  if (!world?.grainCouponsUnlocked || (world.couponCirculating ?? 0) <= 0) {
+  const monetary = getMonetary(world);
+
+  if (!world?.grainCouponsUnlocked || (monetary.couponCirculating ?? 0) <= 0) {
     return {
       backingRatio: COUPON_GRAIN_RATIO,
       inflationRate: 0,
@@ -47,9 +58,9 @@ export function getInflationState(world) {
     };
   }
 
-  const couponCirculating = Math.max(0, world.couponCirculating ?? 0);
+  const couponCirculating = Math.max(0, monetary.couponCirculating ?? 0);
   const backingRatio =
-    couponCirculating > 0 ? Math.max(0, (world.lockedGrainReserve ?? 0) / couponCirculating) : COUPON_GRAIN_RATIO;
+    couponCirculating > 0 ? Math.max(0, (monetary.lockedGrainReserve ?? 0) / couponCirculating) : COUPON_GRAIN_RATIO;
 
   if (backingRatio >= COUPON_GRAIN_RATIO) {
     return {
@@ -139,9 +150,10 @@ export function issueGrainCoupons(state, amount) {
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
   state.world.grainTreasury = clampMoney(state.world.grainTreasury ?? 0) - issueAmount;
-  state.world.lockedGrainReserve = clampMoney(state.world.lockedGrainReserve ?? 0) + issueAmount;
-  state.world.couponCirculating = clampMoney(state.world.couponCirculating ?? 0) + issueAmount;
-  state.world.couponTotalIssued = clampMoney(state.world.couponTotalIssued ?? 0) + issueAmount;
+  const monetary = state.monetary ?? state.world;
+  monetary.lockedGrainReserve = clampMoney(monetary.lockedGrainReserve ?? 0) + issueAmount;
+  monetary.couponCirculating = clampMoney(monetary.couponCirculating ?? 0) + issueAmount;
+  monetary.couponTotalIssued = clampMoney(monetary.couponTotalIssued ?? 0) + issueAmount;
   state.world.lastCouponIssueAmount = issueAmount;
   state.world.lastCouponDenominationBreakdown = denominationBreakdown;
 
@@ -154,12 +166,14 @@ export function issueGrainCoupons(state, amount) {
 
 export function borrowGovernmentDebt(world, amount) {
   const ledger = ensureLedger(world);
+  const fiscal = getFiscal(world);
+  const monetary = getMonetary(world);
   const borrowAmount = Math.floor(clampMoney(amount));
-  const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
-  const currentDebt = clampMoney(world.governmentDebt ?? 0);
+  const lendingPoolSize = clampMoney(monetary.lendingPoolSize ?? 0);
+  const currentDebt = clampMoney(monetary.governmentDebt ?? 0);
   const currentCivilianLending = clampMoney(world.civilianLendingAccumulator ?? 0);
   const lendingPoolAvailable = Math.max(0, lendingPoolSize - currentDebt - currentCivilianLending);
-  world.lendingPoolAvailable = lendingPoolAvailable;
+  monetary.lendingPoolAvailable = lendingPoolAvailable;
 
   if (borrowAmount <= 0) {
     return { success: false, reason: 'Borrow amount must be greater than 0.' };
@@ -186,19 +200,19 @@ export function borrowGovernmentDebt(world, amount) {
   }
 
   const debtCurrency = world.grainCouponsUnlocked ? 'coupon' : 'grain';
-  const rates = getBorrowingRateByCredit(world.creditRating ?? 'B');
+  const rates = getBorrowingRateByCredit(monetary.creditRating ?? 'B');
   if (!Number.isFinite(rates[debtCurrency])) {
     return { success: false, reason: 'Credit rating D: borrowing is unavailable.' };
   }
   if (debtCurrency === 'coupon') {
-    world.couponTreasury = clampMoney(world.couponTreasury ?? 0) + borrowAmount;
+    monetary.couponTreasury = clampMoney(monetary.couponTreasury ?? 0) + borrowAmount;
   } else {
     world.grainTreasury = clampMoney(world.grainTreasury ?? 0) + borrowAmount;
   }
 
-  world.governmentDebt = projectedDebt;
+  monetary.governmentDebt = projectedDebt;
   world.governmentDebtCurrency = debtCurrency;
-  world.lendingPoolAvailable = Math.max(0, lendingPoolAvailable - borrowAmount);
+  monetary.lendingPoolAvailable = Math.max(0, lendingPoolAvailable - borrowAmount);
   if (ledger) {
     ledger.debtBorrowed += Math.max(0, Number(borrowAmount ?? 0));
   }
@@ -213,47 +227,49 @@ export function borrowGovernmentDebt(world, amount) {
 
 export function processGovernmentDebtYear(world) {
   const ledger = ensureLedger(world);
-  const debt = clampMoney(world.governmentDebt ?? 0);
-  const lendingPoolSize = clampMoney(world.lendingPoolSize ?? 0);
+  const fiscal = getFiscal(world);
+  const monetary = getMonetary(world);
+  const debt = clampMoney(monetary.governmentDebt ?? 0);
+  const lendingPoolSize = clampMoney(monetary.lendingPoolSize ?? 0);
   const currency = world.governmentDebtCurrency === 'grain' ? 'grain' : 'coupon';
 
   if (debt <= 0) {
-    world.governmentDebt = 0;
-    world.governmentDebtInterest = 0;
+    monetary.governmentDebt = 0;
+    monetary.governmentDebtInterest = 0;
     return {
       interestDue: 0,
       repaymentPaid: 0,
       remainingDebt: 0,
-      interestRate: (() => { const r = getBorrowingRateByCredit(world.creditRating ?? 'B')[currency]; return Number.isFinite(r) ? r : (currency === 'coupon' ? 0.08 : 0.05); })(),
+      interestRate: (() => { const r = getBorrowingRateByCredit(monetary.creditRating ?? 'B')[currency]; return Number.isFinite(r) ? r : (currency === 'coupon' ? 0.08 : 0.05); })(),
       penaltyMessages: [],
     };
   }
 
-  const rawRate = getBorrowingRateByCredit(world.creditRating ?? 'B')[currency];
+  const rawRate = getBorrowingRateByCredit(monetary.creditRating ?? 'B')[currency];
   const interestRate = Number.isFinite(rawRate) ? rawRate : (currency === 'coupon' ? 0.08 : 0.05);
   const interestDue = debt * interestRate;
   if (ledger) {
     ledger.debtInterest += Math.max(0, Number(interestDue ?? 0));
   }
 
-  world.governmentDebtInterest = interestDue;
-  world.governmentDebt = debt + interestDue;
+  monetary.governmentDebtInterest = interestDue;
+  monetary.governmentDebt = debt + interestDue;
 
-  const desiredRepayment = clampMoney(world.annualRepayment ?? 0);
+  const desiredRepayment = clampMoney(fiscal.annualRepayment ?? 0);
   let repaymentPaid = 0;
 
   if (desiredRepayment > 0) {
     if (currency === 'coupon') {
-      const couponAvailable = clampMoney(world.couponTreasury ?? 0);
-      repaymentPaid = Math.min(desiredRepayment, couponAvailable, world.governmentDebt);
-      world.couponTreasury = couponAvailable - repaymentPaid;
+      const couponAvailable = clampMoney(monetary.couponTreasury ?? 0);
+      repaymentPaid = Math.min(desiredRepayment, couponAvailable, monetary.governmentDebt);
+      monetary.couponTreasury = couponAvailable - repaymentPaid;
     } else {
       const grainAvailable = clampMoney(world.grainTreasury ?? 0);
-      repaymentPaid = Math.min(desiredRepayment, grainAvailable, world.governmentDebt);
+      repaymentPaid = Math.min(desiredRepayment, grainAvailable, monetary.governmentDebt);
       world.grainTreasury = grainAvailable - repaymentPaid;
     }
 
-    world.governmentDebt = Math.max(0, world.governmentDebt - repaymentPaid);
+    monetary.governmentDebt = Math.max(0, monetary.governmentDebt - repaymentPaid);
     if (ledger) {
       ledger.debtRepayment += Math.max(0, Number(repaymentPaid ?? 0));
     }
@@ -261,7 +277,7 @@ export function processGovernmentDebtYear(world) {
 
   const penaltyMessages = [];
   if (lendingPoolSize > 0) {
-    const debtRatio = world.governmentDebt / lendingPoolSize;
+    const debtRatio = monetary.governmentDebt / lendingPoolSize;
     if (debtRatio > 0.9) {
       world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 30);
       penaltyMessages.push('债务超过放贷池90%，商人满意度-30');
@@ -274,16 +290,16 @@ export function processGovernmentDebtYear(world) {
     }
   }
 
-  if (world.governmentDebt > clampMoney(world.grainTreasury ?? 0) * 2) {
+  if (monetary.governmentDebt > clampMoney(world.grainTreasury ?? 0) * 2) {
     world.merchantSatisfaction = clampIndex((world.merchantSatisfaction ?? 70) - 30);
-    world.creditCrisis = true;
+    monetary.creditCrisis = true;
     penaltyMessages.push('债务超过粮仓2倍，触发信用风险（商人满意度-30）');
   }
 
   return {
     interestDue,
     repaymentPaid,
-    remainingDebt: world.governmentDebt,
+    remainingDebt: monetary.governmentDebt,
     interestRate,
     penaltyMessages,
     currency,

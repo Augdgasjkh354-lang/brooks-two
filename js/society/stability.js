@@ -7,6 +7,15 @@ import {
   HEALTH_BUREAU_SANITATION_MIN, HEALTH_BUREAU_CLEANING_MIN
 } from '../config/constants.js';
 
+
+function getFiscal(world) {
+  return world?.__fiscal ?? world?.fiscal ?? world;
+}
+
+function getMonetary(world) {
+  return world?.__monetary ?? world?.monetary ?? world;
+}
+
 export const BUREAUCRACY_POLICY_DEFS = {
   householdRegistry: {
     key: 'householdRegistry',
@@ -277,7 +286,8 @@ export function calculateGovernmentEfficiency(world) {
 }
 
 export function calculateGovernmentWageBill(world) {
-  const gdpPerCapita = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  const fiscal = getFiscal(world);
+  const gdpPerCapita = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
 
   const sanitizeCount = Number(world.publicToilets ?? 0) >= 1 ? Math.max(0, Math.floor(Number(world.sanitationWorkerCount ?? 0))) : 0;
   const cleaningCount = Number(world.roadLength ?? 0) >= 1 ? Math.max(0, Math.floor(Number(world.cleaningWorkerCount ?? 0))) : 0;
@@ -294,20 +304,20 @@ export function calculateGovernmentWageBill(world) {
   };
 
   Object.entries(defaults).forEach(([key, value]) => {
-    const current = Number(world[key] ?? 0);
-    world[key] = current > 0 ? current : value;
+    const current = Number(fiscal[key] ?? 0);
+    fiscal[key] = current > 0 ? current : value;
   });
 
   const total =
-    Number(world.seniorOfficialCount ?? 0) * Number(world.seniorOfficialWage ?? 0) +
-    Number(world.midOfficialCount ?? 0) * Number(world.midOfficialWage ?? 0) +
-    Number(world.juniorOfficialCount ?? 0) * Number(world.juniorOfficialWage ?? 0) +
-    Number(world.professionalCount ?? 0) * Number(world.professionalWage ?? 0) +
-    Number(world.sanitationWorkerCount ?? 0) * Number(world.sanitationWorkerWage ?? 0) +
-    Number(world.cleaningWorkerCount ?? 0) * Number(world.cleaningWorkerWage ?? 0);
+    Number(world.seniorOfficialCount ?? 0) * Number(fiscal.seniorOfficialWage ?? 0) +
+    Number(world.midOfficialCount ?? 0) * Number(fiscal.midOfficialWage ?? 0) +
+    Number(world.juniorOfficialCount ?? 0) * Number(fiscal.juniorOfficialWage ?? 0) +
+    Number(world.professionalCount ?? 0) * Number(fiscal.professionalWage ?? 0) +
+    Number(world.sanitationWorkerCount ?? 0) * Number(fiscal.sanitationWorkerWage ?? 0) +
+    Number(world.cleaningWorkerCount ?? 0) * Number(fiscal.cleaningWorkerWage ?? 0);
 
-  world.totalWageBill = Math.max(0, total);
-  world.totalSalaryCost = world.totalWageBill;
+  fiscal.totalWageBill = Math.max(0, total);
+  world.totalSalaryCost = fiscal.totalWageBill;
   world.totalOfficials =
     Number(world.seniorOfficialCount ?? 0) +
     Number(world.midOfficialCount ?? 0) +
@@ -316,15 +326,16 @@ export function calculateGovernmentWageBill(world) {
     Number(world.sanitationWorkerCount ?? 0) +
     Number(world.cleaningWorkerCount ?? 0);
 
-  return world.totalWageBill;
+  return fiscal.totalWageBill;
 }
 
 export function calculateFireLeakage(world) {
   let rate = 0.05;
   const factors = [];
-  const gdpPerCapita = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  const fiscal = getFiscal(world);
+  const gdpPerCapita = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
 
-  if ((world.juniorOfficialWage ?? 0) < gdpPerCapita * 0.8) {
+  if ((fiscal.juniorOfficialWage ?? 0) < gdpPerCapita * 0.8) {
     rate += 0.03;
     factors.push('基层官员工资偏低 +3%');
   }
@@ -357,7 +368,7 @@ export function calculateFireLeakage(world) {
     rate -= 0.02;
     factors.push('户籍制度 -2%');
   }
-  if ((world.seniorOfficialWage ?? 0) >= gdpPerCapita * 3.0) {
+  if ((fiscal.seniorOfficialWage ?? 0) >= gdpPerCapita * 3.0) {
     rate -= 0.01;
     factors.push('高级官员薪资达标 -1%');
   }
@@ -367,7 +378,7 @@ export function calculateFireLeakage(world) {
   }
 
   rate = Math.max(0.02, Math.min(0.3, rate));
-  world.fireLeakageRate = rate;
+  getFiscal(world).fireLeakageRate = rate;
   world.fireLeakageFactors = factors.join(' | ') || '基准火耗 5%';
   return { rate, factors };
 }
@@ -483,9 +494,10 @@ export function calculatePoliceEffects(world) {
   const policeRatio = officerCount / totalPopulation;
   world.policeRatio = policeRatio;
 
-  const gdpPerCapita = Math.max(0, Number(world?.gdpPerCapita ?? 0));
-  const currentWage = Number(world?.officerWage ?? 0);
-  world.officerWage = currentWage > 0 ? currentWage : gdpPerCapita * 1.2;
+  const fiscal = getFiscal(world);
+  const gdpPerCapita = Math.max(0, Number(fiscal?.gdpPerCapita ?? 0));
+  const currentWage = Number(fiscal?.officerWage ?? 0);
+  fiscal.officerWage = currentWage > 0 ? currentWage : gdpPerCapita * 1.2;
   world.adminTalentDeployedPolice = officerCount;
 
   const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
@@ -567,7 +579,7 @@ export function calculatePoliceEffects(world) {
     efficiency,
     paperInsufficient,
     talentInsufficient: !availableTalentForPolice && officerCount > 0,
-    annualPoliceCost: officerCount * Math.max(0, Number(world.officerWage ?? 0)),
+    annualPoliceCost: officerCount * Math.max(0, Number(getFiscal(world).officerWage ?? 0)),
   };
 }
 
@@ -666,8 +678,9 @@ export function calculateTradeBureauEffects(world) {
   const commerceTalent = Math.max(0, Number(world.commerceTalent ?? 0));
   world.commerceTalentDeployedTrade = Math.min(world.tradeOfficerCount, commerceTalent);
 
-  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
-  if ((world.tradeOfficerWage ?? 0) <= 0) world.tradeOfficerWage = gdpPc * 1.3;
+  const fiscal = getFiscal(world);
+  const gdpPc = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
+  if ((fiscal.tradeOfficerWage ?? 0) <= 0) fiscal.tradeOfficerWage = gdpPc * 1.3;
 
   const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
   const eff = calculateInstitutionEfficiency({
@@ -703,7 +716,7 @@ export function calculateTradeBureauEffects(world) {
   world.tradeBureauTradeBonus = tradeBonus;
   world.tradeQuotaBonus = quotaBonus;
   world.tradeBureauAttitudeDelta = attitudeDelta;
-  const annualTradeCost = world.tradeOfficerCount * Math.max(0, Number(world.tradeOfficerWage ?? 0));
+  const annualTradeCost = world.tradeOfficerCount * Math.max(0, Number(getFiscal(world).tradeOfficerWage ?? 0));
   world.tradeBureauAnnualCost = annualTradeCost;
 
   return { established: true, efficiency: eff.efficiency, tradeBonus, quotaBonus, attitudeDelta, annualTradeCost, message };
@@ -723,8 +736,9 @@ export function calculateEngineeringBureauEffects(world) {
   const techTalent = Math.max(0, Number(world.techTalent ?? 0));
   world.techTalentDeployedEngineering = Math.min(world.engineerCount, techTalent);
 
-  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
-  if ((world.engineerWage ?? 0) <= 0) world.engineerWage = gdpPc * 1.5;
+  const fiscal = getFiscal(world);
+  const gdpPc = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
+  if ((fiscal.engineerWage ?? 0) <= 0) fiscal.engineerWage = gdpPc * 1.5;
 
   const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
   const eff = calculateInstitutionEfficiency({
@@ -762,7 +776,7 @@ export function calculateEngineeringBureauEffects(world) {
   world.engineeringReclaimBonus = reclaimEfficiencyBonus;
   world.infrastructureCostMultiplier = infraCostMultiplier;
   world.constructionCostReduction = Math.max(0, Number(world.constructionCostReductionBase ?? 0)) + reduction;
-  const annualEngineeringCost = world.engineerCount * Math.max(0, Number(world.engineerWage ?? 0));
+  const annualEngineeringCost = world.engineerCount * Math.max(0, Number(getFiscal(world).engineerWage ?? 0));
   world.engineeringBureauAnnualCost = annualEngineeringCost;
 
   return {
@@ -788,8 +802,9 @@ export function calculateCourtEffects(world) {
   const adminTalent = Math.max(0, Number(world.adminTalent ?? 0));
   world.adminTalentDeployedCourt = Math.min(world.judgeCount, adminTalent);
 
-  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
-  if ((world.judgeWage ?? 0) <= 0) world.judgeWage = gdpPc * 2.0;
+  const fiscal = getFiscal(world);
+  const gdpPc = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
+  if ((fiscal.judgeWage ?? 0) <= 0) fiscal.judgeWage = gdpPc * 2.0;
 
   const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
   const eff = calculateInstitutionEfficiency({
@@ -833,7 +848,7 @@ export function calculateCourtEffects(world) {
     message = message ? `${message}；商业纠纷频发，影响市场秩序` : '商业纠纷频发，影响市场秩序';
   }
 
-  const annualCourtCost = world.judgeCount * Math.max(0, Number(world.judgeWage ?? 0));
+  const annualCourtCost = world.judgeCount * Math.max(0, Number(getFiscal(world).judgeWage ?? 0));
   return { established: true, efficiency: eff.efficiency, disputeRate: world.disputeRate, commerceMultiplier, merchantLifeQualityDelta, merchantSatisfactionDelta, fireLeakageDelta, creditRatingCap, annualCourtCost, message };
 }
 
@@ -850,8 +865,9 @@ export function calculateTaxBureauEffects(world) {
   const adminTalent = Math.max(0, Number(world.adminTalent ?? 0));
   world.adminTalentDeployedTax = Math.min(world.taxOfficerCount, adminTalent);
 
-  const gdpPc = Math.max(0, Number(world.gdpPerCapita ?? 0));
-  if ((world.taxOfficerWage ?? 0) <= 0) world.taxOfficerWage = gdpPc * 1.0;
+  const fiscal = getFiscal(world);
+  const gdpPc = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
+  if ((fiscal.taxOfficerWage ?? 0) <= 0) fiscal.taxOfficerWage = gdpPc * 1.0;
 
   const institutionSize = Math.max(1, Math.ceil(totalPopulation / 2000));
   const eff = calculateInstitutionEfficiency({
@@ -883,7 +899,7 @@ export function calculateTaxBureauEffects(world) {
   }
 
   world.taxBureauRevenueMultiplier = revenueMultiplier;
-  const annualTaxCost = world.taxOfficerCount * Math.max(0, Number(world.taxOfficerWage ?? 0));
+  const annualTaxCost = world.taxOfficerCount * Math.max(0, Number(getFiscal(world).taxOfficerWage ?? 0));
   return { established: true, efficiency: eff.efficiency, revenueMultiplier, fireLeakageDelta, annualTaxCost, message };
 }
 
@@ -943,7 +959,8 @@ export function calculateHealthEffects(world) {
   world.healthOfficerCount = Math.max(0, Math.floor(Number(world.healthOfficerCount ?? 0)));
   world.adminTalentDeployedHealth = Math.min(world.healthOfficerCount, adminTalent);
 
-  const gdpPerCapita = Math.max(0, Number(world.gdpPerCapita ?? 0));
+  const fiscal = getFiscal(world);
+  const gdpPerCapita = Math.max(0, Number(fiscal.gdpPerCapita ?? 0));
   if ((world.healthOfficerWage ?? 0) <= 0) {
     world.healthOfficerWage = gdpPerCapita * 1.2;
   }
@@ -1028,7 +1045,7 @@ export function calculateHealthEffects(world) {
     factorsNegative.push('粮食结余为负 -10');
   }
 
-  if ((world.saltShortfallRatio ?? 0) > 0.3) {
+  if ((getMonetary(world).saltShortfallRatio ?? 0) > 0.3) {
     healthIndex -= 5;
     factorsNegative.push('食盐短缺率>30% -5');
   }
@@ -1079,7 +1096,7 @@ export function calculateHealthEffects(world) {
   world.healthGrowthModifier = growthModifier;
   world.healthLifeQualityFarmerDelta = farmerLifeQualityDelta;
   world.healthLifeQualityAllDelta = allLifeQualityDelta;
-  world.healthAnnualCost = world.healthOfficerCount * Math.max(0, Number(world.healthOfficerWage ?? 0));
+  world.healthAnnualCost = world.healthOfficerCount * Math.max(0, Number(getFiscal(world).healthOfficerWage ?? 0));
 
   return {
     healthIndex,
