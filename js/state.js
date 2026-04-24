@@ -380,6 +380,54 @@ export const initialState = {
   calendar: {
     year: 1,
   },
+  land: {
+    farmlandAreaMu: INITIAL_FARMLAND_MU,
+    hempLandMu: 0,
+    mulberryLandMu: 0,
+    pendingFarmlandMu: 0,
+    pendingHempLandMu: 0,
+    pendingMulberryLandMu: 0,
+    mulberryMaturationYear: 0,
+    reclaimedThisYear: 0,
+    publicToilets: 0,
+    roadLength: 0,
+    toiletCoverage: 0,
+    irrigationCanalCount: 0,
+    pendingCanals: [],
+    wallReinforced: false,
+    grainStorageCapacity: 50000000,
+    grainStorageExpansions: 0,
+  },
+  agriculture: {
+    grainYieldPerMu: BASE_GRAIN_YIELD_PER_MU,
+    baseGrainYieldPerMu: BASE_GRAIN_YIELD_PER_MU,
+    grainTreasury: 15000000,
+    actualGrainOutput: 0,
+    potentialGrainOutput: 0,
+    lostGrainOutput: 0,
+    farmEfficiency: 1.0,
+    landUtilizationPercent: 100,
+    agriculturalTaxRate: 0.7,
+    farmlandRentRate: 0,
+    grainAnnualDemand: 0,
+    grainSurplus: 0,
+    fertilizerBonus: 1.0,
+    dungCoverage: 0,
+    totalDung: 0,
+    playerSilkwormDung: 0,
+    importedDung: 0,
+    dungImportQuota: 0,
+    constructionCostReduction: 0,
+    buildingFiberReserve: 0,
+    structuralBonus: false,
+    laborEfficiency: 1.0,
+    paperMaterialReserve: 0,
+    paperOutput: 0,
+    coarseClothOutput: 0,
+    fineClothOutput: 0,
+    rawSilkOutput: 0,
+    totalClothOutput: 0,
+  },
   population: {
     totalPopulation: INITIAL_POPULATION,
     laborForce: INITIAL_LABOR_FORCE,
@@ -559,6 +607,56 @@ const POPULATION_FIELD_MAP = {
   scholarPool: 'scholarPool',
 };
 
+const LAND_FIELD_MAP = {
+  farmlandAreaMu: 'farmlandAreaMu',
+  hempLandMu: 'hempLandMu',
+  mulberryLandMu: 'mulberryLandMu',
+  pendingFarmlandMu: 'pendingFarmlandMu',
+  pendingHempLandMu: 'pendingHempLandMu',
+  pendingMulberryLandMu: 'pendingMulberryLandMu',
+  mulberryMaturationYear: 'mulberryMaturationYear',
+  reclaimedThisYear: 'reclaimedThisYear',
+  publicToilets: 'publicToilets',
+  roadLength: 'roadLength',
+  toiletCoverage: 'toiletCoverage',
+  irrigationCanalCount: 'irrigationCanalCount',
+  pendingCanals: 'pendingCanals',
+  wallReinforced: 'wallReinforced',
+  grainStorageCapacity: 'grainStorageCapacity',
+  grainStorageExpansions: 'grainStorageExpansions',
+};
+
+const AGRICULTURE_FIELD_MAP = {
+  grainYieldPerMu: 'grainYieldPerMu',
+  baseGrainYieldPerMu: 'baseGrainYieldPerMu',
+  grainTreasury: 'grainTreasury',
+  actualGrainOutput: 'actualGrainOutput',
+  potentialGrainOutput: 'potentialGrainOutput',
+  lostGrainOutput: 'lostGrainOutput',
+  farmEfficiency: 'farmEfficiency',
+  landUtilizationPercent: 'landUtilizationPercent',
+  agriculturalTaxRate: 'agriculturalTaxRate',
+  farmlandRentRate: 'farmlandRentRate',
+  grainAnnualDemand: 'grainAnnualDemand',
+  grainSurplus: 'grainSurplus',
+  fertilizerBonus: 'fertilizerBonus',
+  dungCoverage: 'dungCoverage',
+  totalDung: 'totalDung',
+  playerSilkwormDung: 'playerSilkwormDung',
+  importedDung: 'importedDung',
+  dungImportQuota: 'dungImportQuota',
+  constructionCostReduction: 'constructionCostReduction',
+  buildingFiberReserve: 'buildingFiberReserve',
+  structuralBonus: 'structuralBonus',
+  laborEfficiency: 'laborEfficiency',
+  paperMaterialReserve: 'paperMaterialReserve',
+  paperOutput: 'paperOutput',
+  coarseClothOutput: 'coarseClothOutput',
+  fineClothOutput: 'fineClothOutput',
+  rawSilkOutput: 'rawSilkOutput',
+  totalClothOutput: 'totalClothOutput',
+};
+
 function defineCompatAccessors(state) {
   Object.entries(CALENDAR_FIELD_MAP).forEach(([legacyField, sourceField]) => {
     Object.defineProperty(state.world, legacyField, {
@@ -582,6 +680,28 @@ function defineCompatAccessors(state) {
     });
   });
 
+  Object.entries(LAND_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.land[sourceField],
+      set: (value) => {
+        state.land[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  Object.entries(AGRICULTURE_FIELD_MAP).forEach(([legacyField, sourceField]) => {
+    Object.defineProperty(state.world, legacyField, {
+      get: () => state.agriculture[sourceField],
+      set: (value) => {
+        state.agriculture[sourceField] = value;
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
   Object.defineProperty(state.world, '__calendar', {
     value: state.calendar,
     writable: true,
@@ -590,6 +710,18 @@ function defineCompatAccessors(state) {
   });
   Object.defineProperty(state.world, '__population', {
     value: state.population,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__land', {
+    value: state.land,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(state.world, '__agriculture', {
+    value: state.agriculture,
     writable: true,
     enumerable: false,
     configurable: true,

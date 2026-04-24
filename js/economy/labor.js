@@ -14,9 +14,19 @@ function getPopulationState(world) {
   return world.__population ?? world;
 }
 
+function getLandState(world) {
+  return world.__land ?? world;
+}
+
+function getAgricultureState(world) {
+  return world.__agriculture ?? world;
+}
+
 export function calculateLaborAllocation(world) {
+  const land = getLandState(world);
+  const agriculture = getAgricultureState(world);
   const population = getPopulationState(world);
-  const requiredFarmingLabor = world.farmlandAreaMu / LABOR_PER_MU;
+  const requiredFarmingLabor = land.farmlandAreaMu / LABOR_PER_MU;
   const farmingLaborAllocated = Math.min(population.laborForce, requiredFarmingLabor);
 
   const remainingAfterFarming = Math.max(0, population.laborForce - farmingLaborAllocated);
@@ -24,11 +34,11 @@ export function calculateLaborAllocation(world) {
   const saltMineLaborAllocated = Math.min(remainingAfterFarming, saltMineLaborRequired);
 
   const remainingAfterSalt = Math.max(0, remainingAfterFarming - saltMineLaborAllocated);
-  const hempLaborRequired = Math.max(0, (world.hempLandMu ?? 0) / LABOR_PER_MU);
+  const hempLaborRequired = Math.max(0, (land.hempLandMu ?? 0) / LABOR_PER_MU);
   const hempLaborAllocated = Math.min(remainingAfterSalt, hempLaborRequired);
 
   const remainingAfterHemp = Math.max(0, remainingAfterSalt - hempLaborAllocated);
-  const mulberryLaborRequired = Math.max(0, (world.mulberryLandMu ?? 0) / SHOP_LABOR_PER_UNIT);
+  const mulberryLaborRequired = Math.max(0, (land.mulberryLandMu ?? 0) / SHOP_LABOR_PER_UNIT);
   const mulberryLaborAllocated = Math.min(remainingAfterHemp, mulberryLaborRequired);
 
   const remainingAfterMulberry = Math.max(0, remainingAfterHemp - mulberryLaborAllocated);
@@ -55,10 +65,12 @@ export function calculateLaborAllocation(world) {
   population.laborIdle = clamp(idleLabor);
   world.laborAssignedCommerce = population.laborAssignedCommerce;
   world.idleLabor = population.laborIdle;
-  world.farmEfficiency = farmEfficiency;
+  agriculture.farmEfficiency = farmEfficiency;
+  world.farmEfficiency = agriculture.farmEfficiency;
   world.hempEfficiency = hempEfficiency;
   world.mulberryEfficiency = mulberryEfficiency;
-  world.landUtilizationPercent = farmEfficiency * 100;
+  agriculture.landUtilizationPercent = farmEfficiency * 100;
+  world.landUtilizationPercent = agriculture.landUtilizationPercent;
 
   return {
     farmEfficiency,

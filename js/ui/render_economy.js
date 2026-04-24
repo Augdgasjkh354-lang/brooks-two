@@ -340,35 +340,37 @@ export function renderEconomyTab(state) {
 
 export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) {
   const world = state.world;
+  const land = state.land ?? world;
+  const agriculture = state.agriculture ?? world;
   const mount = document.getElementById('agriculture-tab-content');
   if (!mount) return;
 
   mount.innerHTML = `
     <section class="panel"><h2>Grain Output</h2><div class="tab-grid">
-      ${statItem('Potential Grain Output', formatNumber(world.potentialGrainOutput ?? 0))}
-      ${statItem('Actual Grain Output', formatNumber(world.actualGrainOutput ?? 0))}
-      ${statItem('Lost Grain Output', formatNumber(world.lostGrainOutput ?? 0))}
-      ${statItem('Yield / mu (effective)', formatNumber(world.grainYieldPerMu ?? 0))}
-      ${statItem('Farmland Area (mu)', formatNumber(world.farmlandAreaMu ?? 0))}
+      ${statItem('Potential Grain Output', formatNumber(agriculture.potentialGrainOutput ?? 0))}
+      ${statItem('Actual Grain Output', formatNumber(agriculture.actualGrainOutput ?? 0))}
+      ${statItem('Lost Grain Output', formatNumber(agriculture.lostGrainOutput ?? 0))}
+      ${statItem('Yield / mu (effective)', formatNumber(agriculture.grainYieldPerMu ?? 0))}
+      ${statItem('Farmland Area (mu)', formatNumber(land.farmlandAreaMu ?? 0))}
     </div></section>
     <section class="panel"><h2>Land & Fiber</h2><div class="tab-grid">
-      ${statItem('Hemp / Mulberry Land', `${formatNumber(world.hempLandMu ?? 0)} / ${formatNumber(world.mulberryLandMu ?? 0)} 亩`)}
-      ${statItem('Pending (Hemp / Mulberry)', `${formatNumber(world.pendingHempLandMu ?? 0)} / ${formatNumber(world.pendingMulberryLandMu ?? 0)} 亩`)}
-      ${statItem('Cloth Output (Coarse/Fine)', `${formatNumber(world.coarseClothOutput ?? 0)} / ${formatNumber(world.fineClothOutput ?? 0)}`)}
-      ${statItem('Silkworm Dung (Own/Imported/Total)', `${formatNumber(world.playerSilkwormDung ?? 0)} / ${formatNumber(world.importedDung ?? 0)} / ${formatNumber(world.totalDung ?? 0)}`)}
-      ${statItem('Dung Coverage', `${formatDecimal((world.dungCoverage ?? 0) * 100, 1)}%`)}
-      ${statItem('Fertilizer Bonus', `${formatDecimal(((world.fertilizerBonus ?? 1) - 1) * 100, 1)}%`)}
+      ${statItem('Hemp / Mulberry Land', `${formatNumber(land.hempLandMu ?? 0)} / ${formatNumber(land.mulberryLandMu ?? 0)} 亩`)}
+      ${statItem('Pending (Hemp / Mulberry)', `${formatNumber(land.pendingHempLandMu ?? 0)} / ${formatNumber(land.pendingMulberryLandMu ?? 0)} 亩`)}
+      ${statItem('Cloth Output (Coarse/Fine)', `${formatNumber(agriculture.coarseClothOutput ?? 0)} / ${formatNumber(agriculture.fineClothOutput ?? 0)}`)}
+      ${statItem('Silkworm Dung (Own/Imported/Total)', `${formatNumber(agriculture.playerSilkwormDung ?? 0)} / ${formatNumber(agriculture.importedDung ?? 0)} / ${formatNumber(agriculture.totalDung ?? 0)}`)}
+      ${statItem('Dung Coverage', `${formatDecimal((agriculture.dungCoverage ?? 0) * 100, 1)}%`)}
+      ${statItem('Fertilizer Bonus', `${formatDecimal(((agriculture.fertilizerBonus ?? 1) - 1) * 100, 1)}%`)}
     </div></section>
     <section class="panel"><h2>Hemp Byproducts</h2><div class="tab-grid">
       ${statItem('Paper Material / Year', `${formatNumber(world.paperMaterial ?? 0)} 斤`)}
-      ${statItem('Paper Material Reserve', `${formatNumber(world.paperMaterialReserve ?? 0)} 斤`)}
-      ${statItem('Paper Output', formatDecimal(world.paperOutput ?? 0, 1))}
+      ${statItem('Paper Material Reserve', `${formatNumber(agriculture.paperMaterialReserve ?? 0)} 斤`)}
+      ${statItem('Paper Output', formatDecimal(agriculture.paperOutput ?? 0, 1))}
       ${statItem('Hemp Stalk Fuel / Year', `${formatNumber(world.hempStalks ?? 0)} 斤`)}
       ${statItem('Building Fiber / Year', `${formatNumber(world.buildingFiber ?? 0)} 斤`)}
-      ${statItem('Building Fiber Reserve', `${formatNumber(world.buildingFiberReserve ?? 0)} 斤`)}
-      ${statItem('Construction Cost Reduction', `${formatDecimal((world.constructionCostReduction ?? 0) * 100, 1)}%`)}
-      ${statItem('Structural Bonus', world.structuralBonus ? 'Active (+2% labor output)' : 'Inactive')}
-      ${statItem('Labor Efficiency', `${formatDecimal((world.laborEfficiency ?? 1) * 100, 1)}%`)}
+      ${statItem('Building Fiber Reserve', `${formatNumber(agriculture.buildingFiberReserve ?? 0)} 斤`)}
+      ${statItem('Construction Cost Reduction', `${formatDecimal((agriculture.constructionCostReduction ?? 0) * 100, 1)}%`)}
+      ${statItem('Structural Bonus', agriculture.structuralBonus ? 'Active (+2% labor output)' : 'Inactive')}
+      ${statItem('Labor Efficiency', `${formatDecimal((agriculture.laborEfficiency ?? 1) * 100, 1)}%`)}
     </div></section>
     <section class="panel"><h2>Land Reclamation</h2>${getLandDevelopmentControlsHtml(world)}</section>
   `;
@@ -378,6 +380,7 @@ export function renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand) 
 
 export function renderCurrencyTab(state, onOfficialSaltSale) {
   const world = state.world;
+  const agriculture = state.agriculture ?? world;
   const mount = document.getElementById('currency-tab-content');
   if (!mount) return;
 
@@ -387,7 +390,7 @@ export function renderCurrencyTab(state, onOfficialSaltSale) {
   const netColor = Number(ledger.netBalance ?? 0) >= 0 ? '#1b8a3d' : '#b42318';
   mount.innerHTML = `
     <section class="panel"><h2>Treasury</h2><div class="tab-grid">
-      ${statItem('Grain Treasury', formatNumber(world.grainTreasury ?? 0))}
+      ${statItem('Grain Treasury', formatNumber(agriculture.grainTreasury ?? 0))}
       ${statItem('Coupon Treasury', formatNumber(world.couponTreasury ?? 0))}
       ${statItem('Coupon Circulating', formatNumber(world.couponCirculating ?? 0))}
       ${statItem('Tax Ratio', renderRatioValue(world.taxGrainRatio ?? 1))}
