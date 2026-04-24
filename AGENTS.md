@@ -6481,3 +6481,139 @@ economy/market.js state.js game.js
 - Farming always meets foodSecurityLaborFloor
 - Unemployment = residual after all sectors
 - yearLog records significant labor shifts
+## Bugfix v7: Mint/Burn/Issuance/Redemption (Current)
+
+Fixing 3 related coupon accounting bugs.
+No new features. transfer.js + currency.js only.
+
+---
+
+**FIX 1: mint() double-counts couponCirculating**
+
+Current wrong logic:
+- When to = 'private.farmer.coupon':
+  toRef += amount (farmer coupon increases)
+  monetary.couponCirculating += amount (also increases)
+  = correct, two different accounts
+
+- When to = 'monetary.circulating':
+  toRef += amount (couponCirculating increases)
+  monetary.couponCirculating += amount (increases AGAIN)
+  = double count, couponCirculating gets +2x
+
+Correct logic:
+if (to === 'monetary.circulating') {
+  toRef.holder[toRef.key] += safeAmount
+  // couponCirculating already updated above, skip
+} else {
+  toRef.holder[toRef.key] += safeAmount
+  monetary.couponCirculating += safeAmount
+}
+monetary.couponTotalIssued += safeAmount
+
+---
+
+**FIX 2: burn() only supports monetary.circulating,
+but redemption needs to burn from private accounts**
+
+Current wrong logic:
+- burn() only accepts from = 'monetary.circulating'
+- Redemption workaround:
+  produce monetary.circulating (creates fake pool)
+  burn monetary.circulating (destroys fake pool)
+  = conceptually wrong, creates phantom coupons
+
+Correct logic:
+- burn() accepts ANY coupon account:
+  'private.farmer.coupon'
+  'private.merchant.coupon'
+  'government.coupon'
+  'monetary.circulating'
+
+- When burning from private account:
+  privateAccount -= amount
+  couponCirculating -= amount (sync total)
+
+- When burning from monetary.circulating:
+  couponCirculating -= amount only
+
+- couponTotalIssued unchanged (burned != unissued)
+
+---
+
+**FIX 3: Coupon issuance uses consume+produce
+instead of transfer for grain movement**
+
+Current wrong logic:
+- consume({ from: 'private.farmer.grain' })
+  = grain "consumed" (destroyed)
+- produce({ to: 'monetary.locked' })
+  = locked grain "produced" (created from nothing)
+- Net effect: grain destroyed AND created = wrong
+
+Correct logic:
+Grain moves from farmer to locked reserve (transfer):
+transfer({
+  from: 'private.farmer.grain',
+  to: 'monetary.locked',
+  asset: 'grain',
+  amount: issueAmount,
+  gdpTreatment: 'none',
+  reason: 'coupon_backing_purchase'
+}, state)
+
+Then mint coupons to farmer:
+mint({
+  to: 'private.farmer.coupon',
+  asset: 'coupon',
+  amount: issueAmount,
+  reason: 'coupon_issuance'
+}, state)
+
+---
+
+**FIX 4: Coupon redemption simplified**
+
+Current wrong logic (roundabout):
+consume private.farmer.coupon
+produce monetary.circulating
+burn monetary.circulating
+consume monetary.locked
+produce private.farmer.grain
+
+Correct clean logic:
+Step 1: burn farmer coupons directly
+burn({
+  from: 'private.farmer.coupon',
+  asset: 'coupon',
+  amount: redeemAmount,
+  reason: 'coupon_redemption'
+}, state)
+
+Step 2: transfer locked grain back to farmer
+transfer({
+  from: 'monetary.locked',
+  to: 'private.farmer.grain',
+  asset: 'grain',
+  amount: redeemAmount,
+  gdpTreatment: 'none',
+  reason: 'grain_reserve_release'
+}, state)
+
+No phantom accounts. No roundabout paths.
+
+**Files to modify:**
+- js/economy/transfer.js (fix 1 + fix 2)
+- js/economy/currency.js (fix 3 + fix 4)
+
+**Do NOT touch:** any other files whatsoever.
+
+**Definition of Done (Bugfix v7):**
+- mint() to monetary.circulating: no double count
+- mint() to private account: correctly syncs
+  couponCirculating
+- burn() works from any coupon account
+- Coupon issuance: transfer grain + mint coupon
+- Coupon redemption: burn coupon + transfer grain
+- No phantom accounts in any flow
+- All flows balance: assets in = assets out
