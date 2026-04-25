@@ -1,5 +1,7 @@
 import { formatNumber, statItem } from './render_world.js';
 
+const DIPLOMACY_CONTACT_ESTABLISHED_TEXT = '外交联系已建立';
+
 export function getXikouAttitudeLabel(attitudeToPlayer) {
   if (attitudeToPlayer <= -50) return '敌对';
   if (attitudeToPlayer <= -10) return '警惕';
@@ -18,7 +20,7 @@ export function getXikouAttitudeDisplay(attitudeToPlayer) {
 
 export function getDiplomacyControlsHtml(world, xikou) {
   if (!xikou) return '外交数据不可用';
-  if (xikou.diplomaticContact) return '<span style="color: #1b8a3b; font-weight: 700;">外交联系已建立</span>';
+  if (xikou.diplomaticContact) return `<span style="color: #1b8a3b; font-weight: 700;">${DIPLOMACY_CONTACT_ESTABLISHED_TEXT}</span>`;
 
   const envoyDisabled = (world.grainTreasury ?? 0) < 5000;
   return `<button id="send-envoy-btn" ${envoyDisabled ? 'disabled' : ''}>派遣使者 (Cost: 5000 grain)</button>`;

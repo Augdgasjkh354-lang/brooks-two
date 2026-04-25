@@ -18,6 +18,8 @@ const FACTION_COLORS = {
   allied: '#1A3A5C',
 };
 
+const DIPLOMACY_CONTACT_TITLE = '外交联系';
+
 let mapRenderHandlers = {
   onSendEnvoy: null,
   onTradeSalt: null,
@@ -170,7 +172,7 @@ function getXikouPanelHtml(state) {
   return `
     <h3>溪口村 ${attitudeBadge}</h3>
     <section class="panel map-inner-panel"><h4>外交状态</h4>${getXikouVillagePanelHtml(state)}</section>
-    <section class="panel map-inner-panel"><h4>外交联系</h4>${getDiplomacyControlsHtml(world, xikou)}</section>
+    <section class="panel map-inner-panel"><h4>${DIPLOMACY_CONTACT_TITLE}</h4>${getDiplomacyControlsHtml(world, xikou)}</section>
     <section class="panel map-inner-panel"><h4>贸易操作</h4>${getTradeControlsHtml(world, xikou)}</section>
     <section class="panel map-inner-panel"><h4>蚕沙进口</h4>${getDungImportControlsHtml(world, xikou)}</section>
   `;
