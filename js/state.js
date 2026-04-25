@@ -596,6 +596,47 @@ export const initialState = {
     silkwormDungOutput: 720000,
     silkwormDungAvailable: 0,
   },
+
+  mapState: {
+    factions: [
+      {
+        id: 'player',
+        name: '东陵城',
+        x: 30,
+        y: 55,
+        type: 'player',
+        discovered: true,
+        size: 'large',
+      },
+      {
+        id: 'xikou',
+        name: '溪口村',
+        x: 68,
+        y: 38,
+        type: 'village',
+        discovered: false,
+        size: 'medium',
+      },
+      {
+        id: 'northern_traders',
+        name: '北方商队',
+        x: 52,
+        y: 18,
+        type: 'traders',
+        discovered: false,
+        size: 'small',
+      },
+    ],
+    roads: [
+      {
+        from: 'player',
+        to: 'xikou',
+        level: 0,
+      },
+    ],
+    selectedFaction: null,
+    mapRevealed: false,
+  },
   systems: {
     bankBuilt: false,
     bankClerksRecruited: false,

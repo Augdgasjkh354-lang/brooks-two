@@ -7,7 +7,7 @@ import {
 } from './ui/render_world.js';
 import { renderEconomyTab, renderAgricultureTab, renderCurrencyTab } from './ui/render_economy.js';
 import { renderSocietyTab } from './ui/render_society.js';
-import { renderDiplomacyTab } from './ui/render_diplomacy.js';
+import { renderMapTab } from './ui/render_map.js';
 import { renderTechPanel } from './ui/render_tech.js';
 
 let tabsBound = false;
@@ -79,7 +79,7 @@ export function renderAll(
   renderEconomyTab(state);
   renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand);
   renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption);
-  renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota);
+  renderMapTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota);
   renderSystems(state);
   renderCurrencyTab(state, onOfficialSaltSale);
   renderTechPanel(state, onStartResearch);

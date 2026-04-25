@@ -235,3 +235,166 @@ input {
   padding: 0.6rem;
   margin-bottom: 0.5rem;
 }
+
+/* Phase 10A - Ancient Ink Map */
+.ink-map-panel {
+  padding: 0.65rem;
+}
+
+.ink-map-layout {
+  position: relative;
+  min-height: 70vh;
+  display: grid;
+  grid-template-columns: 1fr 0;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.ink-map-layout.panel-open {
+  grid-template-columns: 55% 45%;
+}
+
+.ink-map-canvas {
+  position: relative;
+  min-height: 68vh;
+  transition: width 0.3s ease;
+}
+
+.ink-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 40%, rgba(197, 168, 109, 0.2), rgba(28, 20, 14, 0.9));
+}
+
+.map-parchment {
+  fill: #3a2f24;
+  stroke: rgba(120, 95, 70, 0.65);
+  stroke-width: 0.4;
+}
+
+.map-border,
+.map-border-inner {
+  fill: none;
+  stroke: rgba(180, 150, 106, 0.75);
+}
+
+.map-border {
+  stroke-width: 0.5;
+}
+
+.map-border-inner {
+  stroke-width: 0.35;
+}
+
+.map-corner-ornament {
+  fill: rgba(193, 158, 103, 0.8);
+}
+
+.map-road {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.faction-group {
+  cursor: pointer;
+  transform-origin: center;
+  transition: transform 0.15s ease;
+}
+
+.faction-group.is-undiscovered {
+  opacity: 0.85;
+}
+
+.faction-group.is-clickable:hover .faction-marker-fill {
+  filter: drop-shadow(0 0 0.9px #c9a84c) drop-shadow(0 0 2px #c9a84c);
+}
+
+.faction-group.is-pressed {
+  transform: scale(0.95);
+}
+
+.faction-fog {
+  fill: rgba(20, 20, 20, 0.6);
+}
+
+.faction-marker-ring {
+  fill: none;
+  stroke-width: 1.2;
+}
+
+.faction-marker-text {
+  fill: #f8f1dd;
+  font-size: 5px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.faction-label {
+  fill: #ead8b9;
+  font-size: 3.1px;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+}
+
+.map-compass .compass-ring,
+.map-compass .compass-star {
+  fill: none;
+  stroke: rgba(214, 183, 131, 0.9);
+  stroke-width: 0.55;
+}
+
+.map-compass .compass-star {
+  fill: rgba(214, 183, 131, 0.35);
+}
+
+.map-panel-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 7, 7, 0);
+  transition: background 0.3s ease;
+  pointer-events: none;
+}
+
+.map-panel-backdrop.active {
+  background: rgba(8, 8, 8, 0.18);
+}
+
+.map-side-panel {
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  background: rgba(19, 15, 12, 0.96);
+  border-left: 1px solid rgba(189, 156, 103, 0.35);
+  overflow-y: auto;
+}
+
+.map-side-panel.open {
+  transform: translateX(0%);
+}
+
+.map-panel-content {
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.map-inner-panel {
+  background: rgba(12, 16, 28, 0.65);
+}
+
+.map-panel-close {
+  align-self: flex-end;
+  background: rgba(92, 66, 36, 0.9);
+}
+
+.map-attitude-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.08rem 0.48rem;
+  font-size: 0.8rem;
+}
