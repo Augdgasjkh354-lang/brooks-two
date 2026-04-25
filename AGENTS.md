@@ -7230,3 +7230,152 @@ ui/render_society.js:
 - Landlord panel hidden in UI
 - All landlord code preserved with comments
 - Game runs without landlord class active
+## Phase 10D: Unified Building System (Current)
+
+Phase 10C complete. Now implementing unified
+building system. This is a major addition.
+All existing buildings migrate to new model.
+New buildings added.
+
+**Goal:** Create js/buildings/buildingTypes.js
+and js/buildings/productionMethods.js as data
+files. Create js/buildings/buildingEngine.js
+as the unified production calculator.
+Migrate all existing building logic to use
+the new engine.
+
+**New files:**
+
+1. js/buildings/buildingTypes.js
+Contains all 20 building definitions as listed
+in AGENTS.md Phase 10D design section.
+Export as: export const BUILDING_TYPES = [...]
+
+2. js/buildings/productionMethods.js
+Contains all production method definitions.
+Export as: export const PRODUCTION_METHODS = {...}
+
+3. js/buildings/buildingEngine.js
+Contains:
+
+function calculateBuildingOutput(building,
+  count, state):
+- Look up building type from BUILDING_TYPES
+- Get active production method
+- Calculate inputs available
+- Calculate output based on inputs * method bonus
+- Return { outputs, inputsConsumed, workers }
+
+function getBuildingByCategory(category, state):
+- Return all active buildings of given category
+
+function canConstructBuilding(buildingId, state):
+- Check unlock conditions
+- Check resource availability
+- Return { canBuild, reason }
+
+function constructBuilding(buildingId, amount,
+  state):
+- Deduct construction cost via transfer()
+- Add to state.buildings
+- Add to constructionSpendingThisYear
+
+function calculateAllBuildingOutputs(state):
+- Loop through all active buildings
+- Call calculateBuildingOutput for each
+- Aggregate outputs into state
+
+**State additions:**
+state.buildings = {
+  farmland: { count: 30000, method: 'manual_farming' },
+  hemp_field: { count: 0, method: 'manual_hemp' },
+  mulberry_field: { count: 0, method: 'manual_silk' },
+  shop: { count: 0, method: 'basic_trade' },
+  moneylender: { count: 0, method: 'basic_lending' },
+  paper_mill: { count: 0, method: 'basic_papermaking' },
+  lumber_yard: { count: 0, method: 'manual_logging' },
+  blacksmith: { count: 0, method: 'basic_smithing' },
+  kiln: { count: 0, method: 'basic_kiln' },
+  medicine_hall: { count: 0, method: 'traditional_medicine' },
+  inn: { count: 0, method: 'basic_inn' },
+  tea_garden: { count: 0, method: 'manual_tea' },
+  salt_field: { count: 0, method: 'solar_evaporation' },
+  public_toilet: { count: 0, method: 'basic_sanitation' },
+  road: { count: 0, method: 'dirt_road' },
+  granary: { count: 0, method: 'basic_storage' },
+  irrigation_canal: { count: 0, method: 'basic_irrigation' },
+  city_wall: { count: 0, method: 'basic_fortification' },
+  barracks: { count: 0, method: 'militia' },
+  school_primary: { count: 0, method: 'basic_education' }
+}
+
+**Commodity tracking:**
+state.commodities = {
+  grain: 0,
+  salt: 0,
+  cloth: 0,
+  silk: 0,
+  paper: 0,
+  iron_tools: 0,
+  weapons: 0,
+  ceramics: 0,
+  bricks: 0,
+  lumber: 0,
+  charcoal: 0,
+  medicine: 0,
+  tea: 0,
+  silkworm_dung: 0,
+  paper_material: 0,
+  hemp_stalk: 0
+}
+
+**Pipeline integration:**
+In produceGoods phase of YEAR_PIPELINE:
+- Call calculateAllBuildingOutputs(state)
+- Results feed into state.commodities
+
+**Migration rules:**
+- Existing farmland logic in agriculture.js:
+  Keep working but read from
+  state.buildings.farmland.count
+  and state.buildings.farmland.method
+- Existing shop logic in commerce.js:
+  Keep working but read from
+  state.buildings.shop.count
+- Do NOT break existing calculations
+- New building engine runs IN ADDITION to
+  existing logic for now
+- Full migration in next phase
+
+**New UI tab: 建筑**
+Add new tab between 农业 and 社会:
+- List all buildings by category
+- Show count / production method / output
+- Construction buttons for each building
+- Change production method dropdown
+
+**Files to create:**
+- js/buildings/buildingTypes.js
+- js/buildings/productionMethods.js
+- js/buildings/buildingEngine.js
+- js/ui/render_buildings.js
+
+**Files to modify:**
+- js/state.js (add buildings + commodities)
+- js/game.js (call building engine in pipeline)
+- js/render.js (add 建筑 tab)
+- index.html (add new script tags)
+
+**Do NOT touch:** any existing economy/
+society/ diplomacy/ tech/ files
+
+**Definition of Done (Phase 10D):**
+- All 3 building JS files created
+- state.buildings initialized correctly
+- state.commodities initialized
+- buildingEngine calculates outputs each year
+- New 建筑 tab shows all buildings
+- Construction buttons work
+- Production method can be changed
+- Existing game logic unchanged
+- yearLog records building outputs
