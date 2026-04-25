@@ -899,17 +899,21 @@ function advanceYear(gameState = state) {
   if (!Array.isArray(gameState.logs.yearLog)) gameState.logs.yearLog = [];
   gameState.yearLog = gameState.logs.yearLog;
   gameState.calendar.year += 1;
+  gameState.world.year = gameState.calendar.year;
   gameState.__yearPipeline = {};
 
   for (const phase of YEAR_PIPELINE) {
+    if (typeof phase.fn !== 'function') {
+      console.error('Phase function missing:', phase.name);
+      continue;
+    }
+
     try {
       phase.fn(gameState);
     } catch (err) {
-      console.error('Pipeline failed at phase:', phase.name, err);
-      addYearLog(
-        gameState,
-        `[错误] ${phase.name} 失败: ${err?.message ?? String(err)}`
-      );
+      console.error('Pipeline failed:', phase.name, err);
+      alert('Pipeline failed at ' + phase.name + ': ' + (err?.message ?? String(err)));
+      addYearLog(gameState, '[错误] ' + phase.name + ' 失败');
     }
   }
 
@@ -1535,7 +1539,20 @@ function handleResetGame() {
 }
 
 function bindEvents() {
-  document.getElementById('next-year-btn').addEventListener('click', advanceYear);
+  const btn = document.getElementById('next-year-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      try {
+        advanceYear(state);
+        renderAll(state);
+        saveGame(state);
+      } catch (err) {
+        console.error('Next Year failed:', err);
+        alert('Next Year failed: ' + err.message);
+      }
+    });
+  }
+
   document.getElementById('issue-coupon-btn').addEventListener('click', issueCouponsFromInput);
   document.addEventListener('click', (event) => {
     const target = event.target;
@@ -1670,29 +1687,34 @@ function setBuildingMethod(buildingId, methodId) {
 }
 
 function render() {
-  renderAll(
-    state,
-    enactPolicy,
-    useGrainRedistribution,
-    useMerchantTax,
-    resolveByEmergencyRecirculation,
-    resolveByEmergencyRedemption,
-    sendEnvoyToXikou,
-    tradeGrainForSalt,
-    tradeGrainForCloth,
-    setDungImportQuota,
-    executeOfficialSaltSaleFromInput,
-    openHempLand,
-    openMulberryLand,
-    startResearchById,
-    buildById,
-    setBuildingMethod,
-    handleManualSave,
-    handleManualLoad,
-    handleExportSave,
-    handleImportSave,
-    handleResetGame
-  );
+  try {
+    renderAll(
+      state,
+      enactPolicy,
+      useGrainRedistribution,
+      useMerchantTax,
+      resolveByEmergencyRecirculation,
+      resolveByEmergencyRedemption,
+      sendEnvoyToXikou,
+      tradeGrainForSalt,
+      tradeGrainForCloth,
+      setDungImportQuota,
+      executeOfficialSaltSaleFromInput,
+      openHempLand,
+      openMulberryLand,
+      startResearchById,
+      buildById,
+      setBuildingMethod,
+      handleManualSave,
+      handleManualLoad,
+      handleExportSave,
+      handleImportSave,
+      handleResetGame
+    );
+  } catch (err) {
+    console.error('Render failed:', err);
+    alert('Render failed: ' + err.message);
+  }
 }
 
 function init() {
