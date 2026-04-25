@@ -483,7 +483,7 @@ function runEngineeringProject(type) {
   render();
 }
 
-function nextYear() {
+function resetAnnualFlags() {
   ensureLedgerState();
   resetLedgerForYear();
   state.world.grainRedistributionUsed = false;
@@ -493,92 +493,49 @@ function nextYear() {
   state.world.officialSaltSaleUsed = false;
   state.world.hempReclamationUsedThisYear = false;
   state.world.mulberryReclamationUsedThisYear = false;
-
-  state.calendar.year += 1;
+  state.world.constructionSpendingThisYear = 0;
   clearEventModifiers(state.world);
-  ensureGovernmentInstitution(state.world, state.yearLog);
-  ensurePoliceInstitution(state.world, state.yearLog);
-  ensureHealthBureauInstitution(state.world, state.yearLog);
-  ensureCourtInstitution(state.world, state.yearLog);
-  ensureTaxBureauInstitution(state.world, state.yearLog);
-  ensureTradeBureauInstitution(state.world, state.yearLog);
-  ensureEngineeringBureauInstitution(state.world, state.yearLog);
-  syncGovernmentInstitutionSettings();
-  syncPoliceInstitutionSettings();
-  syncHealthInstitutionSettings();
-  syncCourtTaxInstitutionSettings();
-  syncTradeEngineeringSettings();
-  const annualWageBill = calculateGovernmentWageBill(state.world);
-  const prePoliceEffects = calculatePoliceEffects(state.world);
-  const preHealthEffects = calculateHealthEffects(state.world);
-  const preCourtEffects = calculateCourtEffects(state.world);
-  const preTaxBureauEffects = calculateTaxBureauEffects(state.world);
-  const preTradeBureauEffects = calculateTradeBureauEffects(state.world);
-  const preEngineeringEffects = calculateEngineeringBureauEffects(state.world);
-  state.world.policeAnnualCost = Math.max(0, Number(prePoliceEffects.annualPoliceCost ?? 0));
-  state.world.healthAnnualCost = Math.max(0, Number(preHealthEffects.annualHealthCost ?? 0));
-  state.world.courtAnnualCost = Math.max(0, Number(preCourtEffects.annualCourtCost ?? 0));
-  state.world.taxBureauAnnualCost = Math.max(0, Number(preTaxBureauEffects.annualTaxCost ?? 0));
-  state.world.tradeBureauAnnualCost = Math.max(0, Number(preTradeBureauEffects.annualTradeCost ?? 0));
-  state.world.engineeringBureauAnnualCost = Math.max(0, Number(preEngineeringEffects.annualEngineeringCost ?? 0));
-  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost + state.world.tradeBureauAnnualCost + state.world.engineeringBureauAnnualCost;
+}
 
-  const schoolSettlement = settleEducationYear();
-  const econResult = updateEconomy(state.world);
-  const popResult = updatePopulation(state.world);
-  const completedTech = updateResearch(state);
+function ageCohorts() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.schoolSettlement = settleEducationYear();
+  state.__yearPipeline.popResult = updatePopulation(state.world);
+}
 
-  const policeEffects = calculatePoliceEffects(state.world);
-  applyPoliceCommerceEffects(state.world, policeEffects);
-  applyPoliceLifeQualityEffects(state.world, policeEffects);
-  const classes = getClasses();
-  classes.stabilityIndex = Math.max(0, Math.min(100, Number(classes.stabilityIndex ?? 0) + Number(policeEffects.stabilityDelta ?? 0)));
-  state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
+function allocateLabor() {
+  // Labor allocation remains inside economy update; this phase reserves ordering for future extraction.
+}
 
-  if (policeEffects.message) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: ${policeEffects.message}`);
-  }
-  const healthEffects = calculateHealthEffects(state.world);
-  state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
+function produceGoods() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.econResult = updateEconomy(state.world);
+}
 
-  if (healthEffects.lowHealth) {
-    state.world.consecutiveLowHealthYears = Math.max(0, Number(state.world.consecutiveLowHealthYears ?? 0)) + 1;
-  } else {
-    state.world.consecutiveLowHealthYears = 0;
-    state.world.diseaseOutbreak = false;
-  }
+function settleMarket() {
+  // Market settlement remains inside economy update; this phase reserves ordering for future extraction.
+}
 
-  if (healthEffects.message) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: ${healthEffects.message}`);
-  }
+function collectTaxes() {
+  // Tax settlement currently occurs inside economy update.
+}
 
-  const courtEffects = calculateCourtEffects(state.world);
-  applyCourtCommerceEffects(state.world, courtEffects);
-  applyCourtTaxLifeQualityEffects(state.world, courtEffects);
-  state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
+function payWages() {
+  // Wage settlement currently occurs in education/institution calculations.
+}
 
-  const taxBureauEffects = calculateTaxBureauEffects(state.world);
-  const tradeBureauEffects = calculateTradeBureauEffects(state.world);
-  const engineeringBureauEffects = calculateEngineeringBureauEffects(state.world);
-  applyTradeBureauCommerceEffects(state.world, tradeBureauEffects);
-  state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
-  if (courtEffects.merchantSatisfactionDelta) {
-    state.world.merchantEventModifier = Number(state.world.merchantEventModifier ?? 0) + Number(courtEffects.merchantSatisfactionDelta);
-  }
+function updateMoney() {
+  syncMoneylenderCaps(state.world);
+  if (!canUseMoneylenderSystem(state.world)) return;
 
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  const debtResult = processGovernmentDebtYear(state.world);
+  const moneylenderResult = finalizeMoneylenderYear(state.world, debtResult.interestDue);
+  state.__yearPipeline.debtResult = debtResult;
+  state.__yearPipeline.moneylenderResult = moneylenderResult;
+}
 
-  const cap = String(courtEffects.creditRatingCap ?? 'D');
-  const rank = { A: 4, B: 3, C: 2, D: 1 };
-  const monetary = getMonetary();
-  if ((rank[monetary.creditRating] ?? 3) > (rank[cap] ?? 1)) {
-    monetary.creditRating = cap;
-  }
-
-  if (courtEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${courtEffects.message}`);
-  if (taxBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${taxBureauEffects.message}`);
-  if (tradeBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${tradeBureauEffects.message}`);
-  if (engineeringBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${engineeringBureauEffects.message}`);
-
+function processPendingConstruction() {
   if (Array.isArray(state.land.pendingCanals) && state.land.pendingCanals.length > 0) {
     const completedCanals = [];
     const remainingCanals = [];
@@ -603,6 +560,114 @@ function nextYear() {
     state.world.pendingIrrigationCanals = remainingCanals.length;
   }
 
+  if ((state.world.landlordSatisfaction ?? 70) < 40) {
+    const blockedFarmland = Math.max(0, state.land.pendingFarmlandMu ?? 0);
+    if (blockedFarmland > 0) {
+      state.land.pendingFarmlandMu = 0;
+      state.world.reclaimedThisYear = 0;
+    }
+  }
+}
+
+function updateInstitutions() {
+  ensureGovernmentInstitution(state.world, state.yearLog);
+  ensurePoliceInstitution(state.world, state.yearLog);
+  ensureHealthBureauInstitution(state.world, state.yearLog);
+  ensureCourtInstitution(state.world, state.yearLog);
+  ensureTaxBureauInstitution(state.world, state.yearLog);
+  ensureTradeBureauInstitution(state.world, state.yearLog);
+  ensureEngineeringBureauInstitution(state.world, state.yearLog);
+
+  syncGovernmentInstitutionSettings();
+  syncPoliceInstitutionSettings();
+  syncHealthInstitutionSettings();
+  syncCourtTaxInstitutionSettings();
+  syncTradeEngineeringSettings();
+
+  const annualWageBill = calculateGovernmentWageBill(state.world);
+  const policeEffects = calculatePoliceEffects(state.world);
+  const healthEffects = calculateHealthEffects(state.world);
+  const courtEffects = calculateCourtEffects(state.world);
+  const taxBureauEffects = calculateTaxBureauEffects(state.world);
+  const tradeBureauEffects = calculateTradeBureauEffects(state.world);
+  const engineeringBureauEffects = calculateEngineeringBureauEffects(state.world);
+
+  state.world.policeAnnualCost = Math.max(0, Number(policeEffects.annualPoliceCost ?? 0));
+  state.world.healthAnnualCost = Math.max(0, Number(healthEffects.annualHealthCost ?? 0));
+  state.world.courtAnnualCost = Math.max(0, Number(courtEffects.annualCourtCost ?? 0));
+  state.world.taxBureauAnnualCost = Math.max(0, Number(taxBureauEffects.annualTaxCost ?? 0));
+  state.world.tradeBureauAnnualCost = Math.max(0, Number(tradeBureauEffects.annualTradeCost ?? 0));
+  state.world.engineeringBureauAnnualCost = Math.max(0, Number(engineeringBureauEffects.annualEngineeringCost ?? 0));
+
+  state.world.totalSalaryCost = annualWageBill + state.world.policeAnnualCost + state.world.healthAnnualCost + state.world.courtAnnualCost + state.world.taxBureauAnnualCost + state.world.tradeBureauAnnualCost + state.world.engineeringBureauAnnualCost;
+
+  applyPoliceCommerceEffects(state.world, policeEffects);
+  applyPoliceLifeQualityEffects(state.world, policeEffects);
+  const classes = getClasses();
+  classes.stabilityIndex = Math.max(0, Math.min(100, Number(classes.stabilityIndex ?? 0) + Number(policeEffects.stabilityDelta ?? 0)));
+
+  if (policeEffects.message) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: ${policeEffects.message}`);
+  }
+
+  if (healthEffects.lowHealth) {
+    state.world.consecutiveLowHealthYears = Math.max(0, Number(state.world.consecutiveLowHealthYears ?? 0)) + 1;
+  } else {
+    state.world.consecutiveLowHealthYears = 0;
+    state.world.diseaseOutbreak = false;
+  }
+
+  if (healthEffects.message) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: ${healthEffects.message}`);
+  }
+
+  applyCourtCommerceEffects(state.world, courtEffects);
+  applyCourtTaxLifeQualityEffects(state.world, courtEffects);
+  applyTradeBureauCommerceEffects(state.world, tradeBureauEffects);
+
+  if (courtEffects.merchantSatisfactionDelta) {
+    state.world.merchantEventModifier = Number(state.world.merchantEventModifier ?? 0) + Number(courtEffects.merchantSatisfactionDelta);
+  }
+
+  const cap = String(courtEffects.creditRatingCap ?? 'D');
+  const rank = { A: 4, B: 3, C: 2, D: 1 };
+  const monetary = getMonetary();
+  if ((rank[monetary.creditRating] ?? 3) > (rank[cap] ?? 1)) {
+    monetary.creditRating = cap;
+  }
+
+  if (courtEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${courtEffects.message}`);
+  if (taxBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${taxBureauEffects.message}`);
+  if (tradeBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${tradeBureauEffects.message}`);
+  if (engineeringBureauEffects.message) state.yearLog.unshift(`Year ${state.calendar.year}: ${engineeringBureauEffects.message}`);
+
+  if (policeEffects.paperInsufficient) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 警务纸张供应不足，效率下降。`);
+  }
+  if (policeEffects.talentInsufficient) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 警力人才不足`);
+  }
+}
+
+function updateEducation() {
+  // Education core settlement is executed in ageCohorts to preserve existing behavior.
+}
+
+function updateResearchPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.completedTech = updateResearch(state);
+}
+
+function updateDiplomacy() {
+  // Diplomacy yearly settlement currently happens inside economy update.
+}
+
+function updateSatisfaction() {
+  calculateLifeQuality(state.world);
+  calculateClassSatisfaction(state.world);
+}
+
+function triggerEvents() {
   if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
     const currentPop = Math.max(0, Number(state.population.totalPopulation ?? 0));
     const loss = Math.floor(currentPop * 0.05);
@@ -614,34 +679,43 @@ function nextYear() {
     state.world.consecutiveLowHealthYears = 0;
     state.yearLog.unshift(`Year ${state.calendar.year}: 瘟疫爆发，人口骤减5%（-${loss}）。`);
   }
+}
 
-  if (policeEffects.paperInsufficient) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 警务纸张供应不足，效率下降。`);
+function finalizeLedger() {
+  finalizeLedgerForYear();
+}
+
+function checkUnlocks() {
+  // Unlock checks run through policy/economy systems and render pass.
+}
+
+function updateYearLog() {
+  const schoolSettlement = state.__yearPipeline?.schoolSettlement;
+  const popResult = state.__yearPipeline?.popResult;
+  const econResult = state.__yearPipeline?.econResult;
+  const completedTech = state.__yearPipeline?.completedTech;
+  const debtResult = state.__yearPipeline?.debtResult;
+  const moneylenderResult = state.__yearPipeline?.moneylenderResult;
+
+  if (econResult) {
+    recordEconomySnapshot(econResult, true);
   }
-  if (policeEffects.talentInsufficient) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 警力人才不足`);
+
+  if (popResult && econResult) {
+    logYearSummary({
+      populationDelta: popResult.populationDelta,
+      agriculturalTax: econResult.agriculturalTax,
+      grainOutput: econResult.grainOutput,
+      potentialGrainOutput: econResult.potentialGrainOutput,
+      lostGrainOutput: econResult.lostGrainOutput,
+    });
   }
 
-  if ((state.world.landlordSatisfaction ?? 70) < 40) {
-    const blockedFarmland = Math.max(0, state.land.pendingFarmlandMu ?? 0);
-    if (blockedFarmland > 0) {
-      state.land.pendingFarmlandMu = 0;
-      state.world.reclaimedThisYear = 0;
-    }
+  if (schoolSettlement?.edu) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 学校结算：在校生 P/S/H = ${schoolSettlement.edu.primaryEnrolled}/${schoolSettlement.edu.secondaryEnrolled}/${schoolSettlement.edu.higherEnrolled}；毕业生 +${schoolSettlement.edu.annualPrimaryGrads}/+${schoolSettlement.edu.annualSecondaryGrads}/+${schoolSettlement.edu.annualHigherGrads}。`);
+    state.yearLog.unshift(`Year ${state.calendar.year}: 教育财政：官办教育支出 ${Math.round(schoolSettlement.govCost)}，商办学费流入商人收入池 ${Math.round(schoolSettlement.commercialTuition)}，学子下乡支出 ${Math.round(schoolSettlement.downCost)}。`);
   }
 
-  recordEconomySnapshot(econResult, true);
-
-  logYearSummary({
-    populationDelta: popResult.populationDelta,
-    agriculturalTax: econResult.agriculturalTax,
-    grainOutput: econResult.grainOutput,
-    potentialGrainOutput: econResult.potentialGrainOutput,
-    lostGrainOutput: econResult.lostGrainOutput,
-  });
-
-  state.yearLog.unshift(`Year ${state.calendar.year}: 学校结算：在校生 P/S/H = ${schoolSettlement.edu.primaryEnrolled}/${schoolSettlement.edu.secondaryEnrolled}/${schoolSettlement.edu.higherEnrolled}；毕业生 +${schoolSettlement.edu.annualPrimaryGrads}/+${schoolSettlement.edu.annualSecondaryGrads}/+${schoolSettlement.edu.annualHigherGrads}。`);
-  state.yearLog.unshift(`Year ${state.calendar.year}: 教育财政：官办教育支出 ${Math.round(schoolSettlement.govCost)}，商办学费流入商人收入池 ${Math.round(schoolSettlement.commercialTuition)}，学子下乡支出 ${Math.round(schoolSettlement.downCost)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 官员薪俸结算：总额 ${Math.round(getFiscal().totalWageBill ?? 0)}（粮/劵按薪资比例支付）。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 警务支出结算：警员${Math.round(state.world.policeOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.policeAnnualCost ?? 0)}。`);
   state.yearLog.unshift(`Year ${state.calendar.year}: 卫生支出结算：卫生员${Math.round(state.world.healthOfficerCount ?? 0)}人，年成本 ${Math.round(state.world.healthAnnualCost ?? 0)}，健康指数 ${Math.round(state.world.healthIndex ?? 50)}。`);
@@ -651,15 +725,15 @@ function nextYear() {
     `Year ${state.calendar.year}: GDP构成：农业${Math.round(state.world.agricultureGDP ?? 0)}（粮${Math.round(state.world.grainGDP ?? 0)}/布${Math.round(state.world.clothGDP ?? 0)}），商业${Math.round(state.world.commerceGDP ?? 0)}，建设${Math.round(state.world.constructionGDP ?? 0)}（当年建设支出${Math.round(state.world.constructionSpendingThisYear ?? 0)}），政府${Math.round(state.world.governmentGDP ?? 0)}，总计${Math.round(state.world.gdpEstimate ?? 0)}。`
   );
 
-  if (econResult.creditCrisisTriggered) {
+  if (econResult?.creditCrisisTriggered) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 粮劵信用崩塌，市场发生挤兑`);
   }
 
-  (econResult.behaviorMessages ?? []).forEach((message) => {
+  (econResult?.behaviorMessages ?? []).forEach((message) => {
     state.yearLog.unshift(`Year ${state.calendar.year}: ${message}`);
   });
 
-  (econResult.diplomacyMessages ?? []).forEach((message) => {
+  (econResult?.diplomacyMessages ?? []).forEach((message) => {
     state.yearLog.unshift(`Year ${state.calendar.year}: ${message}`);
   });
 
@@ -667,14 +741,7 @@ function nextYear() {
     state.yearLog.unshift(`Year ${state.calendar.year}: 技术研究完成 - ${completedTech.name}。`);
   }
 
-  calculateLifeQuality(state.world);
-  calculateClassSatisfaction(state.world);
-
-  syncMoneylenderCaps(state.world);
-  if (canUseMoneylenderSystem(state.world)) {
-    const debtResult = processGovernmentDebtYear(state.world);
-    const moneylenderResult = finalizeMoneylenderYear(state.world, debtResult.interestDue);
-
+  if (debtResult && moneylenderResult) {
     state.yearLog.unshift(
       `Year ${state.calendar.year}: 债务结算：利息${Math.round(debtResult.interestDue)}（${Math.round(
         debtResult.interestRate * 100
@@ -700,11 +767,47 @@ function nextYear() {
     });
   }
 
-  finalizeLedgerForYear();
   state.world.constructionSpendingThisYear = 0;
+}
 
-  saveGame(state, { auto: true });
+// Year pipeline order is sacred. Keep this sequence unchanged.
+const YEAR_PIPELINE = [
+  { name: 'resetAnnualFlags', fn: resetAnnualFlags },
+  { name: 'ageCohorts', fn: ageCohorts },
+  { name: 'allocateLabor', fn: allocateLabor },
+  { name: 'produceGoods', fn: produceGoods },
+  { name: 'settleMarket', fn: settleMarket },
+  { name: 'collectTaxes', fn: collectTaxes },
+  { name: 'payWages', fn: payWages },
+  { name: 'updateMoney', fn: updateMoney },
+  { name: 'processPendingConstruction', fn: processPendingConstruction },
+  { name: 'updateInstitutions', fn: updateInstitutions },
+  { name: 'updateEducation', fn: updateEducation },
+  { name: 'updateResearch', fn: updateResearchPhase },
+  { name: 'updateDiplomacy', fn: updateDiplomacy },
+  { name: 'updateSatisfaction', fn: updateSatisfaction },
+  { name: 'triggerEvents', fn: triggerEvents },
+  { name: 'finalizeLedger', fn: finalizeLedger },
+  { name: 'checkUnlocks', fn: checkUnlocks },
+  { name: 'updateYearLog', fn: updateYearLog },
+];
+
+function advanceYear(gameState = state) {
+  gameState.calendar.year += 1;
+  gameState.__yearPipeline = {};
+
+  for (const phase of YEAR_PIPELINE) {
+    try {
+      phase.fn(gameState);
+    } catch (err) {
+      console.error(`Pipeline error in ${phase.name}:`, err);
+      gameState.yearLog.push(`[错误] ${phase.name} 执行失败`);
+    }
+  }
+
+  delete gameState.__yearPipeline;
   render();
+  saveGame(gameState, { auto: true });
 }
 
 function startResearchById(techId) {
@@ -1307,7 +1410,7 @@ function handleResetGame() {
 }
 
 function bindEvents() {
-  document.getElementById('next-year-btn').addEventListener('click', nextYear);
+  document.getElementById('next-year-btn').addEventListener('click', advanceYear);
   document.getElementById('issue-coupon-btn').addEventListener('click', issueCouponsFromInput);
   document.addEventListener('click', (event) => {
     const target = event.target;
