@@ -8,7 +8,7 @@ import {
   INFLATION_RATE_MID,
   INFLATION_RATE_HIGH,
 } from '../config/constants.js';
-import { consume, produce, mint, burn } from './transfer.js';
+import { transfer, mint, burn } from './transfer.js';
 
 function clampMoney(value) {
   const n = Number(value ?? 0);
@@ -159,32 +159,16 @@ export function issueGrainCoupons(state, amount) {
 
   const denominationBreakdown = getCouponDenominationBreakdown(issueAmount);
 
-  const consumed = consume({
+  const movedGrain = transfer({
     from: 'private.farmer.grain',
-    asset: 'grain',
-    amount: issueAmount,
-    reason: 'coupon_backing_purchase',
-  }, state);
-  if (!consumed) {
-    return { success: false, reason: 'Insufficient farmer grain for coupon backing purchase.' };
-  }
-
-  const locked = produce({
     to: 'monetary.locked',
     asset: 'grain',
     amount: issueAmount,
     gdpTreatment: 'none',
-    reason: 'grain_locked_as_reserve',
+    reason: 'coupon_backing_purchase',
   }, state);
-  if (!locked) {
-    produce({
-      to: 'private.farmer.grain',
-      asset: 'grain',
-      amount: issueAmount,
-      gdpTreatment: 'none',
-      reason: 'coupon_issue_rollback',
-    }, state);
-    return { success: false, reason: 'Failed to lock grain reserve for issuance.' };
+  if (!movedGrain) {
+    return { success: false, reason: 'Insufficient farmer grain for coupon backing purchase.' };
   }
 
   const minted = mint({
@@ -195,13 +179,8 @@ export function issueGrainCoupons(state, amount) {
   }, state);
 
   if (!minted) {
-    consume({
+    transfer({
       from: 'monetary.locked',
-      asset: 'grain',
-      amount: issueAmount,
-      reason: 'coupon_issue_rollback',
-    }, state);
-    produce({
       to: 'private.farmer.grain',
       asset: 'grain',
       amount: issueAmount,
@@ -246,109 +225,33 @@ export function redeemGrainCoupons(state, amount) {
     return { success: false, reason: `Redeem amount exceeds locked reserve (${lockedReserve}).` };
   }
 
-  const farmerCouponConsumed = consume({
-    from: 'private.farmer.coupon',
-    asset: 'coupon',
-    amount: redeemAmount,
-    reason: 'coupon_redemption_collection',
-  }, state);
-  if (!farmerCouponConsumed) {
-    return { success: false, reason: 'Insufficient farmer coupon balance for redemption.' };
-  }
-
-  const movedToCirculating = produce({
-    to: 'monetary.circulating',
-    asset: 'coupon',
-    amount: redeemAmount,
-    gdpTreatment: 'none',
-    reason: 'coupon_redemption_pooling',
-  }, state);
-  if (!movedToCirculating) {
-    produce({
-      to: 'private.farmer.coupon',
-      asset: 'coupon',
-      amount: redeemAmount,
-      gdpTreatment: 'none',
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    return { success: false, reason: 'Unable to pool coupons for redemption burn.' };
-  }
-
   const burned = burn({
-    from: 'monetary.circulating',
+    from: 'private.farmer.coupon',
     asset: 'coupon',
     amount: redeemAmount,
     reason: 'coupon_redemption',
   }, state);
   if (!burned) {
-    consume({
-      from: 'monetary.circulating',
-      asset: 'coupon',
-      amount: redeemAmount,
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    produce({
-      to: 'private.farmer.coupon',
-      asset: 'coupon',
-      amount: redeemAmount,
-      gdpTreatment: 'none',
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    return { success: false, reason: 'Coupon burn operation failed.' };
+    return { success: false, reason: 'Insufficient farmer coupon balance for redemption.' };
   }
 
-  const reserveReleased = consume({
+  const released = transfer({
     from: 'monetary.locked',
-    asset: 'grain',
-    amount: redeemAmount,
-    reason: 'reserve_release',
-  }, state);
-  if (!reserveReleased) {
-    mint({
-      to: 'private.farmer.coupon',
-      asset: 'coupon',
-      amount: redeemAmount,
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    produce({
-      to: 'monetary.locked',
-      asset: 'grain',
-      amount: redeemAmount,
-      gdpTreatment: 'none',
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    return { success: false, reason: 'Insufficient locked grain reserve for redemption.' };
-  }
-
-  const grainReturned = produce({
     to: 'private.farmer.grain',
     asset: 'grain',
     amount: redeemAmount,
     gdpTreatment: 'none',
-    reason: 'grain_returned_to_farmer',
+    reason: 'grain_reserve_release',
   }, state);
 
-  if (!grainReturned) {
-    consume({
-      from: 'private.farmer.grain',
-      asset: 'grain',
-      amount: redeemAmount,
-      reason: 'coupon_redemption_rollback',
-    }, state);
-    produce({
-      to: 'monetary.locked',
-      asset: 'grain',
-      amount: redeemAmount,
-      gdpTreatment: 'none',
-      reason: 'coupon_redemption_rollback',
-    }, state);
+  if (!released) {
     mint({
       to: 'private.farmer.coupon',
       asset: 'coupon',
       amount: redeemAmount,
       reason: 'coupon_redemption_rollback',
     }, state);
-    return { success: false, reason: 'Failed to return grain to farmer.' };
+    return { success: false, reason: 'Insufficient locked grain reserve for redemption.' };
   }
 
   return {
