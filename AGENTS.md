@@ -457,3 +457,85 @@ ui/render_economy.js ui/render_buildings.js
 - Pop panel visible in 社会 tab
 - yearLog records pop satisfaction changes
 - Pop sizes update with labor allocation changes
+## Current Phase: 10H - De-duplicate Authority
+
+Stop all feature work. Fix 3 critical
+authority conflicts between old and new systems.
+
+FIX 1: Farmland double production
+In buildingEngine.js calculateAllBuildingOutputs():
+Skip farmland building entirely for now:
+if (building.id === 'farmland') continue;
+Farmland production stays in agriculture.js only.
+Remove any world.grainTreasury writes from
+buildingEngine.js
+
+FIX 2: Commodity market overwrites treasury
+In commodityMarket.js, remove these lines:
+state.world.grainTreasury = state.commodities.grain
+state.world.saltReserve = state.commodities.salt
+state.world.clothReserve = state.commodities.cloth
+Replace with display-only fields:
+state.world.marketGrainInventory = state.commodities.grain
+state.world.marketSaltInventory = state.commodities.salt
+state.world.marketClothInventory = state.commodities.cloth
+Commodity market NEVER writes to treasury fields.
+
+FIX 3: Pop system overwrites laborForce
+In popSystem.js, remove:
+world.laborForce = ...
+Replace with:
+world.popLaborForceEstimate = totalPopLabor
+Real laborForce only comes from population.js
+
+FIX 4: Commodity market stops modifying inventory
+In commodityMarket.js settleCommodityMarket():
+Do NOT execute: state.commodities[c] = inventory + netFlow
+Instead only update prices:
+state.commodityPrices[c].supply = supply
+state.commodityPrices[c].demand = demand
+state.commodityPrices[c].netFlow = netFlow
+Price calculation still runs normally.
+Inventory changes will come from proper
+produce/consume calls in future phases.
+
+FIX 5: YearLog length limit
+Add helper function to game.js:
+function addYearLog(state, msg) {
+  if (!state.logs) state.logs = {}
+  if (!state.logs.yearLog) state.logs.yearLog = []
+  state.logs.yearLog.unshift(msg)
+  if (state.logs.yearLog.length > 200)
+    state.logs.yearLog.length = 200
+}
+Replace all direct yearLog.unshift() calls
+in commodityMarket.js and popSystem.js
+with addYearLog(state, msg)
+
+Authority table (document in comments):
+- Population/laborForce: population.js ONLY
+- Pop satisfaction: popSystem.js ONLY  
+- Commodity prices: commodityMarket.js ONLY
+- Commodity inventory: commodities object
+  (not overwritten by treasury or vice versa)
+- Government grain: world.grainTreasury
+  (never overwritten by commodities)
+- Production: agriculture.js (farmland)
+  buildingEngine.js (other buildings)
+
+Files to modify:
+- js/buildings/buildingEngine.js (fix 1)
+- js/economy/commodityMarket.js (fix 2 + fix 4 + fix 5)
+- js/society/popSystem.js (fix 3 + fix 5)
+- js/game.js (fix 5 helper function)
+
+Do NOT touch any other files.
+
+Definition of Done (Phase 10H):
+- Grain produced exactly once per year
+- world.grainTreasury never overwritten by commodities
+- world.laborForce only written by population.js
+- Commodity market only updates prices not inventory
+- yearLog capped at 200 entries
+- Next Year button works correctly
+- No NaN in grain/population displays
