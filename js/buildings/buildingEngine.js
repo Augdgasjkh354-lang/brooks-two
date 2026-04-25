@@ -37,6 +37,20 @@ function getMonetary(state) {
   return state?.monetary ?? state?.world?.__monetary ?? state?.world ?? state;
 }
 
+
+const INPUT_OVERRIDES = {
+  blacksmith: { iron_ore: 100, charcoal: 50 },
+  kiln: { clay: 100, charcoal: 30 },
+  paper_mill: { paper_material: 50 },
+  medicine_hall: { herbs: 50 },
+  barracks: { weapons: 10, grain: 50000 },
+};
+
+function getBaseInputs(buildingType) {
+  const override = INPUT_OVERRIDES[buildingType?.id];
+  return override ? { ...override } : { ...(buildingType?.baseInputs ?? {}) };
+}
+
 function canUseBuilding(buildingType, state) {
   if (!buildingType) return false;
   const unlockFlag = buildingType.unlockFlag;
@@ -125,7 +139,7 @@ export function calculateBuildingOutput(building, count, state, availableCommodi
   const inputMultiplier = Number(method?.inputMultiplier ?? 1);
   const laborMultiplier = Number(method?.laborMultiplier ?? 1);
 
-  const requiredInputs = scaleRecord(buildingType.baseInputs ?? {}, inputMultiplier, unitCount);
+  const requiredInputs = scaleRecord(getBaseInputs(buildingType), inputMultiplier, unitCount);
   const commodityPool = availableCommodities ?? getRootState(state).commodities ?? {};
   const availabilityRatio = computeInputAvailability(requiredInputs, commodityPool);
   const inputsConsumed = scaleRecord(requiredInputs, availabilityRatio, 1);
