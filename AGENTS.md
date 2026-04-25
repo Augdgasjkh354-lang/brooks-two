@@ -6980,3 +6980,190 @@ don't work. Fix click handlers only.
 - Click unknown faction: panel shows mystery text
 - Click X or map background: panel closes
 - Smooth slide animation works
+## Phase 10B: Year Pipeline Refactor (Current)
+
+Phase 10A complete. Now refactoring nextYear()
+into a clean pipeline before adding new systems.
+
+**Goal:** Replace monolithic nextYear() with ordered
+pipeline. Each phase only reads/writes its own data.
+Future systems plug into specific pipeline phases.
+
+**New pipeline structure in game.js:**
+
+const YEAR_PIPELINE = [
+  { name: 'resetAnnualFlags', fn: resetAnnualFlags },
+  { name: 'ageCohorts', fn: ageCohorts },
+  { name: 'allocateLabor', fn: allocateLabor },
+  { name: 'produceGoods', fn: produceGoods },
+  { name: 'settleMarket', fn: settleMarket },
+  { name: 'collectTaxes', fn: collectTaxes },
+  { name: 'payWages', fn: payWages },
+  { name: 'updateMoney', fn: updateMoney },
+  { name: 'processPendingConstruction',
+    fn: processPendingConstruction },
+  { name: 'updateInstitutions',
+    fn: updateInstitutions },
+  { name: 'updateEducation', fn: updateEducation },
+  { name: 'updateResearch', fn: updateResearch },
+  { name: 'updateDiplomacy', fn: updateDiplomacy },
+  { name: 'updateSatisfaction',
+    fn: updateSatisfaction },
+  { name: 'triggerEvents', fn: triggerEvents },
+  { name: 'finalizeLedger', fn: finalizeLedger },
+  { name: 'checkUnlocks', fn: checkUnlocks },
+  { name: 'updateYearLog', fn: updateYearLog }
+]
+
+function advanceYear(state) {
+  state.calendar.year += 1
+  for (const phase of YEAR_PIPELINE) {
+    try {
+      phase.fn(state)
+    } catch (err) {
+      console.error(`Pipeline error in
+        ${phase.name}:`, err)
+      state.logs.yearLog.push(
+        `[错误] ${phase.name} 执行失败`)
+    }
+  }
+  renderAll(state)
+  saveGame(state)
+}
+
+**Pipeline phase responsibilities:**
+
+resetAnnualFlags:
+- Reset all per-year counters to 0
+- Clear eventModifiers
+- Reset constructionSpendingThisYear = 0
+- Reset saltTradeUsed, clothTradeUsed etc
+
+ageCohorts:
+- Process age group transitions
+- Calculate births and deaths
+- Update totalPopulation and laborForce
+- Uses: society/population.js
+
+allocateLabor:
+- Softmax labor allocation
+- Calculate unemployment
+- Uses: economy/labor.js
+
+produceGoods:
+- Grain output calculation
+- Cloth/silk output
+- Salt (if any local production)
+- Hemp/mulberry byproducts
+- Uses: economy/agriculture.js
+
+settleMarket:
+- Salt/cloth/grain price updates
+- Supply/demand calculations
+- Coupon circulation effects
+- Uses: economy/market.js
+
+collectTaxes:
+- Agricultural tax
+- Commerce tax
+- Land tax
+- Rent collection
+- Fire leakage calculation
+- Uses: economy/agriculture.js
+
+payWages:
+- All civil servant wages
+- Institution operating costs
+- Education costs
+- Uses: society/stability.js
+
+updateMoney:
+- Inflation calculation
+- Backing ratio
+- Credit crisis check
+- Debt interest
+- Civilian loan repayment
+- Uses: economy/currency.js
+
+processPendingConstruction:
+- Check pending canals completion
+- Check pending farmland
+- Check pending hemp/mulberry maturation
+- Uses: game.js (inline)
+
+updateInstitutions:
+- Police ratio effects
+- Court efficiency effects
+- Health bureau effects
+- Tax bureau efficiency
+- Trade bureau effects
+- Engineering bureau effects
+- Uses: society/stability.js
+
+updateEducation:
+- School enrollment
+- Graduate calculation
+- Talent pool updates
+- Literacy growth
+- Uses: society/population.js
+
+updateResearch:
+- Tech progress
+- Tech completion and effects
+- Uses: tech/research.js
+
+updateDiplomacy:
+- Xikou annual economy
+- Attitude changes
+- Trade settlement
+- Uses: diplomacy/xikou.js
+
+updateSatisfaction:
+- Life quality calculation
+- Event modifier application
+- Final satisfaction values
+- Uses: society/satisfaction.js
+
+triggerEvents:
+- Placeholder for future event system
+- Currently: disease outbreak check
+- Uses: society/population.js
+
+finalizeLedger:
+- Calculate totals
+- Push to ledgerHistory
+- GDP calculation
+- Uses: economy/transfer.js
+
+checkUnlocks:
+- Check all unlock conditions
+- Uses: unlocks.js
+
+updateYearLog:
+- Compile year summary
+- Push to yearLog
+- Uses: game.js (inline)
+
+**Rules:**
+- Each phase function takes (state) as only arg
+- Each phase returns nothing (mutates state)
+- No phase calls another phase directly
+- Error in one phase does not stop pipeline
+- Pipeline order is sacred - do not reorder
+
+**Files to modify:**
+- js/game.js (main pipeline refactor)
+
+**Do NOT touch:** any other files whatsoever.
+All existing functions stay where they are.
+game.js just reorganizes HOW they are called.
+
+**Definition of Done (Phase 10B):**
+- advanceYear() replaces old nextYear()
+- All 18 pipeline phases defined and called
+- Each phase wraps existing function calls
+- Error handling per phase
+- Pipeline order documented in comments
+- Game runs identically after refactor
+- Next Year button calls advanceYear()
+- Auto-save still happens at end
