@@ -2,6 +2,7 @@ import {
   INITIAL_POPULATION, INITIAL_LABOR_FORCE, INITIAL_CHILDREN, INITIAL_ELDERLY,
   INITIAL_FARMLAND_MU, BASE_GRAIN_YIELD_PER_MU, SALT_BASE_PRICE, CLOTH_BASE_PRICE,
   MONEYLENDER_LICENSE_FEE, MONEYLENDER_DEFAULT_TAX, BASE_STABILITY, FARMER_INIT_LITERACY,
+  MERCHANT_POP_INIT_LITERACY, OFFICIAL_INIT_LITERACY, WORKER_INIT_LITERACY,
   SCHOOL_LICENSE_FEE, XIKOU_INIT_POPULATION, XIKOU_INIT_LABOR, XIKOU_FARMLAND_MU,
   XIKOU_MULBERRY_MU, XIKOU_HEMP_MU, XIKOU_SALT_OUTPUT
 } from './config/constants.js';
@@ -701,6 +702,60 @@ export const initialState = {
     antiCounterfeitResearched: false,
     grainCouponsUnlocked: false,
   },
+  pops: [
+    {
+      id: 'pop_001',
+      type: 'farmer',
+      size: 30,
+      wealth: 500,
+      needs: { grain: 360, salt: 15, cloth: 0.3, medicine: 0.05 },
+      needsSatisfied: { grain: 1, salt: 1, cloth: 1, medicine: 1 },
+      politicalLeaning: 'conservative',
+      literacy: FARMER_INIT_LITERACY,
+      satisfaction: 50,
+      income: 1500,
+      savings: 0,
+    },
+    {
+      id: 'pop_002',
+      type: 'worker',
+      size: 0,
+      wealth: 500,
+      needs: { grain: 360, salt: 15, cloth: 0.35, medicine: 0.08 },
+      needsSatisfied: { grain: 1, salt: 1, cloth: 1, medicine: 1 },
+      politicalLeaning: 'reformist',
+      literacy: WORKER_INIT_LITERACY,
+      satisfaction: 50,
+      income: 0,
+      savings: 0,
+    },
+    {
+      id: 'pop_003',
+      type: 'merchant',
+      size: 0,
+      wealth: 600,
+      needs: { grain: 320, salt: 18, cloth: 0.45, medicine: 0.08 },
+      needsSatisfied: { grain: 1, salt: 1, cloth: 1, medicine: 1 },
+      politicalLeaning: 'conservative',
+      literacy: MERCHANT_POP_INIT_LITERACY,
+      satisfaction: 50,
+      income: 0,
+      savings: 0,
+    },
+    {
+      id: 'pop_004',
+      type: 'official',
+      size: 0,
+      wealth: 700,
+      needs: { grain: 300, salt: 20, cloth: 0.5, medicine: 0.1 },
+      needsSatisfied: { grain: 1, salt: 1, cloth: 1, medicine: 1 },
+      politicalLeaning: 'conservative',
+      literacy: OFFICIAL_INIT_LITERACY,
+      satisfaction: 50,
+      income: 0,
+      savings: 0,
+    },
+  ],
   research: {
     currentTech: null,
     yearsRemaining: 0,
@@ -1154,6 +1209,12 @@ function defineCompatAccessors(state) {
     enumerable: false,
     configurable: true,
   });
+  Object.defineProperty(state.world, '__pops', {
+    value: state.pops,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
   Object.defineProperty(state.world, '__land', {
     value: state.land,
     writable: true,
@@ -1272,6 +1333,7 @@ export function createGameState() {
   state.world.pendingMulberryProjects = [];
   state.world.__buildings = state.buildings;
   state.world.__commodities = state.commodities;
+  state.world.__pops = state.pops;
 
   ensureCommodityState(state);
 

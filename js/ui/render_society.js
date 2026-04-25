@@ -24,6 +24,38 @@ export function getLifeQualityDisplay(score) {
   return { color: '#b42318', label: 'Poor' };
 }
 
+function getPopDisplayName(type) {
+  const map = { farmer: 'Farmer', worker: 'Worker', merchant: 'Merchant', official: 'Official', scholar: 'Scholar' };
+  return map[type] ?? type;
+}
+
+function getPopPanelHtml(state) {
+  const pops = Array.isArray(state.pops) ? state.pops : [];
+  if (!pops.length) return '<div class="muted">No pop data.</div>';
+
+  const formatLean = (lean) => ({ conservative: 'Conservative', reformist: 'Reformist', radical: 'Radical' }[lean] ?? lean);
+  const rows = pops.map((pop) => `
+    <div class="stat-item">
+      <div class="stat-label"><strong>${getPopDisplayName(pop.type)}</strong> (${formatNumber(Math.max(0, Number(pop.size ?? 0) * 100))} people)</div>
+      <div class="stat-value">
+        财富 ${formatDecimal(pop.wealth ?? 0, 2)} / 满意度 ${formatNumber(pop.satisfaction ?? 50)} / 立场 ${formatLean(pop.politicalLeaning)}
+      </div>
+      <div class="muted">需求满足：粮 ${formatDecimal((pop.needsSatisfied?.grain ?? 0) * 100, 0)}% · 盐 ${formatDecimal((pop.needsSatisfied?.salt ?? 0) * 100, 0)}% · 布 ${formatDecimal((pop.needsSatisfied?.cloth ?? 0) * 100, 0)}% · 药 ${formatDecimal((pop.needsSatisfied?.medicine ?? 0) * 100, 0)}%</div>
+    </div>
+  `).join('');
+
+  const political = state.world?.popPoliticalDistribution ?? { conservative: 0, reformist: 0, radical: 0 };
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${rows}
+      <div class="stat-item">
+        <div class="stat-label"><strong>Political Distribution</strong></div>
+        <div class="stat-value">Conservative ${formatNumber(political.conservative ?? 0)} / Reformist ${formatNumber(political.reformist ?? 0)} / Radical ${formatNumber(political.radical ?? 0)}</div>
+      </div>
+    </div>
+  `;
+}
+
 export function getClassLifeQualityFactors(world) {
   const classes = getClasses(world);
   const farmerFactors = [];
@@ -789,6 +821,8 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Current Enrollment (P/S/H)', `${formatNumber(education.primaryEnrolled ?? 0)} / ${formatNumber(education.secondaryEnrolled ?? 0)} / ${formatNumber(education.higherEnrolled ?? 0)}`)}
       ${statItem('Higher School Unlock', world.higherSchoolUnlocked ? 'Unlocked' : 'Locked')}
     </div></section>
+
+    <section class="panel"><h2>Pop Overview</h2>${getPopPanelHtml(state)}</section>
 
     <section class="panel"><h2>Professional Talent Pool</h2><div class="tab-grid">
       ${statItem('Admin Talent (Total / Deployed / Available)', `${formatTalent(world.adminTalent ?? 0)} / ${formatTalent(world.adminTalentDeployed ?? 0)} / ${formatTalent(Math.max(0, (world.adminTalent ?? 0) - (world.adminTalentDeployed ?? 0)))}`)}
