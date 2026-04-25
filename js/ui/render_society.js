@@ -1,6 +1,7 @@
 import { formatNumber, formatDecimal, statItem, getPopulationGrowthDisplayDetails } from './render_world.js';
 import { BUREAUCRACY_POLICY_DEFS, activateBureaucracyPolicy } from '../society/stability.js';
 import { canUseMoneylenderSystem } from '../economy/commerce.js';
+import { getGroupPolicyOptions } from '../society/interestGroups.js';
 
 const GRAIN_REDISTRIBUTION_COST = 3000000;
 
@@ -54,6 +55,37 @@ function getPopPanelHtml(state) {
       </div>
     </div>
   `;
+}
+
+function getInterestGroupsPanelHtml(state) {
+  const groups = state.interestGroups ?? state.world?.__interestGroups ?? {};
+  const options = getGroupPolicyOptions(state);
+  const rows = Object.values(groups)
+    .filter((group) => group?.unlocked)
+    .sort((a, b) => Number(b.power ?? 0) - Number(a.power ?? 0))
+    .map((group) => {
+      const sat = Number(group.satisfaction ?? 50);
+      const color = sat > 60 ? '#1b8a3b' : sat >= 40 ? '#b28704' : '#b42318';
+      const metPct = Math.round(Number(group.currentDemandsMet ?? 0) * 100);
+      const appeaseEnabled = options.some((opt) => opt.groupId === group.id && opt.type === 'appease');
+      const crisisWarn = sat < 20 ? '<div style="color:#b42318;font-weight:700;">⚠ 危机风险：连续 3 年低于 20 将触发政治危机</div>' : '';
+      return `
+      <div class="stat-item" style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+        <div class="stat-label"><strong>${group.icon} ${group.name}</strong></div>
+        <div class="stat-value">规模 ${formatNumber(group.size ?? 0)} / 满意度 <span style="color:${color};font-weight:700;">${formatNumber(sat)}</span> / 权力 ${formatNumber(group.power ?? 0)}</div>
+        <div class="muted">诉求满足率：${metPct}%</div>
+        <div style="height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden;margin:6px 0;">
+          <div style="height:100%;width:${Math.max(0, Math.min(100, metPct))}%;background:${color};"></div>
+        </div>
+        ${crisisWarn}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+          <button class="interest-group-policy-btn" data-group-id="${group.id}" data-policy-type="appease" ${appeaseEnabled ? '' : 'disabled'}>安抚</button>
+        </div>
+      </div>`;
+    }).join('');
+
+  if (!rows) return '<div class="muted">暂无已解锁利益集团。</div>';
+  return `<div style="display:flex;flex-direction:column;gap:8px;">${rows}</div>`;
 }
 
 export function getClassLifeQualityFactors(world) {
@@ -780,6 +812,19 @@ function bindGovernmentPanelEvents() {
   });
 }
 
+function bindInterestGroupEvents() {
+  document.querySelectorAll('.interest-group-policy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('interest-group:policy', {
+        detail: {
+          groupId: btn.getAttribute('data-group-id'),
+          policyType: btn.getAttribute('data-policy-type') ?? 'appease',
+        },
+      }));
+    });
+  });
+}
+
 export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption) {
   const world = state.world;
   const classes = state.classes ?? world.__classes ?? world;
@@ -823,6 +868,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
     </div></section>
 
     <section class="panel"><h2>Pop Overview</h2>${getPopPanelHtml(state)}</section>
+    <section class="panel"><h2>Interest Groups</h2>${getInterestGroupsPanelHtml(state)}</section>
 
     <section class="panel"><h2>Professional Talent Pool</h2><div class="tab-grid">
       ${statItem('Admin Talent (Total / Deployed / Available)', `${formatTalent(world.adminTalent ?? 0)} / ${formatTalent(world.adminTalentDeployed ?? 0)} / ${formatTalent(Math.max(0, (world.adminTalent ?? 0) - (world.adminTalentDeployed ?? 0)))}`)}
@@ -895,6 +941,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
   bindMoneylenderPolicyEvents(state);
   bindSchoolEvents(state);
   bindGovernmentPanelEvents();
+  bindInterestGroupEvents();
   const canalBtn = document.getElementById('build-irrigation-canal-btn');
   const wallBtn = document.getElementById('build-wall-reinforcement-btn');
   const granaryBtn = document.getElementById('build-granary-expansion-btn');
