@@ -66,7 +66,7 @@ export function getActiveBehaviorWarnings(world) {
   if ((classes.merchantSatisfaction ?? 70) < 20) warnings.push('商业市场大规模萎缩');
   else if ((classes.merchantSatisfaction ?? 70) < 40) warnings.push('商人拒收粮劵，改用实物交易');
   if ((classes.officialSatisfaction ?? 70) < 40) warnings.push('官员消极，政策执行力下降（政策效果 -20%，稳定度额外 -10）');
-  if ((classes.landlordSatisfaction ?? 70) < 40) warnings.push('地主抵制开荒，土地扩张受阻');
+  if (false && (classes.landlordSatisfaction ?? 70) < 40) warnings.push('地主抵制开荒，土地扩张受阻');
   return warnings;
 }
 
@@ -311,7 +311,10 @@ function bindMoneylenderPolicyEvents(state) {
 }
 
 function getLandRentControlsHtml(world) {
-  const rentRate = Math.max(0, Math.min(20, Number(world?.farmlandRentRate ?? 0)));
+  const rentRate = 0;
+  if (false) {
+    Math.max(0, Math.min(20, Number(world?.farmlandRentRate ?? 0)));
+  }
   return `
     <div style="display:flex;flex-direction:column;gap:8px;">
       <label for="farmland-rent-rate-input">Farmland Rent Rate (${formatDecimal(rentRate, 1)} jin/mu/year)</label>
@@ -327,11 +330,15 @@ function bindLandRentEvents(state) {
   const value = document.getElementById('farmland-rent-rate-value');
   if (!input || !value) return;
 
-  input.addEventListener('input', () => {
-    const next = Math.max(0, Math.min(20, Number(input.value ?? 0)));
-    state.world.farmlandRentRate = next;
-    value.textContent = `Current: ${formatDecimal(next, 1)} jin/mu/year`;
-  });
+  if (false) {
+    input.addEventListener('input', () => {
+      const next = Math.max(0, Math.min(20, Number(input.value ?? 0)));
+      state.world.farmlandRentRate = next;
+      value.textContent = `Current: ${formatDecimal(next, 1)} jin/mu/year`;
+    });
+  }
+  state.world.farmlandRentRate = 0;
+  value.textContent = 'Current: 0.0 jin/mu/year';
 }
 
 function formatLiteracyPercent(value) {
@@ -417,7 +424,7 @@ function getLiteracyEffectsSummary(world) {
     merchant: `商业效率 +${formatDecimal(merchantBonus * 100, 1)}%`,
     official: `政策执行效率 ${formatDecimal(officialEfficiency * 100, 1)}% / 稳定惩罚减免 ${formatDecimal(stabilityReduction * 100, 1)}%`,
     worker: `纺织产出 +${formatDecimal(textileBonus * 100, 1)}%`,
-    landlord: `开荒效率 ${formatDecimal(landReclaimEfficiency * 100, 1)}%`,
+    landlord: '地主阶层已禁用',
   };
 }
 
@@ -775,9 +782,8 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Merchant Literacy', `${formatLiteracyPercent(world.merchantLiteracy ?? 0)} (${literacyEffects.merchant})`)}
       ${statItem('Official Literacy', `${formatLiteracyPercent(world.officialLiteracy ?? 0)} (${literacyEffects.official})`)}
       ${statItem('Worker Literacy', `${formatLiteracyPercent(world.workerLiteracy ?? 0)} (${literacyEffects.worker})`)}
-      ${statItem('Landlord Literacy', `${formatLiteracyPercent(world.landlordLiteracy ?? 0)} (${literacyEffects.landlord})`)}
-      ${statItem('Literacy Caps (F/M/O/W/L)', `${formatLiteracyPercent(world.literacyCaps?.farmer ?? 0.15)} / ${formatLiteracyPercent(world.literacyCaps?.merchant ?? 0.4)} / ${formatLiteracyPercent(world.literacyCaps?.official ?? 0.7)} / ${formatLiteracyPercent(world.literacyCaps?.worker ?? 0.2)} / ${formatLiteracyPercent(world.literacyCaps?.landlord ?? 0.35)}`)}
-      ${statItem('Class Population (F/M/O/W/L)', `${formatNumber(world.farmerPopulation ?? 0)} / ${formatNumber(world.merchantPopulation ?? 0)} / ${formatNumber(world.officialPopulation ?? 0)} / ${formatNumber(world.workerPopulation ?? 0)} / ${formatNumber(world.landlordPopulation ?? 0)}`)}
+      ${statItem('Literacy Caps (F/M/O/W)', `${formatLiteracyPercent(world.literacyCaps?.farmer ?? 0.15)} / ${formatLiteracyPercent(world.literacyCaps?.merchant ?? 0.4)} / ${formatLiteracyPercent(world.literacyCaps?.official ?? 0.7)} / ${formatLiteracyPercent(world.literacyCaps?.worker ?? 0.2)}`)}
+      ${statItem('Class Population (F/M/O/W)', `${formatNumber(world.farmerPopulation ?? 0)} / ${formatNumber(world.merchantPopulation ?? 0)} / ${formatNumber(world.officialPopulation ?? 0)} / ${formatNumber(world.workerPopulation ?? 0)}`)}
       ${statItem('Graduates (P/S/H)', `${formatNumber(world.primaryGraduates ?? 0)} / ${formatNumber(world.secondaryGraduates ?? 0)} / ${formatNumber(world.higherGraduates ?? 0)}`)}
       ${statItem('Annual Grads (P/S/H)', `${formatNumber(world.annualPrimaryGrads ?? 0)} / ${formatNumber(world.annualSecondaryGrads ?? 0)} / ${formatNumber(world.annualHigherGrads ?? 0)}`)}
       ${statItem('Current Enrollment (P/S/H)', `${formatNumber(education.primaryEnrolled ?? 0)} / ${formatNumber(education.secondaryEnrolled ?? 0)} / ${formatNumber(education.higherEnrolled ?? 0)}`)}
@@ -826,11 +832,7 @@ export function renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantT
       ${statItem('Official Savings Pool', formatNumber(classes.officialSavings ?? 0))}
       ${statItem('Official Factors', factors.official)}
 
-      ${statItem('Landlord Life Quality', life(classes.landlordLifeQuality ?? classes.landlordSatisfaction))}
-      ${statItem('Landlord Savings Rate', `${formatDecimal((classes.landlordSavingsRate ?? 0) * 100, 2)}%`)}
-      ${statItem('Landlord Savings Pool', formatNumber(classes.landlordSavings ?? 0))}
-      ${statItem('Landlord Factors', factors.landlord)}
-
+      <!-- landlord panel disabled -->
       ${statItem('Inequality (Gini Ratio proxy)', formatDecimal(world.giniRatio ?? 0, 2))}
       ${statItem('Living Cost (Total)', formatDecimal(world.totalLivingCost ?? 0, 2))}
       ${statItem('Living Cost Breakdown', `Grain 360 + Salt ${formatDecimal((world.saltPrice ?? 4) * 15, 2)} + Cloth ${formatDecimal((world.clothPrice ?? 2) * 0.3, 2)}`)}

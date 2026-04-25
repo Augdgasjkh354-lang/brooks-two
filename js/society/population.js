@@ -133,11 +133,13 @@ function ensureClassLiteracyActivation(world) {
     messages.push('工人阶层出现，识字率基准设为8%');
   }
 
-  if (!flags.landlordActive && (world.farmlandRentRate ?? 0) > 0) {
+  // LANDLORD DISABLED - pending land reform
+  if (false && !flags.landlordActive && (world.farmlandRentRate ?? 0) > 0) {
     flags.landlordActive = true;
     population.landlordLiteracy = Math.max(population.landlordLiteracy ?? 0, LANDLORD_INIT_LITERACY);
     messages.push('地主阶层出现，识字率基准设为20%');
   }
+  flags.landlordActive = false;
 
   return messages;
 }
@@ -151,7 +153,11 @@ function updateClassPopulationShares(world) {
     0,
     clamp((population.hempLaborRequired ?? 0) + (population.mulberryLaborRequired ?? 0))
   );
-  const landlordPopulation = Math.max(0, clamp((world.farmlandRentRate ?? 0) > 0 ? population.totalPopulation * 0.02 : 0));
+  // LANDLORD DISABLED - pending land reform
+  let landlordPopulation = 0;
+  if (false) {
+    landlordPopulation = Math.max(0, clamp((world.farmlandRentRate ?? 0) > 0 ? population.totalPopulation * 0.02 : 0));
+  }
 
   world.farmerPopulation = farmerPopulation;
   world.merchantPopulation = merchantPopulation;
@@ -229,9 +235,10 @@ function applyLiteracyGrowth(world) {
     population.workerLiteracy = clampLiteracy((population.workerLiteracy ?? 0) + workerGrowth, caps.worker);
   }
 
-  if (flags.landlordActive) {
+  if (false && flags.landlordActive) {
     population.landlordLiteracy = clampLiteracy((population.landlordLiteracy ?? 0) + landlordGrowth, caps.landlord);
   }
+  population.landlordLiteracy = 0;
 }
 
 function updateOverallLiteracy(world) {

@@ -670,11 +670,14 @@ export function updateEconomy(world, options = {}) {
   const paperSatisfactionBonus = Math.min(paperOutput * 0.01, 10);
   const structuralFarmerBonus = structuralBonus ? 3 : 0;
 
+  // LANDLORD DISABLED - pending land reform
   let farmlandRentPenalty = 0;
-  if ((world.farmlandRentRate ?? 0) > 15) {
-    farmlandRentPenalty = 25;
-  } else if ((world.farmlandRentRate ?? 0) > 10) {
-    farmlandRentPenalty = 10;
+  if (false) {
+    if ((world.farmlandRentRate ?? 0) > 15) {
+      farmlandRentPenalty = 25;
+    } else if ((world.farmlandRentRate ?? 0) > 10) {
+      farmlandRentPenalty = 10;
+    }
   }
 
   world.farmerEventModifier += structuralFarmerBonus + incomePoolEffects.farmerSatisfactionBonus - farmlandRentPenalty;
@@ -710,7 +713,10 @@ export function updateEconomy(world, options = {}) {
     world.farmerLifeQuality = clampPercentIndex((world.farmerLifeQuality ?? 50) + allBoost);
     world.merchantLifeQuality = clampPercentIndex((world.merchantLifeQuality ?? 50) + allBoost);
     world.officialLifeQuality = clampPercentIndex((world.officialLifeQuality ?? 50) + allBoost);
-    world.landlordLifeQuality = clampPercentIndex((world.landlordLifeQuality ?? 50) + allBoost);
+    if (false) {
+      world.landlordLifeQuality = clampPercentIndex((world.landlordLifeQuality ?? 50) + allBoost);
+    }
+    world.landlordLifeQuality = 0;
     behaviorMessages.push('公共卫生覆盖良好');
   }
   if (toiletCoverage < 10 && (world.totalPopulation ?? 0) > 2000) {
@@ -809,10 +815,11 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push('官员消极，政策执行力下降');
   }
 
-  if (world.landlordSatisfaction < 40) {
+  if (false && world.landlordSatisfaction < 40) {
     activeBehaviorWarnings.push('⚠️ 地主抵制开荒：土地扩张受阻');
     behaviorMessages.push('地主抵制开荒，土地扩张受阻');
   }
+  world.landlordSatisfaction = 0;
 
   world.officialPolicyEffectMultiplier = world.officialSatisfaction < 40 ? 0.8 : 1.0;
   world.activeBehaviorWarnings = activeBehaviorWarnings;
@@ -930,9 +937,16 @@ export function updateEconomy(world, options = {}) {
 
   if (collectTax) {
     const tradePolicyResult = applyTradePolicySettings(world);
-    const farmlandRentRate = clampBetween(Number(world.farmlandRentRate ?? 0), 0, 20);
-    world.farmlandRentRate = farmlandRentRate;
-    const farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
+    // LANDLORD DISABLED - pending land reform
+    let farmlandRentRate = 0;
+    if (false) {
+      farmlandRentRate = clampBetween(Number(world.farmlandRentRate ?? 0), 0, 20);
+    }
+    world.farmlandRentRate = 0;
+    let farmlandRentCollected = 0;
+    if (false) {
+      farmlandRentCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * farmlandRentRate);
+    }
     const landTaxCollected = Math.max(0, Number(world.farmlandAreaMu ?? 0) * Number(world.landTaxRate ?? 0));
     const commerceTaxRate = Math.max(0, Math.min(0.3, Number(world.commerceTaxRate ?? 0)));
     if (commerceTaxRate > 0.2) {
