@@ -15,6 +15,7 @@ import { BUILDING_TYPES_BY_ID } from './buildings/buildingTypes.js';
 import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buildingEngine.js';
 import { settleCommodityMarket } from './economy/commodityMarket.js';
 import { ensurePopState, updatePops } from './society/popSystem.js';
+import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } from './society/interestGroups.js';
 
 const state = createGameState();
 
@@ -731,6 +732,11 @@ function updateSatisfaction() {
   calculateClassSatisfaction(state.world);
 }
 
+function updateInterestGroupsPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.interestGroupResult = updateInterestGroups(state);
+}
+
 function triggerEvents() {
   if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
     const currentPop = Math.max(0, Number(state.population.totalPopulation ?? 0));
@@ -780,6 +786,17 @@ function updateYearLog() {
     const p = popsResult.classSatisfactionFromPops ?? {};
     const political = popsResult.political ?? {};
     state.yearLog.unshift(`Year ${state.calendar.year}: Pop结构：农/商/官满意度 ${Math.round(p.farmer ?? 50)}/${Math.round(p.merchant ?? 50)}/${Math.round(p.official ?? 50)}；政治倾向 保守${Math.round(political.conservative ?? 0)} 改良${Math.round(political.reformist ?? 0)} 激进${Math.round(political.radical ?? 0)}。`);
+  }
+
+  const interestGroupResult = state.__yearPipeline?.interestGroupResult;
+  if (interestGroupResult) {
+    const summary = Object.values(interestGroupResult)
+      .filter((group) => group?.unlocked)
+      .sort((a, b) => Number(b.power ?? 0) - Number(a.power ?? 0))
+      .slice(0, 3)
+      .map((group) => `${group.name}${Math.round(group.satisfaction ?? 50)}/${Math.round(group.power ?? 0)}`)
+      .join('、');
+    state.yearLog.unshift(`Year ${state.calendar.year}: 利益集团：${summary || '暂无活跃集团'}。`);
   }
 
   if (schoolSettlement?.edu) {
@@ -886,6 +903,7 @@ const YEAR_PIPELINE = [
   { name: 'updateDiplomacy', fn: updateDiplomacy },
   { name: 'updatePops', fn: updatePopsPhase },
   { name: 'updateSatisfaction', fn: updateSatisfaction },
+  { name: 'updateInterestGroups', fn: updateInterestGroupsPhase },
   { name: 'triggerEvents', fn: triggerEvents },
   { name: 'finalizeLedger', fn: finalizeLedger },
   { name: 'checkUnlocks', fn: checkUnlocks },
@@ -895,6 +913,7 @@ const YEAR_PIPELINE = [
 function advanceYear(gameState = state) {
   ensureCommodityState(gameState);
   ensurePopState(gameState);
+  initInterestGroups(gameState);
   if (!gameState.logs) gameState.logs = { yearLog: [] };
   if (!Array.isArray(gameState.logs.yearLog)) gameState.logs.yearLog = [];
   gameState.yearLog = gameState.logs.yearLog;
@@ -1466,6 +1485,11 @@ function hydrateStateFromSave(savedState) {
   state.world.__commodities = state.commodities;
   state.pops = Array.isArray(savedState.pops) ? structuredClone(savedState.pops) : structuredClone(fresh.pops ?? []);
   state.world.__pops = state.pops;
+  state.interestGroups = {
+    ...(fresh.interestGroups ?? {}),
+    ...(savedState.interestGroups ?? {}),
+  };
+  state.world.__interestGroups = state.interestGroups;
 
   state.xikou = {
     ...fresh.xikou,
@@ -1492,6 +1516,7 @@ function hydrateStateFromSave(savedState) {
   calculateGovernmentWageBill(state.world);
   ensureCommodityState(state);
   ensurePopState(state);
+  initInterestGroups(state);
 
   return true;
 }
@@ -1647,6 +1672,16 @@ function bindEvents() {
     const type = String(event?.detail?.type ?? '');
     runEngineeringProject(type);
   });
+
+  document.addEventListener('interest-group:policy', (event) => {
+    const groupId = String(event?.detail?.groupId ?? '');
+    const policyType = String(event?.detail?.policyType ?? 'appease');
+    if (!groupId) return;
+    const result = applyInterestGroupPolicy(state, groupId, policyType);
+    if (result.success) state.yearLog.unshift(`Year ${state.calendar.year}: ${result.message}`);
+    else state.yearLog.unshift(`Year ${state.calendar.year}: 利益集团政策失败 - ${result.reason}`);
+    render();
+  });
 }
 
 
@@ -1728,6 +1763,7 @@ function init() {
 
   initResearch(state);
   ensurePopState(state);
+  initInterestGroups(state);
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);
