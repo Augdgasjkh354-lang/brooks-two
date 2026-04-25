@@ -160,7 +160,12 @@ function getAveragePopWealth(state) {
 
 function getGroupSize(groupId, state) {
   const world = state?.world ?? {};
-  if (groupId === 'farmerGuild') return Math.max(0, Number(getPopByType(state, 'farmer')?.size ?? 0) * 100);
+  if (groupId === 'farmerGuild') {
+    const farmerPopSize = Math.max(0, Number(getPopByType(state, 'farmer')?.size ?? 0) * 100);
+    if (farmerPopSize > 0) return farmerPopSize;
+    // Fallback authority: farmerGuild size should track farming labor when pop rows are not yet initialized.
+    return Math.max(0, Number(world.farmingLaborAllocated ?? 0));
+  }
   if (groupId === 'merchantGuild') return Math.max(0, Number(getPopByType(state, 'merchant')?.size ?? 0) * 100);
   if (groupId === 'bureaucracy') return Math.max(0, Number(getPopByType(state, 'official')?.size ?? 0) * 100);
   if (groupId === 'military') return Math.max(0, Number(state?.buildings?.barracks?.count ?? 0) * 100);

@@ -346,6 +346,7 @@ export function updateEconomy(world, options = {}) {
   const efficiencyMultiplier = getEfficiencyMultiplier(stabilityIndex);
 
   const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
+  console.log('[agriculture] grain produced:', Math.round(grainOutput));
   const commerceGDP = clamp(preStabilityCommerceGDP * efficiencyMultiplier);
 
   const farmlandTaxSplit = world.buildingOutputSummary?.taxSplit?.farmland ?? null;
@@ -1142,7 +1143,8 @@ export function updateEconomy(world, options = {}) {
   world.totalSaltDemand = totalSaltDemand;
   world.totalClothDemand = totalClothDemand;
 
-  world.grainTreasury = Math.max(0, Number(commodities.grain ?? world.grainTreasury ?? 0));
+  // Authority (Phase 10H): grain treasury is owned by agriculture pipeline and must not be overwritten by commodities.
+  // Keep commodity sync display-only for non-treasury fields.
   world.saltReserve = Math.max(0, Number(commodities.salt ?? world.saltReserve ?? 0));
   world.clothReserve = Math.max(0, Number(commodities.cloth ?? world.clothReserve ?? 0));
   world.rawSilkOutput = Math.max(0, Number(commodities.silk ?? world.rawSilkOutput ?? 0));

@@ -172,6 +172,7 @@ export function settleCommodityMarket(state) {
   }
 
   try {
+    const grainTreasuryBefore = Math.max(0, Number(state.world?.grainTreasury ?? 0));
     ensureCommodityPriceState(state);
     if (!state.commodityPrices || typeof state.commodityPrices !== 'object') {
       state.commodityPrices = {};
@@ -251,6 +252,11 @@ export function settleCommodityMarket(state) {
 
     if (priceChanges.length > 0) {
       addYearLog(state, `Year ${state.calendar.year}: 商品市场结算：${priceChanges.slice(0, 6).join('，')}。`);
+    }
+
+    const grainTreasuryAfter = Math.max(0, Number(state.world?.grainTreasury ?? 0));
+    if (grainTreasuryAfter !== grainTreasuryBefore) {
+      console.warn('[commodityMarket] grainTreasury changed during market settlement:', grainTreasuryBefore, '->', grainTreasuryAfter);
     }
 
     return summary;
