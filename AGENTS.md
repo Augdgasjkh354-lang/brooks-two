@@ -6941,3 +6941,42 @@ game.js diplomacy/xikou.js
 - Hover effects on faction markers
 - Click animation (seal press) on markers
 - All existing diplomacy functions still work
+## Phase 10A Hotfix: Map Click Interactions (Current)
+
+Map renders correctly but click interactions
+don't work. Fix click handlers only.
+
+**Problems to fix:**
+
+1. Faction marker clicks not opening side panel
+   - Click on 东陵城 (player): show city overview panel
+   - Click on 未知势力 circles: show mystery panel
+   - Panel should slide in from right side
+
+2. Panel content not rendering
+   - Player panel: population/grain/stability/year
+   - Mystery panel: "未知势力" + description text
+
+3. Panel close button needed
+   - X button in top right of panel
+   - Click X or click map background to close
+
+**Fix approach:**
+- Check initMapInteractions() is called after
+  renderMap()
+- Ensure SVG click events are properly bound
+- Check panel element exists in DOM before
+  trying to show it
+- Add console.log for debugging click events
+
+**Files to modify:**
+- js/ui/render_map.js only
+
+**Do NOT touch:** any other files
+
+**Definition of Done:**
+- Click player city: right panel slides in
+  showing city stats
+- Click unknown faction: panel shows mystery text
+- Click X or map background: panel closes
+- Smooth slide animation works
