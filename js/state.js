@@ -346,6 +346,22 @@ export const initialState = {
     paper_material: 0,
     hemp_stalk: 0,
   },
+
+  commodityPrices: {
+    grain: { price: 1.0, supply: 0, demand: 0, basePrice: 1.0, minPrice: 0.3, maxPrice: 5.0, elasticity: 0.5 },
+    salt: { price: 4.0, supply: 0, demand: 0, basePrice: 4.0, minPrice: 1.0, maxPrice: 12.0, elasticity: 0.8 },
+    cloth: { price: 2.0, supply: 0, demand: 0, basePrice: 2.0, minPrice: 0.5, maxPrice: 8.0, elasticity: 0.6 },
+    silk: { price: 10.0, supply: 0, demand: 0, basePrice: 10.0, minPrice: 3.0, maxPrice: 30.0, elasticity: 0.4 },
+    paper: { price: 3.0, supply: 0, demand: 0, basePrice: 3.0, minPrice: 1.0, maxPrice: 10.0, elasticity: 0.7 },
+    iron_tools: { price: 8.0, supply: 0, demand: 0, basePrice: 8.0, minPrice: 2.0, maxPrice: 20.0, elasticity: 0.6 },
+    weapons: { price: 15.0, supply: 0, demand: 0, basePrice: 15.0, minPrice: 5.0, maxPrice: 40.0, elasticity: 0.3 },
+    ceramics: { price: 5.0, supply: 0, demand: 0, basePrice: 5.0, minPrice: 1.0, maxPrice: 15.0, elasticity: 0.5 },
+    lumber: { price: 2.0, supply: 0, demand: 0, basePrice: 2.0, minPrice: 0.5, maxPrice: 8.0, elasticity: 0.6 },
+    charcoal: { price: 1.5, supply: 0, demand: 0, basePrice: 1.5, minPrice: 0.3, maxPrice: 5.0, elasticity: 0.7 },
+    medicine: { price: 6.0, supply: 0, demand: 0, basePrice: 6.0, minPrice: 2.0, maxPrice: 20.0, elasticity: 0.4 },
+    tea: { price: 5.0, supply: 0, demand: 0, basePrice: 5.0, minPrice: 1.0, maxPrice: 15.0, elasticity: 0.5 },
+    bricks: { price: 0.5, supply: 0, demand: 0, basePrice: 0.5, minPrice: 0.1, maxPrice: 2.0, elasticity: 0.8 },
+  },
   privateSector: {
     farmerGrain: 4500000,
     farmerCoupons: 0,
@@ -1190,6 +1206,31 @@ function defineCompatAccessors(state) {
 
 function syncLegacyCommodityFields(state) {
   state.commodities = state.commodities ?? {};
+  state.commodityPrices = state.commodityPrices ?? {};
+
+  const commodityDefaults = {
+    grain: 0,
+    salt: 0,
+    cloth: 0,
+    silk: 0,
+    paper: 0,
+    iron_tools: 0,
+    weapons: 0,
+    ceramics: 0,
+    bricks: 0,
+    lumber: 0,
+    charcoal: 0,
+    medicine: 0,
+    tea: 0,
+    silkworm_dung: 0,
+    paper_material: 0,
+    hemp_stalk: 0,
+  };
+
+  Object.entries(commodityDefaults).forEach(([commodity, defaultValue]) => {
+    state.commodities[commodity] = Math.max(0, Number(state.commodities[commodity] ?? defaultValue));
+  });
+
   state.commodities.grain = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
   state.commodities.salt = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
   state.commodities.cloth = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
@@ -1202,6 +1243,19 @@ function syncLegacyCommodityFields(state) {
 
   state.agriculture.grainTreasury = state.world.grainTreasury;
   state.agriculture.rawSilkOutput = state.world.rawSilkOutput;
+
+  Object.entries(initialState.commodityPrices ?? {}).forEach(([commodity, defaults]) => {
+    const current = state.commodityPrices[commodity] ?? {};
+    state.commodityPrices[commodity] = {
+      ...defaults,
+      ...current,
+      supply: Math.max(0, Number(current.supply ?? defaults.supply ?? 0)),
+      demand: Math.max(0, Number(current.demand ?? defaults.demand ?? 0)),
+      price: Math.max(0, Number(current.price ?? defaults.price ?? defaults.basePrice ?? 1)),
+    };
+  });
+
+  state.world.commodityPrices = state.commodityPrices;
 }
 
 export function createGameState() {

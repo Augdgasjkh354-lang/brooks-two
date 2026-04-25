@@ -7,12 +7,30 @@ import {
 
 export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
 
+
+function getCommodityPrice(world, commodity, fallbackPrice) {
+  const marketPrice = Number(world?.commodityPrices?.[commodity]?.price ?? NaN);
+  if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;
+  return Math.max(0.1, Number(fallbackPrice ?? 1));
+}
+
+export function getXikouSaltTradePrice(world) {
+  return getCommodityPrice(world, 'salt', world?.saltPrice ?? 4);
+}
+
+export function getXikouClothTradePrice(world) {
+  return getCommodityPrice(world, 'cloth', world?.clothPrice ?? 2);
+}
+
 export function updateXikouVillageEconomy(world) {
   if (!world || !world.xikou) {
     return;
   }
 
   const xikou = world.xikou;
+
+  world.saltPrice = getXikouSaltTradePrice(world);
+  world.clothPrice = getXikouClothTradePrice(world);
   const growthRate = BASE_GROWTH_RATE;
   const nextPopulation = clamp((xikou.population ?? 0) * (1 + growthRate));
 
@@ -83,6 +101,9 @@ export function updateXikouDiplomacy(world) {
   }
 
   const xikou = world.xikou;
+
+  world.saltPrice = getXikouSaltTradePrice(world);
+  world.clothPrice = getXikouClothTradePrice(world);
   const factors = [];
   let delta = 0;
 

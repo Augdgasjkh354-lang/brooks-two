@@ -19,6 +19,47 @@ function getMethodOptionsHtml(building) {
     .join('');
 }
 
+function getTrendSymbol(entry) {
+  if (!entry) return '→';
+  return entry.trend ?? '→';
+}
+
+function getMarketPanelHtml(state) {
+  const market = state.commodityPrices ?? {};
+  const rows = Object.entries(market)
+    .map(([commodity, entry]) => {
+      const supply = Math.max(0, Number(entry?.supply ?? 0));
+      const demand = Math.max(0, Number(entry?.demand ?? 0));
+      const shortage = demand > 0 && supply < demand * 0.7;
+      const surplus = demand > 0 && supply > demand * 1.5;
+      const signal = shortage
+        ? '<span style="color:#d9534f; font-weight:700;">短缺</span>'
+        : surplus
+          ? '<span style="color:#337ab7; font-weight:700;">过剩</span>'
+          : '<span class="muted">平衡</span>';
+      return `
+        <div class="stat-item" style="padding:8px;">
+          <div><strong>${commodity}</strong> <span style="font-weight:700;">${getTrendSymbol(entry)}</span></div>
+          <div class="muted">供给: ${formatNumber(Math.round(supply))}</div>
+          <div class="muted">需求: ${formatNumber(Math.round(demand))}</div>
+          <div class="muted">价格: ${formatDecimal(Number(entry?.price ?? entry?.basePrice ?? 0), 2)}</div>
+          <div>${signal}</div>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `
+    <section class="panel" style="margin-bottom: 12px;">
+      <h3>商品市场</h3>
+      <div class="muted">显示每类商品的供需、价格与趋势（↑/↓/→）。</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:6px; margin-top:8px;">
+        ${rows || '<div class="muted">暂无市场数据</div>'}
+      </div>
+    </section>
+  `;
+}
+
 function getBuildingCardHtml(state, building) {
   const check = canConstructBuilding(building.id, state, 1);
   const outputPreview = calculateBuildingOutput(building.id, 1, state);
@@ -94,6 +135,7 @@ export function renderBuildingsTab(state, onConstructBuilding, onSetBuildingMeth
       <div class="muted">按分类查看全部建筑、生产方式与产出预览。</div>
       <div class="muted">本年建筑产出（commodities）：</div>
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:6px; margin:8px 0 12px;">${commodityRows}</div>
+      ${getMarketPanelHtml(state)}
       ${blocks}
     </section>
   `;

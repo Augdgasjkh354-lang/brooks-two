@@ -13,6 +13,7 @@ import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBurea
 import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calculateLifeQuality, calculateClassSatisfaction, clearEventModifiers } from './society/satisfaction.js';
 import { BUILDING_TYPES_BY_ID } from './buildings/buildingTypes.js';
 import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buildingEngine.js';
+import { settleCommodityMarket } from './economy/commodityMarket.js';
 
 const state = createGameState();
 
@@ -531,6 +532,11 @@ function settleMarket() {
   // Market settlement remains inside economy update; this phase reserves ordering for future extraction.
 }
 
+function settleCommodityMarketPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.commodityMarketResult = settleCommodityMarket(state);
+}
+
 function collectTaxes() {
   // Tax settlement currently occurs inside economy update.
 }
@@ -752,6 +758,20 @@ function updateYearLog() {
     state.yearLog.unshift(`Year ${state.calendar.year}: ${message}`);
   });
 
+  const commodityMarketResult = state.__yearPipeline?.commodityMarketResult;
+  if (commodityMarketResult) {
+    const keyCommodities = ['grain', 'salt', 'cloth', 'silk', 'paper', 'medicine'];
+    const marketSummary = keyCommodities
+      .map((commodity) => {
+        const entry = commodityMarketResult.prices?.[commodity];
+        if (!entry) return null;
+        return `${commodity}:${entry.price.toFixed(2)}(${entry.trend})`;
+      })
+      .filter(Boolean)
+      .join('、');
+    state.yearLog.unshift(`Year ${state.calendar.year}: 商品市场：${marketSummary || '无关键价格数据'}。`);
+  }
+
   const buildingResult = state.__yearPipeline?.buildingResult;
   if (buildingResult) {
     const topOutputs = Object.entries(buildingResult.outputs ?? {})
@@ -805,6 +825,7 @@ const YEAR_PIPELINE = [
   { name: 'allocateLabor', fn: allocateLabor },
   { name: 'produceGoods', fn: produceGoods },
   { name: 'settleMarket', fn: settleMarket },
+  { name: 'settleCommodityMarket', fn: settleCommodityMarketPhase },
   { name: 'collectTaxes', fn: collectTaxes },
   { name: 'payWages', fn: payWages },
   { name: 'updateMoney', fn: updateMoney },
