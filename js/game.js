@@ -523,8 +523,8 @@ function produceGoods() {
     state.world.shopCount = shopCount;
   }
 
-  state.__yearPipeline.econResult = updateEconomy(state.world);
   state.__yearPipeline.buildingResult = calculateAllBuildingOutputs(state);
+  state.__yearPipeline.econResult = updateEconomy(state.world);
 }
 
 function settleMarket() {
