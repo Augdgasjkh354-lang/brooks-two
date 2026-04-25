@@ -18,6 +18,27 @@ import { ensurePopState, updatePops } from './society/popSystem.js';
 
 const state = createGameState();
 
+// Authority table (Phase 10H):
+// - Population/laborForce: population.js ONLY.
+// - Pop satisfaction: popSystem.js ONLY.
+// - Commodity prices: commodityMarket.js ONLY.
+// - Commodity inventory: state.commodities ONLY (no treasury overwrite).
+// - Government grain: world.grainTreasury ONLY (never overwritten by commodities).
+// - Production: agriculture.js (farmland), buildingEngine.js (other buildings).
+function addYearLog(stateObj, msg) {
+  if (!stateObj.logs) stateObj.logs = {};
+  if (!Array.isArray(stateObj.logs.yearLog)) {
+    stateObj.logs.yearLog = Array.isArray(stateObj.yearLog) ? stateObj.yearLog : [];
+  }
+  stateObj.logs.yearLog.unshift(msg);
+  if (stateObj.logs.yearLog.length > 200) stateObj.logs.yearLog.length = 200;
+  stateObj.yearLog = stateObj.logs.yearLog;
+}
+
+state.logs = state.logs ?? {};
+state.logs.yearLog = Array.isArray(state.logs.yearLog) ? state.logs.yearLog : (Array.isArray(state.yearLog) ? state.yearLog : []);
+state.yearLog = state.logs.yearLog;
+
 
 function getFiscal(stateObj = state) {
   return stateObj?.fiscal ?? stateObj?.world?.__fiscal ?? stateObj?.world ?? {};

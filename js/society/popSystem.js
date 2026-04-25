@@ -30,6 +30,15 @@ function getClasses(world) {
   return world?.__classes ?? world?.classes ?? world;
 }
 
+
+function addYearLog(state, msg) {
+  if (!state.logs) state.logs = {};
+  if (!Array.isArray(state.logs.yearLog)) state.logs.yearLog = [];
+  state.logs.yearLog.unshift(msg);
+  if (state.logs.yearLog.length > 200) state.logs.yearLog.length = 200;
+  state.yearLog = state.logs.yearLog;
+}
+
 function getCommodityAvailability(state, commodityKey) {
   const priceEntry = state?.commodityPrices?.[commodityKey];
   const supply = Math.max(0, Number(priceEntry?.supply ?? 0));
@@ -253,9 +262,10 @@ export function updatePops(state) {
 
   world.popClassSatisfaction = classSatisfactionFromPops;
   world.popAverageWealth = averageWealth;
-  world.laborForce = state.pops
+  const totalPopLabor = state.pops
     .filter((pop) => ['farmer', 'worker', 'merchant', 'official'].includes(pop.type))
     .reduce((sum, pop) => sum + Math.max(0, Number(pop.size ?? 0) * POP_SCALE), 0);
+  world.popLaborForceEstimate = totalPopLabor;
 
   const political = { conservative: 0, reformist: 0, radical: 0 };
   state.pops.forEach((pop) => {
@@ -274,7 +284,7 @@ export function updatePops(state) {
   });
 
   if (notableChanges.length > 0) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: Pop系统：${notableChanges.join('，')}。`);
+    addYearLog(state, `Year ${state.calendar.year}: Pop系统：${notableChanges.join('，')}。`);
   }
 
   classes.farmerSatisfaction = classSatisfactionFromPops.farmer;
@@ -283,7 +293,7 @@ export function updatePops(state) {
 
   return {
     averageWealth,
-    laborForce: world.laborForce,
+    laborForce: world.popLaborForceEstimate,
     political,
     classSatisfactionFromPops,
   };

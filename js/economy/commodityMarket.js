@@ -72,6 +72,15 @@ function calculateSupply(state) {
   return supply;
 }
 
+
+function addYearLog(state, msg) {
+  if (!state.logs) state.logs = {};
+  if (!Array.isArray(state.logs.yearLog)) state.logs.yearLog = [];
+  state.logs.yearLog.unshift(msg);
+  if (state.logs.yearLog.length > 200) state.logs.yearLog.length = 200;
+  state.yearLog = state.logs.yearLog;
+}
+
 function calculateDemand(state) {
   const demand = Object.fromEntries(Object.keys(COMMODITY_PRICE_DEFAULTS).map((k) => [k, 0]));
   const populationDemand = getPopulationDemand(state);
@@ -126,30 +135,30 @@ function applyCommodityEffects(state, supply, demand) {
 
   if (Number(supply.paper ?? 0) < Number(demand.paper ?? 0) * 0.5 && Number(demand.paper ?? 0) > 0) {
     world.policyExecutionEfficiency = Math.max(0.1, Number(world.policyExecutionEfficiency ?? 1) * 0.8);
-    state.yearLog.unshift(`Year ${state.calendar.year}: 纸张短缺，官府效率下降`);
+    addYearLog(state, `Year ${state.calendar.year}: 纸张短缺，官府效率下降`);
   }
 
   if (Number(supply.iron_tools ?? 0) < Number(demand.iron_tools ?? 0) * 0.5 && Number(demand.iron_tools ?? 0) > 0) {
     world.farmingCommodityShortageMultiplier = 0.9;
-    state.yearLog.unshift(`Year ${state.calendar.year}: 铁器短缺，农业生产受影响`);
+    addYearLog(state, `Year ${state.calendar.year}: 铁器短缺，农业生产受影响`);
   } else {
     world.farmingCommodityShortageMultiplier = 1;
   }
 
   if (Number(supply.medicine ?? 0) < Number(demand.medicine ?? 0) * 0.5 && Number(demand.medicine ?? 0) > 0) {
     world.healthIndex = Math.max(0, Number(world.healthIndex ?? 50) - 10);
-    state.yearLog.unshift(`Year ${state.calendar.year}: 药材短缺，公共卫生恶化`);
+    addYearLog(state, `Year ${state.calendar.year}: 药材短缺，公共卫生恶化`);
   }
 
   if (Number(supply.lumber ?? 0) < Number(demand.lumber ?? 0) * 0.5 && Number(demand.lumber ?? 0) > 0) {
     world.constructionCostReduction = 0;
-    state.yearLog.unshift(`Year ${state.calendar.year}: 木材短缺，建设成本上升`);
+    addYearLog(state, `Year ${state.calendar.year}: 木材短缺，建设成本上升`);
   }
 
   const barracksCount = getBuildingCount(state, 'barracks');
   if (barracksCount > 0 && Number(supply.weapons ?? 0) < Number(demand.weapons ?? 0) * 0.5 && Number(demand.weapons ?? 0) > 0) {
     world.militaryPowerMultiplier = 0.7;
-    state.yearLog.unshift(`Year ${state.calendar.year}: 武器短缺，军事力量削弱`);
+    addYearLog(state, `Year ${state.calendar.year}: 武器短缺，军事力量削弱`);
   } else {
     world.militaryPowerMultiplier = 1;
   }
@@ -164,7 +173,9 @@ export function settleCommodityMarket(state) {
   try {
     ensureCommodityPriceState(state);
     state.commodities = state.commodities ?? {};
-    state.yearLog = Array.isArray(state.yearLog) ? state.yearLog : [];
+    state.logs = state.logs ?? {};
+    state.logs.yearLog = Array.isArray(state.logs.yearLog) ? state.logs.yearLog : (Array.isArray(state.yearLog) ? state.yearLog : []);
+    state.yearLog = state.logs.yearLog;
 
     const supply = calculateSupply(state);
     const demand = calculateDemand(state);
@@ -205,9 +216,8 @@ export function settleCommodityMarket(state) {
         trend,
       };
 
-      const inventory = Math.max(0, Number(state.commodities[commodity] ?? 0));
       const netFlow = commoditySupply - commodityDemand;
-      state.commodities[commodity] = Math.max(0, inventory + netFlow);
+      state.commodityPrices[commodity].netFlow = netFlow;
 
       if (Math.abs(nextPrice - previousPrice) >= 0.05) {
         priceChanges.push(`${commodity}${previousPrice.toFixed(2)}→${nextPrice.toFixed(2)}`);
@@ -218,9 +228,9 @@ export function settleCommodityMarket(state) {
 
     state.world.saltPrice = Number(state.commodityPrices.salt?.price ?? state.world.saltPrice ?? 4);
     state.world.clothPrice = Number(state.commodityPrices.cloth?.price ?? state.world.clothPrice ?? 2);
-    state.world.saltReserve = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
-    state.world.clothReserve = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
-    state.world.grainTreasury = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
+    state.world.marketSaltInventory = Math.max(0, Number(state.commodities.salt ?? state.world.marketSaltInventory ?? 0));
+    state.world.marketClothInventory = Math.max(0, Number(state.commodities.cloth ?? state.world.marketClothInventory ?? 0));
+    state.world.marketGrainInventory = Math.max(0, Number(state.commodities.grain ?? state.world.marketGrainInventory ?? 0));
     state.world.rawSilkOutput = Math.max(0, Number(state.commodities.silk ?? state.world.rawSilkOutput ?? 0));
 
     const summary = {
@@ -234,7 +244,7 @@ export function settleCommodityMarket(state) {
     state.__yearPipeline.commodityMarketResult = summary;
 
     if (priceChanges.length > 0) {
-      state.yearLog.unshift(`Year ${state.calendar.year}: 商品市场结算：${priceChanges.slice(0, 6).join('，')}。`);
+      addYearLog(state, `Year ${state.calendar.year}: 商品市场结算：${priceChanges.slice(0, 6).join('，')}。`);
     }
 
     return summary;

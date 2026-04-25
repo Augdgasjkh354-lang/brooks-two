@@ -238,6 +238,9 @@ export function calculateAllBuildingOutputs(state) {
   const availablePool = { ...root.commodities };
 
   for (const buildingType of BUILDING_TYPES) {
+    // Authority (Phase 10H): farmland production is owned by agriculture.js only.
+    if (buildingType.id === 'farmland') continue;
+
     const entry = getBuildingState(root, buildingType.id);
     const count = Math.max(0, Number(entry?.count ?? 0));
     if (count <= 0) continue;
@@ -254,39 +257,11 @@ export function calculateAllBuildingOutputs(state) {
 
     Object.entries(result.outputs ?? {}).forEach(([commodity, value]) => {
       const amount = Math.max(0, Number(value ?? 0));
-      if (buildingType.id === 'farmland' && commodity === 'grain') {
-        const grainTaxRate = Math.max(0, Math.min(1, Number(root.world.agriculturalTaxRate ?? root.world.__agriculture?.agriculturalTaxRate ?? 0)));
-        const govShare = amount * grainTaxRate;
-        const farmerShare = Math.max(0, amount - govShare);
-
-        taxSplit.farmland = taxSplit.farmland ?? { govShare: 0, farmerShare: 0, totalOutput: 0, taxRate: grainTaxRate };
-        taxSplit.farmland.govShare = Math.max(0, Number(taxSplit.farmland.govShare ?? 0) + govShare);
-        taxSplit.farmland.farmerShare = Math.max(0, Number(taxSplit.farmland.farmerShare ?? 0) + farmerShare);
-        taxSplit.farmland.totalOutput = Math.max(0, Number(taxSplit.farmland.totalOutput ?? 0) + amount);
-        taxSplit.farmland.taxRate = grainTaxRate;
-
-        yearlyOutputs[commodity] = Math.max(0, Number(yearlyOutputs[commodity] ?? 0) + govShare);
-        availablePool[commodity] = Math.max(0, Number(availablePool[commodity] ?? 0) + govShare);
-        root.commodities[commodity] = Math.max(0, Number(root.commodities[commodity] ?? 0) + govShare);
-        return;
-      }
-
       yearlyOutputs[commodity] = Math.max(0, Number(yearlyOutputs[commodity] ?? 0) + amount);
       availablePool[commodity] = Math.max(0, Number(availablePool[commodity] ?? 0) + amount);
       root.commodities[commodity] = Math.max(0, Number(root.commodities[commodity] ?? 0) + amount);
     });
   }
-
-  const farmlandTaxSplit = taxSplit.farmland ?? { govShare: 0, farmerShare: 0, totalOutput: 0, taxRate: 0 };
-  root.world.grainTreasury = Math.max(
-    0,
-    Number(root.world.grainTreasury ?? 0) + Number(farmlandTaxSplit.govShare ?? 0)
-  );
-  root.world.privateSector.farmerGrain = Math.max(
-    0,
-    Number(root.world.privateSector.farmerGrain ?? 0) + Number(farmlandTaxSplit.farmerShare ?? 0)
-  );
-  root.world.farmerRetainedGrain = Math.max(0, Number(root.world.farmerRetainedGrain ?? 0) + Number(farmlandTaxSplit.farmerShare ?? 0));
 
   root.world.buildingOutputSummary = {
     outputs: yearlyOutputs,
