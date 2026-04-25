@@ -1204,7 +1204,10 @@ function defineCompatAccessors(state) {
   });
 }
 
-function syncLegacyCommodityFields(state) {
+export function ensureCommodityState(state) {
+  if (!state || !state.world) return;
+
+  state.buildings = state.buildings ?? {};
   state.commodities = state.commodities ?? {};
   state.commodityPrices = state.commodityPrices ?? {};
 
@@ -1252,6 +1255,8 @@ function syncLegacyCommodityFields(state) {
       supply: Math.max(0, Number(current.supply ?? defaults.supply ?? 0)),
       demand: Math.max(0, Number(current.demand ?? defaults.demand ?? 0)),
       price: Math.max(0, Number(current.price ?? defaults.price ?? defaults.basePrice ?? 1)),
+      lastPrice: Math.max(0, Number(current.lastPrice ?? current.price ?? defaults.price ?? defaults.basePrice ?? 1)),
+      trend: current.trend ?? '→',
     };
   });
 
@@ -1268,7 +1273,7 @@ export function createGameState() {
   state.world.__buildings = state.buildings;
   state.world.__commodities = state.commodities;
 
-  syncLegacyCommodityFields(state);
+  ensureCommodityState(state);
 
   return state;
 }
