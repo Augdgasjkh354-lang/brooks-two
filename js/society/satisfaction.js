@@ -80,7 +80,11 @@ function getClassIncomePerHead(world) {
   const farmlandRentRate = Math.max(0, Number(world.farmlandRentRate ?? 0));
   const farmlandAreaMu = Math.max(0, Number(world.farmlandAreaMu ?? 0));
   const landlordPopulation = Math.max(1, Number(world.landlordPopulation ?? 0));
-  const landlordIncomePerHead = (farmlandRentRate * farmlandAreaMu) / landlordPopulation;
+  // LANDLORD DISABLED - pending land reform
+  let landlordIncomePerHead = 0;
+  if (false) {
+    landlordIncomePerHead = (farmlandRentRate * farmlandAreaMu) / landlordPopulation;
+  }
 
   return {
     farmerIncomePerHead,
@@ -198,7 +202,8 @@ export function calculateLifeQuality(world) {
   let farmerLifeQuality = BASE_LIFE_QUALITY;
   let merchantLifeQuality = BASE_LIFE_QUALITY;
   let officialLifeQuality = BASE_LIFE_QUALITY;
-  let landlordLifeQuality = BASE_LIFE_QUALITY;
+  // LANDLORD DISABLED - pending land reform
+  let landlordLifeQuality = 0;
 
   const factors = {
     farmer: [],
@@ -232,7 +237,9 @@ export function calculateLifeQuality(world) {
   farmerLifeQuality += applyIncomeDimension('farmer', classIncome.farmerIncomePerHead);
   merchantLifeQuality += applyIncomeDimension('merchant', classIncome.merchantIncomePerHead);
   officialLifeQuality += applyIncomeDimension('official', classIncome.officialIncomePerHead);
-  landlordLifeQuality += applyIncomeDimension('landlord', classIncome.landlordIncomePerHead);
+  if (false) {
+    landlordLifeQuality += applyIncomeDimension('landlord', classIncome.landlordIncomePerHead);
+  }
 
   if (world.giniRatio < 2) {
     farmerLifeQuality += 5;
@@ -329,12 +336,17 @@ export function calculateLifeQuality(world) {
     classes.merchantSavings
   );
   const officialSavings = computeSavings('official', classIncome.officialIncomePerHead, classPop.official, classes.officialSavings);
-  const landlordSavings = computeSavings('landlord', classIncome.landlordIncomePerHead, classPop.landlord, classes.landlordSavings);
+  let landlordSavings = { nextSavings: 0, savingsRate: 0 };
+  if (false) {
+    landlordSavings = computeSavings('landlord', classIncome.landlordIncomePerHead, classPop.landlord, classes.landlordSavings);
+  }
 
   farmerLifeQuality = applySavingsRateEffect(farmerLifeQuality, farmerSavings.savingsRate);
   merchantLifeQuality = applySavingsRateEffect(merchantLifeQuality, merchantSavings.savingsRate);
   officialLifeQuality = applySavingsRateEffect(officialLifeQuality, officialSavings.savingsRate);
-  landlordLifeQuality = applySavingsRateEffect(landlordLifeQuality, landlordSavings.savingsRate);
+  if (false) {
+    landlordLifeQuality = applySavingsRateEffect(landlordLifeQuality, landlordSavings.savingsRate);
+  }
 
   if (farmerSavings.nextSavings > toNonNegative(world.totalPopulation) * 100) {
     farmerLifeQuality += 5;
@@ -366,7 +378,10 @@ export function calculateLifeQuality(world) {
   classes.farmerLifeQuality = clampPercentIndex(lifeQualityValues.farmer);
   classes.merchantLifeQuality = clampPercentIndex(lifeQualityValues.merchant);
   classes.officialLifeQuality = clampPercentIndex(lifeQualityValues.official);
-  classes.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
+  classes.landlordLifeQuality = 0;
+  if (false) {
+    classes.landlordLifeQuality = clampPercentIndex(lifeQualityValues.landlord);
+  }
   world.workerLifeQuality = clampPercentIndex(Number(world.workerLifeQuality ?? classes.farmerLifeQuality ?? 50));
 
 
@@ -416,12 +431,16 @@ export function calculateClassSatisfaction(world) {
   const farmerEventModifier = Number(classes.farmerEventModifier ?? 0);
   const merchantEventModifier = Number(classes.merchantEventModifier ?? 0);
   const officialEventModifier = Number(classes.officialEventModifier ?? 0);
-  const landlordEventModifier = Number(classes.landlordEventModifier ?? 0);
+  // LANDLORD DISABLED - pending land reform
+  const landlordEventModifier = 0;
 
   classes.farmerSatisfaction = clampPercentIndex(Number(classes.farmerLifeQuality ?? 50) + farmerEventModifier);
   classes.merchantSatisfaction = clampPercentIndex(Number(classes.merchantLifeQuality ?? 50) + merchantEventModifier);
   classes.officialSatisfaction = clampPercentIndex(Number(classes.officialLifeQuality ?? 50) + officialEventModifier);
-  classes.landlordSatisfaction = clampPercentIndex(Number(classes.landlordLifeQuality ?? 50) + landlordEventModifier);
+  classes.landlordSatisfaction = 0;
+  if (false) {
+    classes.landlordSatisfaction = clampPercentIndex(Number(classes.landlordLifeQuality ?? 50) + landlordEventModifier);
+  }
 
   return {
     farmerSatisfaction: classes.farmerSatisfaction,
@@ -437,7 +456,7 @@ export function clearEventModifiers(world) {
   classes.farmerEventModifier = 0;
   classes.merchantEventModifier = 0;
   classes.officialEventModifier = 0;
-  classes.landlordEventModifier = 0;
+  classes.landlordEventModifier = 0; // LANDLORD DISABLED - pending land reform
 }
 
 
@@ -479,6 +498,8 @@ export function applyCourtTaxLifeQualityEffects(world, courtEffects = null) {
   if (landTaxRate > 3) {
     const classes = getClasses(world);
     classes.farmerEventModifier = Number(classes.farmerEventModifier ?? 0) - 10;
-    classes.landlordEventModifier = Number(classes.landlordEventModifier ?? 0) - 15;
+    if (false) {
+      classes.landlordEventModifier = Number(classes.landlordEventModifier ?? 0) - 15;
+    }
   }
 }

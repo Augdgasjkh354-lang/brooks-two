@@ -191,6 +191,7 @@ export const initialState = {
     merchantPopulation: 0,
     officialPopulation: 0,
     workerPopulation: 0,
+    // DISABLED: reactivate with land privatization policy
     landlordPopulation: 0,
 
     literacyClassFlags: {
@@ -438,11 +439,12 @@ export const initialState = {
     farmerLifeQuality: 50,
     merchantLifeQuality: 50,
     officialLifeQuality: 50,
-    landlordLifeQuality: 50,
+    // DISABLED: reactivate with land privatization policy
+    landlordLifeQuality: 0,
     farmerSatisfaction: 50,
     merchantSatisfaction: 50,
     officialSatisfaction: 50,
-    landlordSatisfaction: 50,
+    landlordSatisfaction: 0,
     farmerEventModifier: 0,
     merchantEventModifier: 0,
     officialEventModifier: 0,

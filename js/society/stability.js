@@ -344,6 +344,14 @@ export function calculateGovernmentWageBill(world) {
 }
 
 export function calculateFireLeakage(world) {
+  // LANDLORD DISABLED - pending land reform
+  if (false) {
+    world.landlordEventModifier = Number(world.landlordEventModifier ?? 0) - 5;
+    world.landlordSatisfaction = Math.max(0, Number(world.landlordSatisfaction ?? 0) - 5);
+  }
+  world.landlordEventModifier = 0;
+  world.landlordSatisfaction = 0;
+
   let rate = 0.05;
   const factors = [];
   const fiscal = getFiscal(world);
