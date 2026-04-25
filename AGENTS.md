@@ -539,3 +539,267 @@ Definition of Done (Phase 10H):
 - yearLog capped at 200 entries
 - Next Year button works correctly
 - No NaN in grain/population displays
+## Current Phase: 10I - Interest Groups System
+
+**Goal:** Add 6 interest groups that represent
+organized political forces. Each group has
+demands, satisfaction, and political power.
+Low satisfaction triggers political pressure.
+
+**6 Interest Groups:**
+
+state.interestGroups = {
+  farmerGuild: {
+    name: '农民公会',
+    icon: '🌾',
+    basedOn: 'farmer',     // which pop type
+    size: 0,               // calculated from pop
+    satisfaction: 50,      // 0-100
+    power: 0,              // political influence
+    demands: {
+      maxTaxRate: 0.6,     // want tax below 60%
+      minGrainPrice: 0.8,  // want grain price stable
+      maxRentRate: 5,      // want low rent
+      minFoodSecurity: 0.8 // want grain surplus
+    },
+    currentDemandsMet: 0,  // 0-1 ratio
+    politicalStance: 'conservative',
+    supportedPolicies: ['grain_redistribution',
+      'reclaim_land', 'lower_tax'],
+    opposedPolicies: ['merchant_tax', 'high_rent',
+      'conscription'],
+    unlockCondition: null  // always exists
+  },
+
+  merchantGuild: {
+    name: '商人行会',
+    icon: '💰',
+    basedOn: 'merchant',
+    size: 0,
+    satisfaction: 50,
+    power: 0,
+    demands: {
+      maxCommerceTaxRate: 0.15,
+      minTradeEfficiency: 0.8,
+      maxInflationRate: 0.1,
+      minCreditRating: 'B'
+    },
+    currentDemandsMet: 0,
+    politicalStance: 'reformist',
+    supportedPolicies: ['trade_subsidy',
+      'contract_law', 'weights_measures',
+      'lower_commerce_tax'],
+    opposedPolicies: ['trade_protection',
+      'merchant_tax', 'price_control'],
+    unlockCondition: { minMerchants: 5 }
+  },
+
+  bureaucracy: {
+    name: '官僚集团',
+    icon: '📜',
+    basedOn: 'official',
+    size: 0,
+    satisfaction: 50,
+    power: 0,
+    demands: {
+      minOfficialWage: 1.2,  // want wage > 1.2x GDP
+      minPaperSupply: 0.7,
+      maxFireLeakage: 0.15,
+      minInstitutionCount: 3
+    },
+    currentDemandsMet: 0,
+    politicalStance: 'conservative',
+    supportedPolicies: ['household_registry',
+      'codified_law', 'expand_bureaucracy'],
+    opposedPolicies: ['reduce_officials',
+      'anti_corruption', 'civil_service_reform'],
+    unlockCondition: { governmentEstablished: true }
+  },
+
+  military: {
+    name: '军方',
+    icon: '⚔️',
+    basedOn: 'soldier',
+    size: 0,
+    satisfaction: 50,
+    power: 0,
+    demands: {
+      minMilitaryBudget: 0.1,  // want 10% of GDP
+      minWeaponsSupply: 0.8,
+      minDefenseRating: 0.3,
+      minBarracksCount: 1
+    },
+    currentDemandsMet: 0,
+    politicalStance: 'conservative',
+    supportedPolicies: ['conscription',
+      'weapon_forging', 'fortification',
+      'expand_military'],
+    opposedPolicies: ['disarmament',
+      'reduce_military_budget'],
+    unlockCondition: { tech: 'militia' }
+  },
+
+  scholars: {
+    name: '学者阶层',
+    icon: '📚',
+    basedOn: 'scholar',
+    size: 0,
+    satisfaction: 50,
+    power: 0,
+    demands: {
+      minLiteracyRate: 0.2,
+      minSchoolCount: 2,
+      minResearchBudget: 0.05,
+      minAdminTalent: 50
+    },
+    currentDemandsMet: 0,
+    politicalStance: 'reformist',
+    supportedPolicies: ['imperial_exam',
+      'expand_schools', 'research_funding',
+      'papermaking'],
+    opposedPolicies: ['anti_intellectualism',
+      'reduce_education'],
+    unlockCondition: { secondaryGraduates: 10 }
+  },
+
+  craftsmen: {
+    name: '工匠行会',
+    icon: '🔨',
+    basedOn: 'worker',
+    size: 0,
+    satisfaction: 50,
+    power: 0,
+    demands: {
+      minWorkerWage: 0.8,    // want wage > 0.8x avg
+      minIronToolsSupply: 10,
+      maxWorkHours: 1.0,     // no overwork
+      minCraftBuildings: 1   // want blacksmith/kiln
+    },
+    currentDemandsMet: 0,
+    politicalStance: 'reformist',
+    supportedPolicies: ['iron_tools_subsidy',
+      'craft_guild_rights', 'workshop_expansion'],
+    opposedPolicies: ['price_control',
+      'foreign_goods_import'],
+    unlockCondition: {
+      buildings: ['blacksmith', 'kiln']
+    }
+  }
+}
+
+**Interest group size calculation:**
+farmerGuild.size = farmerPop.size * 100
+merchantGuild.size = merchantPop.size * 100
+bureaucracy.size = officialPop.size * 100
+military.size = state.buildings.barracks.count * 100
+scholars.size = scholarPool
+craftsmen.size = workerPop.size * 100
+
+**Political power calculation:**
+power = size * (literacy / 100) *
+  (satisfaction / 50) * wealthFactor
+
+wealthFactor:
+- merchant: wealth / averageWealth
+- farmer: 0.5 (low political power base)
+- official: 2.0 (high structural power)
+- military: 1.5 (armed)
+- scholar: 1.5 (educated)
+- craftsmen: 0.8
+
+**Demands satisfaction calculation:**
+Each year check if demands are met:
+- For each demand condition: met(1) or not(0)
+- currentDemandsMet = sum(met) / total demands
+- satisfaction changes:
+  currentDemandsMet > 0.8: satisfaction += 5
+  currentDemandsMet > 0.6: satisfaction += 2
+  currentDemandsMet < 0.4: satisfaction -= 5
+  currentDemandsMet < 0.2: satisfaction -= 10
+- satisfaction capped 0-100
+
+**Political pressure effects:**
+When group satisfaction < 40:
+- farmerGuild: farmerEventModifier -= 10
+  yearLog: "农民公会不满，农村怨声载道"
+- merchantGuild: commerceGDP *= 0.95
+  yearLog: "商人行会抵制，商业活动受阻"
+- bureaucracy: all institution efficiency -= 10%
+  yearLog: "官僚集团消极，行政效率下降"
+- military: defenseRating -= 0.1
+  yearLog: "军方不满，军心涣散"
+- scholars: techResearchSpeed -= 20%
+  yearLog: "学者离心，科研进展迟缓"
+- craftsmen: building construction cost += 20%
+  yearLog: "工匠罢工，建设成本上升"
+
+When group satisfaction < 20 for 3+ years:
+- Political crisis triggered
+- stabilityIndex -= 20
+- yearLog: "[危机] XXX 发动政治运动"
+
+**Player policy responses:**
+New policy options per group:
+
+Appease farmerGuild:
+- Cost: 2,000,000 grain
+- Effect: farmerGuild.satisfaction += 20
+- Cooldown: 5 years
+
+Appease merchantGuild:
+- Cost: reduce commerceTaxRate by 5% for 3 years
+- Effect: merchantGuild.satisfaction += 15
+
+Suppress dissent:
+- Available when any group satisfaction < 30
+- Cost: stabilityIndex -= 10
+- Effect: group.satisfaction += 10
+- Risk: if used 3+ times same group:
+  satisfaction -= 20 (backfire)
+
+**New file: js/society/interestGroups.js**
+Contains:
+- initInterestGroups(state)
+- updateInterestGroups(state)
+- calculateGroupPower(group, state)
+- checkGroupDemands(group, state)
+- applyGroupPressure(state)
+- getGroupPolicyOptions(state)
+
+**Pipeline integration:**
+Add after updateSatisfaction phase:
+{ name: 'updateInterestGroups',
+  fn: updateInterestGroups }
+
+**New UI section in 社会 tab:**
+Interest groups panel:
+- Each group: name / size / satisfaction / power
+- Demands met percentage bar
+- Color: green(>60) / yellow(40-60) / red(<40)
+- Appease button when satisfaction < 50
+- Crisis warning when satisfaction < 20
+
+**Files to create:**
+- js/society/interestGroups.js
+
+**Files to modify:**
+- js/state.js (add interestGroups)
+- js/game.js (add to pipeline)
+- js/ui/render_society.js (add groups panel)
+- index.html (add script tag)
+
+**Do NOT touch:** any economy/ buildings/
+diplomacy/ tech/ ui/render_world.js
+ui/render_economy.js ui/render_buildings.js
+ui/render_map.js
+
+**Definition of Done (Phase 10I):**
+- 6 interest groups initialized
+- Groups unlock based on conditions
+- Demands checked each year
+- Satisfaction changes from demand satisfaction
+- Political pressure applied when unhappy
+- Crisis triggers after 3 years < 20 satisfaction
+- Appease policy options work
+- UI shows all groups with status
+- yearLog records group pressure events
