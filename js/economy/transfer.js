@@ -177,7 +177,9 @@ export function mint({ to, asset, amount, reason = '' }, state) {
   const toBalance = clampAmount(toRef.holder[toRef.key] ?? 0);
   toRef.holder[toRef.key] = clampAmount(toBalance + safeAmount);
 
-  monetary.couponCirculating = clampAmount(Number(monetary.couponCirculating ?? 0) + safeAmount);
+  if (to !== 'monetary.circulating') {
+    monetary.couponCirculating = clampAmount(Number(monetary.couponCirculating ?? 0) + safeAmount);
+  }
   monetary.couponTotalIssued = clampAmount(Number(monetary.couponTotalIssued ?? 0) + safeAmount);
 
   const world = getWorld(state);
@@ -201,7 +203,14 @@ export function burn({ from, asset, amount, reason = '' }, state) {
   const safeAmount = clampAmount(amount);
   if (safeAmount <= 0) return true;
   if (asset !== 'coupon') return false;
-  if (from !== 'monetary.circulating') return false;
+
+  const allowedFrom = new Set([
+    'monetary.circulating',
+    'private.farmer.coupon',
+    'private.merchant.coupon',
+    'government.coupon',
+  ]);
+  if (!allowedFrom.has(from)) return false;
 
   const monetary = getMonetary(state);
   const fromRef = resolveAccount(state, from);
@@ -210,8 +219,16 @@ export function burn({ from, asset, amount, reason = '' }, state) {
   const fromBalance = clampAmount(fromRef.holder[fromRef.key] ?? 0);
   if (fromBalance < safeAmount) return false;
 
-  fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
-  monetary.couponCirculating = clampAmount(fromRef.holder[fromRef.key]);
+  const circulatingBalance = clampAmount(Number(monetary.couponCirculating ?? 0));
+  if (circulatingBalance < safeAmount) return false;
+
+  if (from === 'monetary.circulating') {
+    fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
+    monetary.couponCirculating = clampAmount(fromRef.holder[fromRef.key]);
+  } else {
+    fromRef.holder[fromRef.key] = clampAmount(fromBalance - safeAmount);
+    monetary.couponCirculating = clampAmount(circulatingBalance - safeAmount);
+  }
 
   const world = getWorld(state);
   const ledger = ensureLedger(world);
