@@ -9,6 +9,7 @@ import { renderEconomyTab, renderAgricultureTab, renderCurrencyTab } from './ui/
 import { renderSocietyTab } from './ui/render_society.js';
 import { renderMapTab } from './ui/render_map.js';
 import { renderTechPanel } from './ui/render_tech.js';
+import { renderBuildingsTab } from './ui/render_buildings.js';
 
 let tabsBound = false;
 let saveControlsBound = false;
@@ -63,6 +64,8 @@ export function renderAll(
   onOpenHempLand,
   onOpenMulberryLand,
   onStartResearch,
+  onConstructBuilding,
+  onSetBuildingMethod,
   onSave,
   onLoad,
   onExport,
@@ -78,6 +81,7 @@ export function renderAll(
   renderYearLog(state);
   renderEconomyTab(state);
   renderAgricultureTab(state, onOpenHempLand, onOpenMulberryLand);
+  renderBuildingsTab(state, onConstructBuilding, onSetBuildingMethod);
   renderSocietyTab(state, onUseGrainRedistribution, onUseMerchantTax, onEmergencyRecirculation, onEmergencyRedemption);
   renderMapTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota);
   renderSystems(state);
