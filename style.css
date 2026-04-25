@@ -80,19 +80,24 @@ h1 {
   height: var(--tabs-h);
   background: #0b1220;
   border-top: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
   z-index: 20;
 }
 
 .tab-btn {
+  display: inline-block;
+  min-width: 92px;
+  height: 100%;
   background: transparent;
   color: var(--muted);
   border: none;
   border-right: 1px solid rgba(51, 65, 85, 0.25);
   border-radius: 0;
   font-size: 0.78rem;
-  padding: 0.3rem 0;
+  padding: 0.3rem 0.6rem;
+  vertical-align: top;
 }
 
 .tab-btn:last-child {
