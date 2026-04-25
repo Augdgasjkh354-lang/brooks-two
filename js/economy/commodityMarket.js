@@ -73,6 +73,7 @@ function calculateSupply(state) {
 }
 
 
+
 function addYearLog(state, msg) {
   if (!state.logs) state.logs = {};
   if (!Array.isArray(state.logs.yearLog)) state.logs.yearLog = [];
@@ -172,6 +173,10 @@ export function settleCommodityMarket(state) {
 
   try {
     ensureCommodityPriceState(state);
+    if (!state.commodityPrices || typeof state.commodityPrices !== 'object') {
+      state.commodityPrices = {};
+      ensureCommodityPriceState(state);
+    }
     state.commodities = state.commodities ?? {};
     state.logs = state.logs ?? {};
     state.logs.yearLog = Array.isArray(state.logs.yearLog) ? state.logs.yearLog : (Array.isArray(state.yearLog) ? state.yearLog : []);
@@ -185,7 +190,8 @@ export function settleCommodityMarket(state) {
       const previousPrice = Math.max(0.0001, Number(entry.price ?? entry.basePrice ?? 1));
       const commoditySupply = Math.max(0, Number(supply[commodity] ?? 0));
       const commodityDemand = Math.max(0, Number(demand[commodity] ?? 0));
-      const demandRatio = commodityDemand / Math.max(commoditySupply, 1);
+      const safeSupply = Math.max(1, commoditySupply);
+      const demandRatio = commodityDemand / safeSupply;
       const targetPrice = Math.max(
         0.0001,
         Number(entry.basePrice ?? 1) * Math.pow(Math.max(demandRatio, 0.0001), Number(entry.elasticity ?? 0.5))

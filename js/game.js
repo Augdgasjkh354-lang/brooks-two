@@ -895,6 +895,9 @@ const YEAR_PIPELINE = [
 function advanceYear(gameState = state) {
   ensureCommodityState(gameState);
   ensurePopState(gameState);
+  if (!gameState.logs) gameState.logs = { yearLog: [] };
+  if (!Array.isArray(gameState.logs.yearLog)) gameState.logs.yearLog = [];
+  gameState.yearLog = gameState.logs.yearLog;
   gameState.calendar.year += 1;
   gameState.__yearPipeline = {};
 
@@ -902,19 +905,11 @@ function advanceYear(gameState = state) {
     try {
       phase.fn(gameState);
     } catch (err) {
-      console.error(`Pipeline error in ${phase.name} (year ${gameState.calendar?.year ?? 'unknown'}):`, err);
-      if (phase.name === 'settleCommodityMarket') {
-        console.error('Commodity market pipeline state snapshot:', {
-          hasWorld: Boolean(gameState.world),
-          hasBuildings: Boolean(gameState.buildings),
-          hasCommodities: Boolean(gameState.commodities),
-          hasCommodityPrices: Boolean(gameState.commodityPrices),
-          buildingKeys: Object.keys(gameState.buildings ?? {}),
-          commodityKeys: Object.keys(gameState.commodities ?? {}),
-          commodityPriceKeys: Object.keys(gameState.commodityPrices ?? {}),
-        });
-      }
-      gameState.yearLog.push(`[错误] ${phase.name} 执行失败: ${err?.message ?? err}`);
+      console.error('Pipeline failed at phase:', phase.name, err);
+      addYearLog(
+        gameState,
+        `[错误] ${phase.name} 失败: ${err?.message ?? String(err)}`
+      );
     }
   }
 
