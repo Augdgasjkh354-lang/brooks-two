@@ -24,6 +24,9 @@ function lerp(a, b, t) {
 
 function ensureCommodityPriceState(state) {
   state.commodityPrices = state.commodityPrices ?? {};
+  state.commodities = state.commodities ?? {};
+  state.buildings = state.buildings ?? {};
+
   Object.entries(COMMODITY_PRICE_DEFAULTS).forEach(([commodity, defaults]) => {
     const existing = state.commodityPrices[commodity] ?? {};
     state.commodityPrices[commodity] = {
@@ -153,81 +156,101 @@ function applyCommodityEffects(state, supply, demand) {
 }
 
 export function settleCommodityMarket(state) {
-  if (!state?.world) return null;
-
-  ensureCommodityPriceState(state);
-  state.commodities = state.commodities ?? {};
-
-  const supply = calculateSupply(state);
-  const demand = calculateDemand(state);
-
-  const priceChanges = [];
-
-  Object.entries(state.commodityPrices).forEach(([commodity, entry]) => {
-    const previousPrice = Math.max(0.0001, Number(entry.price ?? entry.basePrice ?? 1));
-    const commoditySupply = Math.max(0, Number(supply[commodity] ?? 0));
-    const commodityDemand = Math.max(0, Number(demand[commodity] ?? 0));
-    const demandRatio = commodityDemand / Math.max(commoditySupply, 1);
-    const targetPrice = Math.max(0.0001, Number(entry.basePrice ?? 1) * Math.pow(Math.max(demandRatio, 0.0001), Number(entry.elasticity ?? 0.5)));
-    let nextPrice = lerp(previousPrice, targetPrice, 0.3);
-    nextPrice = clamp(nextPrice, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
-
-    if (commodity === 'grain') {
-      const totalPopulation = Math.max(0, Number(state.population?.totalPopulation ?? state.world?.totalPopulation ?? 0));
-      if (Number(supply.grain ?? 0) > totalPopulation * 720) {
-        nextPrice = clamp(nextPrice * 0.8, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
-      }
-    }
-
-    if (commodity === 'silk' && Number(supply.silk ?? 0) > 10000) {
-      nextPrice = clamp(nextPrice * 0.9, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
-      state.world.merchantLifeQuality = Math.min(100, Math.max(0, Number(state.world.merchantLifeQuality ?? 50) + 3));
-    }
-
-    const trend = nextPrice > previousPrice * 1.01 ? '↑' : nextPrice < previousPrice * 0.99 ? '↓' : '→';
-
-    state.commodityPrices[commodity] = {
-      ...entry,
-      lastPrice: previousPrice,
-      price: nextPrice,
-      supply: commoditySupply,
-      demand: commodityDemand,
-      trend,
-    };
-
-    const inventory = Math.max(0, Number(state.commodities[commodity] ?? 0));
-    const netFlow = commoditySupply - commodityDemand;
-    state.commodities[commodity] = Math.max(0, inventory + netFlow);
-
-    if (Math.abs(nextPrice - previousPrice) >= 0.05) {
-      priceChanges.push(`${commodity}${previousPrice.toFixed(2)}→${nextPrice.toFixed(2)}`);
-    }
-  });
-
-  applyCommodityEffects(state, supply, demand);
-
-  state.world.saltPrice = Number(state.commodityPrices.salt?.price ?? state.world.saltPrice ?? 4);
-  state.world.clothPrice = Number(state.commodityPrices.cloth?.price ?? state.world.clothPrice ?? 2);
-  state.world.saltReserve = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
-  state.world.clothReserve = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
-  state.world.grainTreasury = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
-  state.world.rawSilkOutput = Math.max(0, Number(state.commodities.silk ?? state.world.rawSilkOutput ?? 0));
-
-  const summary = {
-    supply,
-    demand,
-    prices: state.commodityPrices,
-    priceChanges,
-  };
-
-  state.__yearPipeline = state.__yearPipeline ?? {};
-  state.__yearPipeline.commodityMarketResult = summary;
-
-  if (priceChanges.length > 0) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 商品市场结算：${priceChanges.slice(0, 6).join('，')}。`);
+  if (!state?.world) {
+    console.error('settleCommodityMarket skipped: missing state.world');
+    return null;
   }
 
-  return summary;
+  try {
+    ensureCommodityPriceState(state);
+    state.commodities = state.commodities ?? {};
+    state.yearLog = Array.isArray(state.yearLog) ? state.yearLog : [];
+
+    const supply = calculateSupply(state);
+    const demand = calculateDemand(state);
+    const priceChanges = [];
+
+    Object.entries(state.commodityPrices).forEach(([commodity, entry]) => {
+      const previousPrice = Math.max(0.0001, Number(entry.price ?? entry.basePrice ?? 1));
+      const commoditySupply = Math.max(0, Number(supply[commodity] ?? 0));
+      const commodityDemand = Math.max(0, Number(demand[commodity] ?? 0));
+      const demandRatio = commodityDemand / Math.max(commoditySupply, 1);
+      const targetPrice = Math.max(
+        0.0001,
+        Number(entry.basePrice ?? 1) * Math.pow(Math.max(demandRatio, 0.0001), Number(entry.elasticity ?? 0.5))
+      );
+      let nextPrice = lerp(previousPrice, targetPrice, 0.3);
+      nextPrice = clamp(nextPrice, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
+
+      if (commodity === 'grain') {
+        const totalPopulation = Math.max(0, Number(state.population?.totalPopulation ?? state.world?.totalPopulation ?? 0));
+        if (Number(supply.grain ?? 0) > totalPopulation * 720) {
+          nextPrice = clamp(nextPrice * 0.8, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
+        }
+      }
+
+      if (commodity === 'silk' && Number(supply.silk ?? 0) > 10000) {
+        nextPrice = clamp(nextPrice * 0.9, Number(entry.minPrice ?? 0.1), Number(entry.maxPrice ?? 999999));
+        state.world.merchantLifeQuality = Math.min(100, Math.max(0, Number(state.world.merchantLifeQuality ?? 50) + 3));
+      }
+
+      const trend = nextPrice > previousPrice * 1.01 ? '↑' : nextPrice < previousPrice * 0.99 ? '↓' : '→';
+
+      state.commodityPrices[commodity] = {
+        ...entry,
+        lastPrice: previousPrice,
+        price: nextPrice,
+        supply: commoditySupply,
+        demand: commodityDemand,
+        trend,
+      };
+
+      const inventory = Math.max(0, Number(state.commodities[commodity] ?? 0));
+      const netFlow = commoditySupply - commodityDemand;
+      state.commodities[commodity] = Math.max(0, inventory + netFlow);
+
+      if (Math.abs(nextPrice - previousPrice) >= 0.05) {
+        priceChanges.push(`${commodity}${previousPrice.toFixed(2)}→${nextPrice.toFixed(2)}`);
+      }
+    });
+
+    applyCommodityEffects(state, supply, demand);
+
+    state.world.saltPrice = Number(state.commodityPrices.salt?.price ?? state.world.saltPrice ?? 4);
+    state.world.clothPrice = Number(state.commodityPrices.cloth?.price ?? state.world.clothPrice ?? 2);
+    state.world.saltReserve = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
+    state.world.clothReserve = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
+    state.world.grainTreasury = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
+    state.world.rawSilkOutput = Math.max(0, Number(state.commodities.silk ?? state.world.rawSilkOutput ?? 0));
+
+    const summary = {
+      supply,
+      demand,
+      prices: state.commodityPrices,
+      priceChanges,
+    };
+
+    state.__yearPipeline = state.__yearPipeline ?? {};
+    state.__yearPipeline.commodityMarketResult = summary;
+
+    if (priceChanges.length > 0) {
+      state.yearLog.unshift(`Year ${state.calendar.year}: 商品市场结算：${priceChanges.slice(0, 6).join('，')}。`);
+    }
+
+    return summary;
+  } catch (error) {
+    console.error('settleCommodityMarket failed:', {
+      year: state.calendar?.year,
+      hasWorld: Boolean(state.world),
+      hasBuildings: Boolean(state.buildings),
+      hasCommodities: Boolean(state.commodities),
+      hasCommodityPrices: Boolean(state.commodityPrices),
+      buildingKeys: Object.keys(state.buildings ?? {}),
+      commodityKeys: Object.keys(state.commodities ?? {}),
+      commodityPriceKeys: Object.keys(state.commodityPrices ?? {}),
+    }, error);
+    throw error;
+  }
 }
 
 export { COMMODITY_PRICE_DEFAULTS };

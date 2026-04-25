@@ -1,4 +1,4 @@
-import { createGameState } from './state.js';
+import { createGameState, ensureCommodityState } from './state.js';
 import { updatePopulation, processEducationYear } from './society/population.js';
 import { updateEconomy } from './economy/agriculture.js';
 import { issueGrainCoupons, borrowGovernmentDebt, processGovernmentDebtYear } from './economy/currency.js';
@@ -534,7 +534,23 @@ function settleMarket() {
 
 function settleCommodityMarketPhase() {
   state.__yearPipeline = state.__yearPipeline ?? {};
-  state.__yearPipeline.commodityMarketResult = settleCommodityMarket(state);
+  ensureCommodityState(state);
+
+  try {
+    state.__yearPipeline.commodityMarketResult = settleCommodityMarket(state);
+  } catch (err) {
+    const context = {
+      year: state.calendar?.year,
+      hasWorld: Boolean(state.world),
+      hasBuildings: Boolean(state.buildings),
+      hasCommodities: Boolean(state.commodities),
+      hasCommodityPrices: Boolean(state.commodityPrices),
+      commodityKeys: Object.keys(state.commodities ?? {}),
+      priceKeys: Object.keys(state.commodityPrices ?? {}),
+    };
+    console.error('settleCommodityMarketPhase failed:', context, err);
+    throw err;
+  }
 }
 
 function collectTaxes() {
@@ -842,6 +858,7 @@ const YEAR_PIPELINE = [
 ];
 
 function advanceYear(gameState = state) {
+  ensureCommodityState(gameState);
   gameState.calendar.year += 1;
   gameState.__yearPipeline = {};
 
@@ -849,8 +866,19 @@ function advanceYear(gameState = state) {
     try {
       phase.fn(gameState);
     } catch (err) {
-      console.error(`Pipeline error in ${phase.name}:`, err);
-      gameState.yearLog.push(`[错误] ${phase.name} 执行失败`);
+      console.error(`Pipeline error in ${phase.name} (year ${gameState.calendar?.year ?? 'unknown'}):`, err);
+      if (phase.name === 'settleCommodityMarket') {
+        console.error('Commodity market pipeline state snapshot:', {
+          hasWorld: Boolean(gameState.world),
+          hasBuildings: Boolean(gameState.buildings),
+          hasCommodities: Boolean(gameState.commodities),
+          hasCommodityPrices: Boolean(gameState.commodityPrices),
+          buildingKeys: Object.keys(gameState.buildings ?? {}),
+          commodityKeys: Object.keys(gameState.commodities ?? {}),
+          commodityPriceKeys: Object.keys(gameState.commodityPrices ?? {}),
+        });
+      }
+      gameState.yearLog.push(`[错误] ${phase.name} 执行失败: ${err?.message ?? err}`);
     }
   }
 
