@@ -333,3 +333,127 @@ ui/render_world.js ui/render_economy.js
 - Xikou trade uses dynamic commodity prices
 - yearLog records price changes and shortages
 - Price trend indicators (↑↓→) in UI
+## Current Phase: 10G - Pop System
+
+**Goal:** Upgrade population from simple counts
+to real Pop units with profession, wealth,
+needs, and political leaning.
+
+**Pop definition:**
+Each Pop represents ~100 people of same type.
+
+state.pops = [
+  {
+    id: 'pop_001',
+    type: 'farmer',
+    size: 30,        // number of pops (x100 people)
+    wealth: 500,     // grain equivalent per pop
+    needs: {
+      grain: 360,
+      salt: 15,
+      cloth: 0.3,
+      medicine: 0.05
+    },
+    needsSatisfied: {
+      grain: 1.0,    // 0-1, how well needs met
+      salt: 0.8,
+      cloth: 0.6,
+      medicine: 0.3
+    },
+    politicalLeaning: 'conservative',
+      // conservative/reformist/radical
+    literacy: 0.05,
+    satisfaction: 50,
+    income: 1500,    // grain per person per year
+    savings: 0
+  }
+]
+
+**Pop types:**
+- farmer: works farmland, produces grain
+- worker: works hemp/mulberry/industry
+- merchant: operates shops, trades
+- official: runs government institutions
+- soldier: (future) military
+- scholar: educated, produces knowledge
+
+**Pop creation rules:**
+- Pops created from population cohorts
+- farmer pops = farmingLaborAllocated / 100
+- worker pops = (hempLabor + mulberryLabor) / 100
+- merchant pops = merchantCount / 100
+- official pops = institutionWorkers / 100
+
+**Pop needs satisfaction:**
+Each year for each pop:
+- Check commodity market supply vs demand
+- needsSatisfied = min(1.0,
+    commodityAvailable / needRequired)
+- If needsSatisfied < 0.5: satisfaction drops
+- If needsSatisfied > 0.9: satisfaction rises
+
+**Pop wealth changes:**
+Each year:
+- income = sector wage * pop size * 100
+- expenses = needs * commodity prices * pop size
+- savings += income - expenses
+- wealth = savings / (pop size * 100)
+
+**Pop satisfaction from needs:**
+overallSatisfaction = weighted average of:
+  grain satisfaction * 0.4
+  salt satisfaction * 0.2
+  cloth satisfaction * 0.2
+  medicine satisfaction * 0.1
+  other needs * 0.1
+
+**Pop political leaning:**
+- wealth > averageWealth * 2: conservative
+  (protect status quo)
+- wealth < averageWealth * 0.5: radical
+  (want change)
+- otherwise: reformist
+
+**Pop growth:**
+- farmer pops grow with farmland expansion
+- worker pops grow with industrial buildings
+- merchant pops grow with shop construction
+- official pops set by player (institution staff)
+
+**Effects on existing systems:**
+- farmerSatisfaction = average farmer pop satisfaction
+- merchantSatisfaction = average merchant pop satisfaction
+- officialSatisfaction = average official pop satisfaction
+- farmerLiteracy = average farmer pop literacy
+- Total laborForce = sum of all working pop sizes * 100
+
+**New UI section in 社会 tab:**
+Pop overview panel:
+- List all pop types with count
+- Each pop: size / wealth / satisfaction / needs met
+- Political leaning distribution bar
+- Needs satisfaction breakdown
+
+**Files to create:**
+- js/society/popSystem.js
+
+**Files to modify:**
+- js/state.js (add state.pops)
+- js/game.js (add updatePops to pipeline)
+- js/society/satisfaction.js
+  (read from pop satisfaction)
+- js/ui/render_society.js (add pop panel)
+
+**Do NOT touch:** any economy/ buildings/
+diplomacy/ tech/ ui/render_world.js
+ui/render_economy.js ui/render_buildings.js
+
+**Definition of Done (Phase 10G):**
+- state.pops initialized from population
+- Each pop has type/size/wealth/needs/satisfaction
+- Needs satisfaction calculated from commodities
+- Pop satisfaction feeds into class satisfaction
+- Political leaning calculated from wealth
+- Pop panel visible in 社会 tab
+- yearLog records pop satisfaction changes
+- Pop sizes update with labor allocation changes
