@@ -7167,3 +7167,66 @@ game.js just reorganizes HOW they are called.
 - Game runs identically after refactor
 - Next Year button calls advanceYear()
 - Auto-save still happens at end
+## Phase 10C: Disable Landlord Class (Current)
+
+Phase 10B complete. Landlord class temporarily
+disabled. Will be reactivated when land
+privatization policy is implemented.
+
+**Goal:** Zero out all landlord calculations
+without deleting code. Mark as inactive.
+
+**Rules:**
+
+state.js:
+- Set all landlord initial values to 0
+- Add comment: // DISABLED: reactivate with
+  land privatization policy
+
+satisfaction.js:
+- Skip all landlordLifeQuality calculations
+- Set landlordLifeQuality = 0 always
+- Set landlordSatisfaction = 0 always
+- Add comment above landlord section:
+  // LANDLORD DISABLED - pending land reform
+
+population.js:
+- Skip landlordPopulation calculation
+- Set landlordPopulation = 0 always
+
+stability.js:
+- Skip landlord behavior reactions
+- Skip landlord satisfaction effects
+
+economy/agriculture.js:
+- Remove farmlandRentRate income calculations
+- Set farmlandRentRate = 0 (no rent system)
+- Government owns land, farmers pay tax only
+
+ui/render_society.js:
+- Hide landlord panel completely
+- Add HTML comment: landlord panel disabled
+
+**Do NOT delete any code.**
+**Only add if(false) guards or set values to 0.**
+**Preserve all landlord logic for future use.**
+
+**Files to modify:**
+- js/state.js
+- js/society/satisfaction.js
+- js/society/population.js
+- js/society/stability.js
+- js/economy/agriculture.js
+- js/ui/render_society.js
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 10C):**
+- landlordLifeQuality always 0
+- landlordSatisfaction always 0
+- landlordPopulation always 0
+- No landlord effects on stability
+- No rent collection in agriculture
+- Landlord panel hidden in UI
+- All landlord code preserved with comments
+- Game runs without landlord class active
