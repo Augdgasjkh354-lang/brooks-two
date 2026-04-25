@@ -4,7 +4,12 @@ import { PRODUCTION_METHODS } from './productionMethods.js';
 
 function getRootState(state) {
   if (state?.world) return state;
-  return { world: state, buildings: state?.buildings ?? {}, commodities: state?.commodities ?? {} };
+  return {
+    world: state,
+    buildings: state?.buildings ?? state?.__buildings ?? {},
+    commodities: state?.commodities ?? state?.__commodities ?? {},
+    research: state?.research ?? state?.__research ?? null,
+  };
 }
 
 function getBuildingState(state, buildingId) {
@@ -64,6 +69,44 @@ function computeInputAvailability(requiredInputs, availableCommodities) {
   return Math.max(0, Math.min(1, ratio));
 }
 
+function hasCompletedTech(root, techId) {
+  if (!techId) return false;
+  if (Array.isArray(root?.research?.completed) && root.research.completed.includes(techId)) return true;
+  if (Array.isArray(root?.world?.research?.completed) && root.world.research.completed.includes(techId)) return true;
+  return false;
+}
+
+function applyProductionMethodEffects(baseMultiplier, methodId, state) {
+  const root = getRootState(state);
+  const world = root.world ?? {};
+  const commodities = root.commodities ?? {};
+
+  let multiplier = Math.max(0, Number(baseMultiplier ?? 1));
+  const safeMethodId = String(methodId ?? '');
+
+  if (safeMethodId === 'iron_tools' && Number(commodities.iron_tools ?? 0) > 0) {
+    multiplier *= 1.15;
+  }
+
+  const irrigationCanalCount = Math.max(
+    0,
+    Number(world.irrigationCanalCount ?? world.__land?.irrigationCanalCount ?? 0)
+  );
+  if (safeMethodId === 'irrigation' && irrigationCanalCount > 0) {
+    multiplier *= 1.2;
+  }
+
+  if (safeMethodId === 'fertilizer' && Number(commodities.silkworm_dung ?? 0) > 0) {
+    multiplier *= 1.2;
+  }
+
+  if (safeMethodId === 'crop_rotation' && hasCompletedTech(root, 'crop_rotation')) {
+    multiplier *= 1.15;
+  }
+
+  return multiplier;
+}
+
 export function calculateBuildingOutput(building, count, state, availableCommodities = null) {
   const buildingId = typeof building === 'string' ? building : building?.id;
   const buildingType = BUILDING_TYPES_BY_ID[buildingId] ?? null;
@@ -74,7 +117,11 @@ export function calculateBuildingOutput(building, count, state, availableCommodi
   const buildingState = getBuildingState(state, buildingId) ?? { count: 0, method: buildingType.productionMethods?.[0] };
   const unitCount = Math.max(0, Number(count ?? buildingState.count ?? 0));
   const method = getActiveMethod(buildingType, buildingState);
-  const outputMultiplier = Number(method?.outputMultiplier ?? 1);
+  const outputMultiplier = applyProductionMethodEffects(
+    Number(method?.outputMultiplier ?? 1),
+    method?.id,
+    state
+  );
   const inputMultiplier = Number(method?.inputMultiplier ?? 1);
   const laborMultiplier = Number(method?.laborMultiplier ?? 1);
 
@@ -172,9 +219,6 @@ export function calculateAllBuildingOutputs(state) {
   let totalWorkers = 0;
 
   const availablePool = { ...root.commodities };
-  Object.keys(root.commodities).forEach((key) => {
-    root.commodities[key] = 0;
-  });
 
   for (const buildingType of BUILDING_TYPES) {
     const entry = getBuildingState(root, buildingType.id);
@@ -188,6 +232,7 @@ export function calculateAllBuildingOutputs(state) {
       const amount = Math.max(0, Number(value ?? 0));
       yearlyInputs[commodity] = Math.max(0, Number(yearlyInputs[commodity] ?? 0) + amount);
       availablePool[commodity] = Math.max(0, Number(availablePool[commodity] ?? 0) - amount);
+      root.commodities[commodity] = Math.max(0, Number(root.commodities[commodity] ?? 0) - amount);
     });
 
     Object.entries(result.outputs ?? {}).forEach(([commodity, value]) => {

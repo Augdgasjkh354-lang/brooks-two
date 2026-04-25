@@ -43,6 +43,7 @@ import {
   MAX_GRAIN_YIELD_PER_MU, COUPON_GRAIN_RATIO, GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR,
   SALT_CONSUMPTION_PER_PERSON, CLOTH_CONSUMPTION_PER_PERSON
 } from '../config/constants.js';
+import { calculateBuildingOutput } from '../buildings/buildingEngine.js';
 
 
 export const AGRICULTURE_RECLAMATION_COSTS = {
@@ -78,6 +79,10 @@ function getAgricultureState(world) {
 
 function getPrivateSectorState(world) {
   return world.__privateSector ?? world.privateSector ?? null;
+}
+
+function getCommodityState(world) {
+  return world.__commodities ?? world.commodities ?? {};
 }
 
 function safeNumber(value, fallback = 0) {
@@ -144,6 +149,9 @@ export function updateEconomy(world, options = {}) {
   updateXikouVillageEconomy(world);
   const diplomacyMessages = updateXikouDiplomacy(world);
 
+  const commodities = getCommodityState(world);
+  const buildings = world.__buildings ?? world.buildings ?? {};
+
   const behaviorMessages = [];
   const currentYear = world.year ?? 1;
 
@@ -189,6 +197,11 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push(`桑田首收：新增成熟桑田${maturedMulberryLand}亩`);
   }
 
+  if (buildings.farmland) buildings.farmland.count = Math.max(0, Number(land.farmlandAreaMu ?? buildings.farmland.count ?? 0));
+  if (buildings.hemp_field) buildings.hemp_field.count = Math.max(0, Number(land.hempLandMu ?? buildings.hemp_field.count ?? 0));
+  if (buildings.mulberry_field) buildings.mulberry_field.count = Math.max(0, Number(world.mulberryMatureLandMu ?? land.mulberryLandMu ?? buildings.mulberry_field.count ?? 0));
+  if (buildings.shop) buildings.shop.count = Math.max(0, Number(world.shopCount ?? buildings.shop.count ?? 0));
+
   const { farmEfficiency, hempEfficiency, mulberryEfficiency, unemploymentEffectTier, wageSignals } = calculateLaborAllocation(world);
   world.farmingWage = Math.max(0, Number(wageSignals?.farmingWage ?? world.farmingWage ?? 0));
   world.commerceWagePerWorker = Math.max(0, Number(wageSignals?.commerceWagePerWorker ?? world.commerceWagePerWorker ?? 0));
@@ -198,11 +211,12 @@ export function updateEconomy(world, options = {}) {
 
   const literacyEffects = applyLiteracyEffectsToWorld(world);
 
-  const paperMaterial = clamp((land.hempLandMu ?? 0) * 20);
-  const hempStalks = clamp((land.hempLandMu ?? 0) * 200);
-  const buildingFiber = clamp((land.hempLandMu ?? 0) * 10);
+  const yearlyBuildingOutputs = world.buildingOutputSummary?.outputs ?? {};
+  const paperMaterial = clamp(Number(yearlyBuildingOutputs.paper_material ?? 0));
+  const hempStalks = clamp(Number(yearlyBuildingOutputs.hemp_stalk ?? 0));
+  const buildingFiber = clamp(Number(yearlyBuildingOutputs.lumber ?? 0));
 
-  const paperMaterialReserveCap = clamp((land.hempLandMu ?? 0) * 100);
+  const paperMaterialReserveCap = clamp((buildings.hemp_field?.count ?? 0) * 100);
   const nextPaperMaterialReserve = clamp(
     Math.min(
       paperMaterialReserveCap,
@@ -210,7 +224,7 @@ export function updateEconomy(world, options = {}) {
     )
   );
 
-  const paperOutput = world.techBonuses?.bureaucracyUnlocked ? clamp(nextPaperMaterialReserve / 50) : 0;
+  const paperOutput = clamp(Number(yearlyBuildingOutputs.paper ?? 0));
 
   const nextBuildingFiberReserve = clamp(Math.max(0, Number(world.buildingFiberReserve ?? 0)) + buildingFiber);
   const structuralThreshold = clamp((land.farmlandAreaMu ?? 0) * 5);
@@ -240,13 +254,18 @@ export function updateEconomy(world, options = {}) {
   const techYieldBonus = Math.max(0, Number(world.techBonuses?.grainYieldBonus ?? 0));
   const effectiveYieldPerMu = Math.min(MAX_GRAIN_YIELD_PER_MU, Math.max(0, agriculture.baseGrainYieldPerMu + techYieldBonus));
 
-  const potentialGrainOutput = clamp(land.farmlandAreaMu * effectiveYieldPerMu);
-  const preStabilityGrainOutput = clamp(potentialGrainOutput * effectiveFarmEfficiency);
+  const farmlandCount = Math.max(0, Number(buildings.farmland?.count ?? land.farmlandAreaMu ?? 0));
+  const farmlandOutput = calculateBuildingOutput('farmland', farmlandCount, world);
+  const baseFarmlandGrain = Math.max(0, Number(farmlandOutput.outputs?.grain ?? 0));
+  const farmlandYieldScale = Math.max(0, effectiveYieldPerMu / Math.max(1, Number(agriculture.baseGrainYieldPerMu ?? 500)));
+
+  const potentialGrainOutput = clamp(farmlandCount * effectiveYieldPerMu);
+  const preStabilityGrainOutput = clamp(baseFarmlandGrain * farmlandYieldScale * effectiveFarmEfficiency);
   const agriculturalTax = clamp(
     preStabilityGrainOutput * agriculture.agriculturalTaxRate * (1 + bureaucracyEffects.taxEfficiencyBonus)
   );
 
-  const operatingShops = Math.max(0, Math.floor(world.operatingShops ?? 0));
+  const operatingShops = Math.max(0, Math.floor(buildings.shop?.count ?? world.operatingShops ?? 0));
   const idleShops = Math.max(0, Math.floor(world.idleShops ?? 0));
 
   const maxMarketDemand = world.totalPopulation > 0 ? world.totalPopulation / 50 : 0;
@@ -260,7 +279,7 @@ export function updateEconomy(world, options = {}) {
     })
   );
   const commerceGrainDemand = clamp(operatingShops * 200);
-  const availableGrainForCommerce = safeNonNegativeNumber(world.grainTreasury ?? agriculture.grainTreasury);
+  const availableGrainForCommerce = safeNonNegativeNumber(commodities.grain ?? world.grainTreasury ?? agriculture.grainTreasury);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, commerceGrainDemand);
   const grainSupplyEfficiency =
     commerceGrainDemand > 0 ? grainConsumedByCommerce / commerceGrainDemand : 1;
@@ -283,6 +302,7 @@ export function updateEconomy(world, options = {}) {
   constructionCostReduction += Math.max(0, Number(world.engineeringConstructionReduction ?? 0));
   world.constructionCostReduction = constructionCostReduction;
 
+  const shopOutput = calculateBuildingOutput('shop', operatingShops, world, commodities);
   const {
     commerceGDP: productionCommerceGDP,
     moneylenderGDP: baseMoneylenderGDP,
@@ -293,6 +313,7 @@ export function updateEconomy(world, options = {}) {
     demandSaturation,
     commerceActivityBonus: effectiveCommerceActivityBonus,
     tradeEfficiency: Number(world.techBonuses?.tradeEfficiency ?? 0),
+    shopBuildingOutput: shopOutput,
   });
 
   const preStabilityCommerceGDP = clamp(
@@ -327,6 +348,12 @@ export function updateEconomy(world, options = {}) {
   const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
   const commerceGDP = clamp(preStabilityCommerceGDP * efficiencyMultiplier);
 
+  const grainTaxRate = Math.max(0, Math.min(1, Number(agriculture.agriculturalTaxRate ?? 0)));
+  const grainTaxShare = clamp(grainOutput * grainTaxRate);
+  const farmerGrainRetention = clamp(grainOutput - grainTaxShare);
+  commodities.grain = Math.max(0, Number(commodities.grain ?? 0) - grainOutput + grainTaxShare);
+  world.farmerRetainedGrain = farmerGrainRetention;
+
   const treasuryAfterCommerce = collectTax
     ? availableGrainForCommerce - grainConsumedByCommerce
     : availableGrainForCommerce;
@@ -348,8 +375,13 @@ export function updateEconomy(world, options = {}) {
   const clothReserveAtYearStart = Math.max(0, Number(world.clothReserve ?? 0));
   const clothTradeReceived = Math.max(0, clothReserveAtYearStart - previousClothReserveSnapshot);
 
-  const coarseClothOutput = clamp((world.hempLandMu ?? 0) * 5 * effectiveHempEfficiency);
-  const rawSilkOutput = clamp((world.mulberryMatureLandMu ?? 0) * 5 * effectiveMulberryEfficiency);
+  const hempCount = Math.max(0, Number(buildings.hemp_field?.count ?? 0));
+  const mulberryCount = Math.max(0, Number(buildings.mulberry_field?.count ?? 0));
+  const hempOutput = calculateBuildingOutput('hemp_field', hempCount, world, commodities);
+  const mulberryOutput = calculateBuildingOutput('mulberry_field', mulberryCount, world, commodities);
+
+  const coarseClothOutput = clamp((Math.max(0, Number(hempOutput.outputs?.hemp_stalk ?? 0)) / 24) * effectiveHempEfficiency);
+  const rawSilkOutput = clamp((Math.max(0, Number(mulberryOutput.outputs?.silk ?? 0)) / 8) * effectiveMulberryEfficiency);
   const fineClothOutput = clamp(rawSilkOutput * 3);
   const totalClothOutput = clamp(coarseClothOutput + fineClothOutput);
   const totalClothSupply = clamp(totalClothOutput + clothTradeReceived);
@@ -432,10 +464,29 @@ export function updateEconomy(world, options = {}) {
   world.dungCoverage = dungCoverage;
   world.fertilizerBonus = fertilizerBonus;
   world.dungImportQuota = dungImportQuota;
-  world.paperMaterial = paperMaterial;
+
+  commodities.paper_material = Math.max(0, Number(commodities.paper_material ?? paperMaterial));
+  commodities.hemp_stalk = Math.max(0, Number(commodities.hemp_stalk ?? hempStalks));
+  commodities.cloth = Math.max(0, Number(commodities.cloth ?? 0) + coarseClothOutput);
+  commodities.silk = Math.max(0, Number(commodities.silk ?? rawSilkOutput));
+  commodities.silkworm_dung = Math.max(0, Number(commodities.silkworm_dung ?? 0) + importedDung);
+  commodities.paper = Math.max(0, Number(commodities.paper ?? paperOutput));
+
+  world.paperMaterial = Math.max(0, Number(commodities.paper_material ?? 0));
   world.paperMaterialReserve = nextPaperMaterialReserve;
-  world.paperOutput = paperOutput;
-  world.hempStalks = hempStalks;
+  world.paperOutput = Math.max(0, Number(commodities.paper ?? 0));
+  world.hempStalks = Math.max(0, Number(commodities.hemp_stalk ?? 0));
+
+  if (Number(commodities.paper ?? 0) > 0) {
+    world.officialEfficiency = Math.max(0, Number(world.officialEfficiency ?? 0)) * 1.05;
+  }
+  if (Number(commodities.medicine ?? 0) > 0) {
+    world.healthIndex = Math.min(100, Math.max(0, Number(world.healthIndex ?? 50)) + 5);
+  }
+  if (Number(commodities.lumber ?? 0) > 0) {
+    constructionCostReduction += 0.03;
+  }
+
   world.constructionCostReduction = constructionCostReduction;
   world.buildingFiber = buildingFiber;
   world.buildingFiberReserve = nextBuildingFiberReserve;
@@ -1074,6 +1125,23 @@ export function updateEconomy(world, options = {}) {
     behaviorMessages.push(`粮仓容量上限生效：当前容量${Math.round(grainStorageCapacity)}`);
   }
 
+  const totalGrainDemand = Math.max(0, Number(grainAnnualDemand ?? 0));
+  const totalSaltDemand = Math.max(0, Number(saltAnnualDemand ?? 0));
+  const totalClothDemand = Math.max(0, Number(clothAnnualDemand ?? 0));
+
+  commodities.grain = Math.max(0, Number(commodities.grain ?? 0) - totalGrainDemand);
+  commodities.salt = Math.max(0, Number(commodities.salt ?? 0) - totalSaltDemand);
+  commodities.cloth = Math.max(0, Number(commodities.cloth ?? 0) - totalClothDemand);
+
+  world.totalGrainDemand = totalGrainDemand;
+  world.totalSaltDemand = totalSaltDemand;
+  world.totalClothDemand = totalClothDemand;
+
+  world.grainTreasury = Math.max(0, Number(commodities.grain ?? world.grainTreasury ?? 0));
+  world.saltReserve = Math.max(0, Number(commodities.salt ?? world.saltReserve ?? 0));
+  world.clothReserve = Math.max(0, Number(commodities.cloth ?? world.clothReserve ?? 0));
+  world.rawSilkOutput = Math.max(0, Number(commodities.silk ?? world.rawSilkOutput ?? 0));
+
   world.grainSurplus = clamp((world.actualGrainOutput ?? 0) - (world.grainAnnualDemand ?? 0), -999999999);
   const severeShortageThreshold = (world.totalPopulation ?? 0) * -100;
   if (world.grainSurplus < severeShortageThreshold) {
@@ -1093,7 +1161,8 @@ export function updateEconomy(world, options = {}) {
   } else if (world.saltShortfallRatio > 0.1) {
     world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 8, 10, 150);
   }
-  world.saltReserve = clamp(saltReserve);
+  world.saltReserve = safeNonNegativeNumber(world.saltReserve);
+  world.clothReserve = safeNonNegativeNumber(world.clothReserve);
   world.grainTreasury = safeNonNegativeNumber(world.grainTreasury);
   agriculture.grainTreasury = safeNonNegativeNumber(world.grainTreasury);
   world.previousSaltReserveForMarket = saltReserve;

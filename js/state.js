@@ -1188,6 +1188,22 @@ function defineCompatAccessors(state) {
   });
 }
 
+function syncLegacyCommodityFields(state) {
+  state.commodities = state.commodities ?? {};
+  state.commodities.grain = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
+  state.commodities.salt = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
+  state.commodities.cloth = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
+  state.commodities.silk = Math.max(0, Number(state.commodities.silk ?? state.world.rawSilkOutput ?? 0));
+
+  state.world.grainTreasury = state.commodities.grain;
+  state.world.saltReserve = state.commodities.salt;
+  state.world.clothReserve = state.commodities.cloth;
+  state.world.rawSilkOutput = state.commodities.silk;
+
+  state.agriculture.grainTreasury = state.world.grainTreasury;
+  state.agriculture.rawSilkOutput = state.world.rawSilkOutput;
+}
+
 export function createGameState() {
   const state = structuredClone(initialState);
 
@@ -1197,6 +1213,8 @@ export function createGameState() {
   state.world.pendingMulberryProjects = [];
   state.world.__buildings = state.buildings;
   state.world.__commodities = state.commodities;
+
+  syncLegacyCommodityFields(state);
 
   return state;
 }

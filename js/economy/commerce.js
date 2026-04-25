@@ -9,6 +9,7 @@ import {
   MERCHANT_POP_INIT_LITERACY,
 } from '../config/constants.js';
 import { transfer } from './transfer.js';
+import { calculateBuildingOutput } from '../buildings/buildingEngine.js';
 
 export const SHOP_BUILD_COST_GRAIN = SHOP_COST;
 export const DEFAULT_MONEYLENDER_LICENSE_FEE = MONEYLENDER_LICENSE_FEE;
@@ -100,8 +101,12 @@ export function calculateProductionCommerceGDP(world, options = {}) {
   const demandEfficiency = operatingShops > 0 ? Math.max(0, servedDemand / operatingShops) : 1;
   const tradeMultiplier = 1 + tradeEfficiency;
 
+  const buildingShopCount = Math.max(0, Number(world?.__buildings?.shop?.count ?? world?.shopCount ?? operatingShops));
+  const shopBuildingOutput = options.shopBuildingOutput ?? calculateBuildingOutput('shop', buildingShopCount, world);
+  const shopOutputUnits = Math.max(0, Number(shopBuildingOutput?.outputs?.commerce ?? shopBuildingOutput?.outputs?.trade ?? operatingShops));
+
   const commerceGDP =
-    operatingShops *
+    shopOutputUnits *
     SHOP_GDP_PER_UNIT *
     demandEfficiency *
     commerceActivityBonus *
