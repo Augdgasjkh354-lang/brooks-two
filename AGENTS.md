@@ -156,3 +156,180 @@ economy/currency.js, economy/labor.js
 - Commodity effects applied to game systems
 - Game runs identically for existing logic
 - yearLog records commodity production
+## Current Phase: 10F - Commodity Market System
+
+**Goal:** Make commodities real. Every commodity
+has supply, demand, price, and flows between
+buildings, population, and trade.
+
+**Commodity price system:**
+
+Each commodity in state.commodities gets:
+state.commodityPrices = {
+  grain: { price: 1.0, supply: 0, demand: 0,
+    basePrice: 1.0, minPrice: 0.3, maxPrice: 5.0,
+    elasticity: 0.5 },
+  salt: { price: 4.0, supply: 0, demand: 0,
+    basePrice: 4.0, minPrice: 1.0, maxPrice: 12.0,
+    elasticity: 0.8 },
+  cloth: { price: 2.0, supply: 0, demand: 0,
+    basePrice: 2.0, minPrice: 0.5, maxPrice: 8.0,
+    elasticity: 0.6 },
+  silk: { price: 10.0, supply: 0, demand: 0,
+    basePrice: 10.0, minPrice: 3.0, maxPrice: 30.0,
+    elasticity: 0.4 },
+  paper: { price: 3.0, supply: 0, demand: 0,
+    basePrice: 3.0, minPrice: 1.0, maxPrice: 10.0,
+    elasticity: 0.7 },
+  iron_tools: { price: 8.0, supply: 0, demand: 0,
+    basePrice: 8.0, minPrice: 2.0, maxPrice: 20.0,
+    elasticity: 0.6 },
+  weapons: { price: 15.0, supply: 0, demand: 0,
+    basePrice: 15.0, minPrice: 5.0, maxPrice: 40.0,
+    elasticity: 0.3 },
+  ceramics: { price: 5.0, supply: 0, demand: 0,
+    basePrice: 5.0, minPrice: 1.0, maxPrice: 15.0,
+    elasticity: 0.5 },
+  lumber: { price: 2.0, supply: 0, demand: 0,
+    basePrice: 2.0, minPrice: 0.5, maxPrice: 8.0,
+    elasticity: 0.6 },
+  charcoal: { price: 1.5, supply: 0, demand: 0,
+    basePrice: 1.5, minPrice: 0.3, maxPrice: 5.0,
+    elasticity: 0.7 },
+  medicine: { price: 6.0, supply: 0, demand: 0,
+    basePrice: 6.0, minPrice: 2.0, maxPrice: 20.0,
+    elasticity: 0.4 },
+  tea: { price: 5.0, supply: 0, demand: 0,
+    basePrice: 5.0, minPrice: 1.0, maxPrice: 15.0,
+    elasticity: 0.5 },
+  bricks: { price: 0.5, supply: 0, demand: 0,
+    basePrice: 0.5, minPrice: 0.1, maxPrice: 2.0,
+    elasticity: 0.8 }
+}
+
+**Price calculation (supply/demand elasticity):**
+targetPrice = basePrice *
+  Math.pow(demand / max(supply, 1), elasticity)
+newPrice = lerp(previousPrice, targetPrice, 0.3)
+  (30% adjustment per year, smooth changes)
+newPrice = clamp(newPrice, minPrice, maxPrice)
+
+**Annual supply calculation:**
+Each commodity supply comes from building outputs:
+- grain: farmland output (government share)
+- salt: salt_field output + xikou imports
+- cloth: hemp_field output + xikou imports
+- silk: mulberry_field output
+- paper: paper_mill output
+- iron_tools: blacksmith output
+- weapons: blacksmith output
+- ceramics: kiln output
+- bricks: kiln output
+- lumber: lumber_yard output
+- charcoal: lumber_yard output
+- medicine: medicine_hall output
+- tea: tea_garden output
+
+**Annual demand calculation:**
+
+Population basic needs (per person per year):
+- grain: 360 jin (already implemented)
+- salt: 15 jin
+- cloth: 0.3 bolts
+- medicine: 0.1 units (sick people need medicine)
+
+Building input demands:
+- blacksmith needs: iron_ore(100) + charcoal(50)
+  per unit per year
+- kiln needs: clay(100) + charcoal(30) per unit
+- paper_mill needs: paper_material(50) per unit
+- medicine_hall needs: herbs(50) per unit
+- barracks needs: weapons(10) + grain(50000)
+  per unit per year
+
+Government demands:
+- paper: institutionWorkers * 20 per year
+- weapons: policeOfficerCount * 2 per year
+
+**Commodity shortage effects:**
+- paper shortage (supply < demand * 0.5):
+  all institution efficiency -= 20%
+  yearLog: "纸张短缺，官府效率下降"
+- iron_tools shortage:
+  farming output multiplier -= 10%
+  yearLog: "铁器短缺，农业生产受影响"
+- medicine shortage:
+  healthIndex -= 10
+  yearLog: "药材短缺，公共卫生恶化"
+- lumber shortage:
+  constructionCostReduction = 0
+  yearLog: "木材短缺，建设成本上升"
+- weapons shortage (if barracks exists):
+  military_power -= 30%
+  yearLog: "武器短缺，军事力量削弱"
+
+**Commodity surplus effects:**
+- grain surplus > population * 720:
+  grain price drops significantly
+  grainPrice *= 0.8
+- silk surplus > 10000:
+  silk price drops
+  merchantLifeQuality += 3 (good for trade)
+
+**Trade commodities with Xikou:**
+Existing salt/cloth trade now uses
+commodity prices instead of fixed ratios:
+- salt trade price = commodityPrices.salt.price
+- cloth trade price = commodityPrices.cloth.price
+- Both update dynamically each year
+
+**New render section in 建筑 tab:**
+Commodity market panel showing:
+- Each commodity: supply / demand / price / trend
+- Price trend: ↑ ↓ → based on last year comparison
+- Shortage warning (red) when supply < demand * 0.7
+- Surplus indicator (blue) when supply > demand * 1.5
+
+**Pipeline integration:**
+Add new phase after settleMarket:
+{ name: 'settleCommodityMarket',
+  fn: settleCommodityMarket }
+
+settleCommodityMarket(state):
+1. Calculate all commodity supplies from buildings
+2. Calculate all commodity demands from
+   population + buildings + government
+3. Update prices via elasticity formula
+4. Apply shortage/surplus effects
+5. Update state.commodityPrices
+
+**Files to create:**
+- js/economy/commodityMarket.js
+  (supply/demand/price calculations)
+
+**Files to modify:**
+- js/state.js (add commodityPrices)
+- js/game.js (add settleCommodityMarket phase)
+- js/buildings/buildingEngine.js
+  (buildings consume commodity inputs)
+- js/diplomacy/xikou.js
+  (use commodity prices for trade)
+- js/ui/render_buildings.js
+  (add commodity market panel)
+
+**Do NOT touch:** any society/ tech/
+economy/agriculture.js economy/commerce.js
+economy/currency.js economy/labor.js
+economy/market.js ui/render_society.js
+ui/render_world.js ui/render_economy.js
+
+**Definition of Done (Phase 10F):**
+- state.commodityPrices initialized for all goods
+- Supply calculated from building outputs each year
+- Demand calculated from population + buildings
+- Prices update via elasticity formula
+- Shortage effects applied to relevant systems
+- Commodity market panel in 建筑 tab
+- Xikou trade uses dynamic commodity prices
+- yearLog records price changes and shortages
+- Price trend indicators (↑↓→) in UI
