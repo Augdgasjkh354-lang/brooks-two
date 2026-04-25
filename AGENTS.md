@@ -6617,3 +6617,114 @@ No phantom accounts. No roundabout paths.
 - Coupon redemption: burn coupon + transfer grain
 - No phantom accounts in any flow
 - All flows balance: assets in = assets out
+## Phase 9F: Ledger Invariant Tests (Current)
+
+Bugfix v7 complete. Now adding invariant tests
+to catch accounting errors automatically.
+
+**Goal:** Expand simulate100years.js with 6 new
+invariant checks that verify the ledger system
+is working correctly.
+
+**New invariants to add:**
+
+Invariant 1: Coupon mint correctness
+After issueGrainCoupons(amount):
+- farmerCoupons increased by amount
+- couponCirculating increased by amount
+- couponTotalIssued increased by amount
+- lockedGrainReserve increased by amount
+- farmerGrain decreased by amount
+- grainTreasury unchanged
+
+Invariant 2: Coupon burn correctness
+After redeemGrainCoupons(amount):
+- farmerCoupons decreased by amount
+- couponCirculating decreased by amount
+- lockedGrainReserve decreased by amount
+- farmerGrain increased by amount
+
+Invariant 3: Labor conservation
+Each year after allocation:
+farmingLaborAllocated +
+commerceLaborAllocated +
+hempLaborAllocated +
+mulberryLaborAllocated +
+institutionWorkers +
+merchantCount +
+unemployed
+<= laborForce (never exceeds total)
+>= laborForce * 0.99 (no more than 1% unaccounted)
+
+Invariant 4: Commerce oversaturation
+When operatingShops > maxMarketDemand:
+demandEfficiency < 1.0 (efficiency must drop)
+commerceGDP per shop must be LESS than
+SHOP_GDP_PER_UNIT (not more)
+
+Invariant 5: Grain price direction
+When grainSurplus < -totalGrainDemand * 0.2
+(serious shortage):
+grainPrice must be HIGHER than previous year
+(shortage always raises price)
+
+When grainTreasury > totalGrainDemand * 3
+(large surplus):
+grainPrice must be LOWER than or equal to
+previous year (surplus lowers price)
+
+Invariant 6: Private sector grain conservation
+Each year:
+startFarmerGrain
++ grainProduced (actualGrainOutput * retention)
+- grainTaxed
+- saltSpending
+- clothSpending
+- couponIssuance
+= endFarmerGrain (within 1% tolerance)
+
+**Test scenarios to add:**
+
+Scenario 4: Coupon stress test
+- Year 5: issue 100000 coupons
+- Year 6: redeem 50000 coupons
+- Check all 6 invariants after each operation
+
+Scenario 5: Commerce saturation test
+- Build 100 shops with only 10 maxMarketDemand
+- Check commerce efficiency < 1.0
+- Check GDP per shop < SHOP_GDP_PER_UNIT
+
+Scenario 6: Grain price direction test
+- Force grainTreasury = 0 (famine)
+- Run 3 years
+- Check grainPrice rises each year
+- Force grainTreasury = totalGrainDemand * 5
+- Run 3 years
+- Check grainPrice falls or stays same
+
+**Output format additions:**
+For each failed invariant:
+INVARIANT FAIL - [invariant name]
+  Expected: [description]
+  Actual: [values]
+  Year: [year number]
+
+Final summary:
+X/100 years passed basic checks
+Y/6 invariants never violated
+Z specific violations found
+
+**Files to modify:**
+- test/simulate100years.js only
+
+**Do NOT touch:** any other files
+
+**Definition of Done (Phase 9F):**
+- All 6 new invariants implemented
+- 6 new test scenarios added
+- Clear pass/fail output per invariant
+- Violations show expected vs actual values
+- Summary shows invariant violation count
+- Labor conservation checked every year
+- Price direction checked every year
