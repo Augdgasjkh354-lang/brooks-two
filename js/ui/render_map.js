@@ -18,6 +18,13 @@ const FACTION_COLORS = {
   allied: '#1A3A5C',
 };
 
+let mapRenderHandlers = {
+  onSendEnvoy: null,
+  onTradeSalt: null,
+  onTradeCloth: null,
+  onSetDungImportQuota: null,
+};
+
 function getFactionById(state, factionId) {
   return state.mapState?.factions?.find((item) => item.id === factionId) ?? null;
 }
@@ -46,6 +53,16 @@ function getRoadLevelByLength(roadLength) {
   if (roadLength >= 10) return 2;
   if (roadLength >= 1) return 1;
   return 0;
+}
+
+function rerenderMapTab(state) {
+  renderMapTab(
+    state,
+    mapRenderHandlers.onSendEnvoy,
+    mapRenderHandlers.onTradeSalt,
+    mapRenderHandlers.onTradeCloth,
+    mapRenderHandlers.onSetDungImportQuota,
+  );
 }
 
 export function updateMapDiscovery(state) {
@@ -133,12 +150,12 @@ function getPlayerPanelHtml(state) {
   `;
 }
 
-function getXikouPanelHtml(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
+function getXikouPanelHtml(state) {
   const world = state.world;
   const xikou = state.xikou;
   if (!xikou?.diplomaticContact) {
     return `
-      <h3>神秘势力</h3>
+      <h3>未知势力</h3>
       <p class="muted">派遣探子可获取更多信息。</p>
       <section class="panel map-inner-panel">
         <h4>初步接触</h4>
@@ -163,7 +180,7 @@ function getNorthernTradersPanelHtml(state) {
   const discovered = getFactionById(state, 'northern_traders')?.discovered;
   if (!discovered) {
     return `
-      <h3>神秘势力</h3>
+      <h3>未知势力</h3>
       <p class="muted">该势力仍在迷雾中，需科技突破后显现。</p>
     `;
   }
@@ -176,19 +193,21 @@ function getNorthernTradersPanelHtml(state) {
   `;
 }
 
-export function renderFactionPanel(factionId, state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
+export function renderFactionPanel(factionId, state) {
   const panelClass = factionId ? 'map-side-panel open' : 'map-side-panel';
-  if (!factionId) return `<aside class="${panelClass}"><div class="map-panel-content"><h3>地图</h3><p class="muted">点击势力印记查看详情。</p></div></aside>`;
+  if (!factionId) {
+    return `<aside class="${panelClass}"><div class="map-panel-content"><h3>地图</h3><p class="muted">点击势力印记查看详情。</p></div></aside>`;
+  }
 
   let panelHtml = '';
   if (factionId === 'player') panelHtml = getPlayerPanelHtml(state);
-  if (factionId === 'xikou') panelHtml = getXikouPanelHtml(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota);
+  if (factionId === 'xikou') panelHtml = getXikouPanelHtml(state);
   if (factionId === 'northern_traders') panelHtml = getNorthernTradersPanelHtml(state);
 
   return `
-    <aside class="${panelClass}">
+    <aside class="${panelClass}" id="map-side-panel">
       <div class="map-panel-content">
-        <button type="button" id="close-map-panel-btn" class="map-panel-close">关闭</button>
+        <button type="button" id="close-map-panel-btn" class="map-panel-close" aria-label="关闭面板">×</button>
         ${panelHtml}
       </div>
     </aside>
@@ -238,25 +257,55 @@ function renderMapSvg(state) {
 }
 
 export function initMapInteractions(state) {
+  const mapCanvas = document.querySelector('.ink-map-canvas');
+  const sidePanel = document.getElementById('map-side-panel');
+
+  if (!mapCanvas) {
+    console.log('[map] .ink-map-canvas not found, skip interaction binding');
+    return;
+  }
+
+  if (state.mapState?.selectedFaction && !sidePanel) {
+    console.log('[map] selected faction exists but panel DOM missing, rerendering map tab');
+    rerenderMapTab(state);
+    return;
+  }
+
   const clickableMarkers = Array.from(document.querySelectorAll('.faction-group.is-clickable'));
   clickableMarkers.forEach((marker) => {
-    marker.addEventListener('click', () => {
+    marker.addEventListener('click', (event) => {
+      event.stopPropagation();
       const factionId = marker.dataset.factionId;
+      console.log('[map] faction marker clicked:', factionId);
       if (!factionId) return;
+
       state.mapState.selectedFaction = factionId;
       marker.classList.add('is-pressed');
       window.setTimeout(() => marker.classList.remove('is-pressed'), 160);
-      document.dispatchEvent(new CustomEvent('map:faction-selected'));
+      rerenderMapTab(state);
     });
   });
 
-  document.getElementById('close-map-panel-btn')?.addEventListener('click', () => {
+  const closeMapPanel = () => {
+    if (!state.mapState?.selectedFaction) return;
+    console.log('[map] closing faction side panel');
     state.mapState.selectedFaction = null;
-    document.dispatchEvent(new CustomEvent('map:faction-selected'));
+    rerenderMapTab(state);
+  };
+
+  document.getElementById('close-map-panel-btn')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeMapPanel();
+  });
+
+  mapCanvas.addEventListener('click', (event) => {
+    const clickedMarker = event.target.closest('.faction-group.is-clickable');
+    if (clickedMarker) return;
+    closeMapPanel();
   });
 }
 
-export function renderMap(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
+export function renderMap(state) {
   const mapState = state.mapState;
   const selectedFaction = mapState?.selectedFaction ?? null;
   const hasOpenPanel = Boolean(selectedFaction);
@@ -268,7 +317,7 @@ export function renderMap(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDu
     <section class="panel ink-map-panel">
       <div class="${mapClass}">
         <div class="ink-map-canvas">${renderMapSvg(state)}<div class="${backdropClass}"></div></div>
-        ${renderFactionPanel(selectedFaction, state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota)}
+        ${renderFactionPanel(selectedFaction, state)}
       </div>
     </section>
   `;
@@ -276,10 +325,20 @@ export function renderMap(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDu
 
 export function renderMapTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
   const mount = document.getElementById('map-tab-content');
-  if (!mount) return;
+  if (!mount) {
+    console.log('[map] #map-tab-content not found, skip map render');
+    return;
+  }
+
+  mapRenderHandlers = {
+    onSendEnvoy,
+    onTradeSalt,
+    onTradeCloth,
+    onSetDungImportQuota,
+  };
 
   updateMapDiscovery(state);
-  mount.innerHTML = renderMap(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota);
+  mount.innerHTML = renderMap(state);
   initMapInteractions(state);
 
   bindDiplomacyEvents(onSendEnvoy);
