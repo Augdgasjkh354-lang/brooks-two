@@ -348,10 +348,14 @@ export function updateEconomy(world, options = {}) {
   const grainOutput = clamp(preStabilityGrainOutput * efficiencyMultiplier);
   const commerceGDP = clamp(preStabilityCommerceGDP * efficiencyMultiplier);
 
+  const farmlandTaxSplit = world.buildingOutputSummary?.taxSplit?.farmland ?? null;
   const grainTaxRate = Math.max(0, Math.min(1, Number(agriculture.agriculturalTaxRate ?? 0)));
-  const grainTaxShare = clamp(grainOutput * grainTaxRate);
-  const farmerGrainRetention = clamp(grainOutput - grainTaxShare);
-  commodities.grain = Math.max(0, Number(commodities.grain ?? 0) - grainOutput + grainTaxShare);
+  const grainTaxShare = farmlandTaxSplit
+    ? clamp(Number(farmlandTaxSplit.govShare ?? 0))
+    : clamp(grainOutput * grainTaxRate);
+  const farmerGrainRetention = farmlandTaxSplit
+    ? clamp(Number(farmlandTaxSplit.farmerShare ?? 0))
+    : clamp(grainOutput - grainTaxShare);
   world.farmerRetainedGrain = farmerGrainRetention;
 
   const treasuryAfterCommerce = collectTax
@@ -563,11 +567,12 @@ export function updateEconomy(world, options = {}) {
     privateSector.merchantGoods = safeNonNegativeNumber(privateSector.merchantGoods);
 
     const farmingLabor = Math.max(0, Number(world.farmingLaborAllocated ?? 0));
-    const annualFarmerIncome =
-      farmingLabor *
-      10 *
-      Math.max(0, Number(agriculture.grainYieldPerMu ?? effectiveYieldPerMu)) *
-      (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
+    const annualFarmerIncome = farmlandTaxSplit
+      ? farmerGrainRetention
+      : farmingLabor *
+        10 *
+        Math.max(0, Number(agriculture.grainYieldPerMu ?? effectiveYieldPerMu)) *
+        (1 - Math.max(0, Number(agriculture.agriculturalTaxRate ?? world.agriculturalTaxRate ?? 0)));
     const annualFarmerConsumption = farmingLabor * 360;
 
     const retainedGrain = annualFarmerIncome;
