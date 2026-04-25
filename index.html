@@ -51,6 +51,10 @@
         <div id="agriculture-tab-content"></div>
       </section>
 
+      <section class="tab-view" data-tab-content="buildings">
+        <div id="buildings-tab-content"></div>
+      </section>
+
       <section class="tab-view" data-tab-content="society">
         <div id="society-tab-content"></div>
       </section>
@@ -93,6 +97,7 @@
       <button class="tab-btn active" data-tab="overview">总览</button>
       <button class="tab-btn" data-tab="economy">经济</button>
       <button class="tab-btn" data-tab="agriculture">农业</button>
+      <button class="tab-btn" data-tab="buildings">建筑</button>
       <button class="tab-btn" data-tab="society">社会</button>
       <button class="tab-btn" data-tab="map">地图</button>
       <button class="tab-btn" data-tab="technology">科技</button>
@@ -113,12 +118,16 @@
   <script type="module" src="js/society/satisfaction.js"></script>
   <script type="module" src="js/diplomacy/xikou.js"></script>
   <script type="module" src="js/tech/research.js"></script>
+  <script type="module" src="js/buildings/buildingTypes.js"></script>
+  <script type="module" src="js/buildings/productionMethods.js"></script>
+  <script type="module" src="js/buildings/buildingEngine.js"></script>
   <script type="module" src="js/ui/render_world.js"></script>
   <script type="module" src="js/ui/render_economy.js"></script>
   <script type="module" src="js/ui/render_society.js"></script>
   <script type="module" src="js/ui/render_diplomacy.js"></script>
   <script type="module" src="js/ui/render_map.js"></script>
   <script type="module" src="js/ui/render_tech.js"></script>
+  <script type="module" src="js/ui/render_buildings.js"></script>
   <script type="module" src="js/save.js"></script>
   <script type="module" src="js/render.js"></script>
   <script type="module" src="js/policies.js"></script>

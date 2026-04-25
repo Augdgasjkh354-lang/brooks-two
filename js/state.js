@@ -306,6 +306,46 @@ export const initialState = {
     farmerLiteracyEfficiencyBonus: 0,
     merchantLiteracyEfficiencyBonus: 0,
   },
+  buildings: {
+    farmland: { count: 30000, method: 'manual_farming' },
+    hemp_field: { count: 0, method: 'manual_hemp' },
+    mulberry_field: { count: 0, method: 'manual_silk' },
+    shop: { count: 0, method: 'basic_trade' },
+    moneylender: { count: 0, method: 'basic_lending' },
+    paper_mill: { count: 0, method: 'basic_papermaking' },
+    lumber_yard: { count: 0, method: 'manual_logging' },
+    blacksmith: { count: 0, method: 'basic_smithing' },
+    kiln: { count: 0, method: 'basic_kiln' },
+    medicine_hall: { count: 0, method: 'traditional_medicine' },
+    inn: { count: 0, method: 'basic_inn' },
+    tea_garden: { count: 0, method: 'manual_tea' },
+    salt_field: { count: 0, method: 'solar_evaporation' },
+    public_toilet: { count: 0, method: 'basic_sanitation' },
+    road: { count: 0, method: 'dirt_road' },
+    granary: { count: 0, method: 'basic_storage' },
+    irrigation_canal: { count: 0, method: 'basic_irrigation' },
+    city_wall: { count: 0, method: 'basic_fortification' },
+    barracks: { count: 0, method: 'militia' },
+    school_primary: { count: 0, method: 'basic_education' },
+  },
+  commodities: {
+    grain: 0,
+    salt: 0,
+    cloth: 0,
+    silk: 0,
+    paper: 0,
+    iron_tools: 0,
+    weapons: 0,
+    ceramics: 0,
+    bricks: 0,
+    lumber: 0,
+    charcoal: 0,
+    medicine: 0,
+    tea: 0,
+    silkworm_dung: 0,
+    paper_material: 0,
+    hemp_stalk: 0,
+  },
   privateSector: {
     farmerGrain: 4500000,
     farmerCoupons: 0,
@@ -1155,6 +1195,8 @@ export function createGameState() {
   state.world.techBonuses = state.techBonuses;
   state.world.ledger = state.ledger;
   state.world.pendingMulberryProjects = [];
+  state.world.__buildings = state.buildings;
+  state.world.__commodities = state.commodities;
 
   return state;
 }

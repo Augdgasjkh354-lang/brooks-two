@@ -11,6 +11,8 @@ import { saveGame, loadGame, exportSave, importSave, resetGame, hasSave } from '
 import { initResearch, startResearch, updateResearch } from './tech/research.js';
 import { ensureGovernmentInstitution, ensurePoliceInstitution, ensureHealthBureauInstitution, ensureCourtInstitution, ensureTaxBureauInstitution, ensureTradeBureauInstitution, ensureEngineeringBureauInstitution, calculateGovernmentWageBill, calculatePoliceEffects, calculateHealthEffects, calculateCourtEffects, calculateTaxBureauEffects, calculateTradeBureauEffects, calculateEngineeringBureauEffects } from './society/stability.js';
 import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calculateLifeQuality, calculateClassSatisfaction, clearEventModifiers } from './society/satisfaction.js';
+import { BUILDING_TYPES_BY_ID } from './buildings/buildingTypes.js';
+import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buildingEngine.js';
 
 const state = createGameState();
 
@@ -509,7 +511,20 @@ function allocateLabor() {
 
 function produceGoods() {
   state.__yearPipeline = state.__yearPipeline ?? {};
+
+  const farmlandCount = Math.max(0, Number(state.buildings?.farmland?.count ?? state.land?.farmlandAreaMu ?? 0));
+  if (state.buildings?.farmland) {
+    state.land.farmlandAreaMu = farmlandCount;
+    state.world.farmlandAreaMu = farmlandCount;
+  }
+
+  const shopCount = Math.max(0, Number(state.buildings?.shop?.count ?? state.world.shopCount ?? 0));
+  if (state.buildings?.shop) {
+    state.world.shopCount = shopCount;
+  }
+
   state.__yearPipeline.econResult = updateEconomy(state.world);
+  state.__yearPipeline.buildingResult = calculateAllBuildingOutputs(state);
 }
 
 function settleMarket() {
@@ -736,6 +751,19 @@ function updateYearLog() {
   (econResult?.diplomacyMessages ?? []).forEach((message) => {
     state.yearLog.unshift(`Year ${state.calendar.year}: ${message}`);
   });
+
+  const buildingResult = state.__yearPipeline?.buildingResult;
+  if (buildingResult) {
+    const topOutputs = Object.entries(buildingResult.outputs ?? {})
+      .filter(([, amount]) => Number(amount ?? 0) > 0)
+      .sort((a, b) => Number(b[1] ?? 0) - Number(a[1] ?? 0))
+      .slice(0, 4)
+      .map(([commodity, amount]) => `${commodity}${Math.round(amount)}`)
+      .join('、');
+    state.yearLog.unshift(
+      `Year ${state.calendar.year}: 建筑引擎结算：总用工${Math.round(buildingResult.workers ?? 0)}，重点产出${topOutputs || '无'}。`
+    );
+  }
 
   if (completedTech) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 技术研究完成 - ${completedTech.name}。`);
@@ -1340,6 +1368,19 @@ function hydrateStateFromSave(savedState) {
     ...savedState.world,
   };
 
+  state.buildings = {
+    ...(fresh.buildings ?? {}),
+    ...(savedState.buildings ?? {}),
+  };
+
+  state.commodities = {
+    ...(fresh.commodities ?? {}),
+    ...(savedState.commodities ?? {}),
+  };
+
+  state.world.__buildings = state.buildings;
+  state.world.__commodities = state.commodities;
+
   state.xikou = {
     ...fresh.xikou,
     ...(savedState.xikou ?? {}),
@@ -1508,6 +1549,42 @@ function bindEvents() {
 }
 
 
+function buildById(buildingId, amount = 1) {
+  const safeId = String(buildingId ?? '');
+  if (!safeId || !BUILDING_TYPES_BY_ID[safeId]) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 建造失败 - 未知建筑 ${safeId || 'N/A'}。`);
+    render();
+    return;
+  }
+
+  const result = constructBuilding(safeId, amount, state);
+  if (!result.success) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 建造${BUILDING_TYPES_BY_ID[safeId].name}失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  state.yearLog.unshift(
+    `Year ${state.calendar.year}: 建造${BUILDING_TYPES_BY_ID[safeId].name} ×${Math.max(1, Math.floor(Number(amount ?? 1)))}，消耗粮食${Math.round(result.grainCost ?? 0)}、粮劵${Math.round(result.couponCost ?? 0)}。`
+  );
+  render();
+}
+
+function setBuildingMethod(buildingId, methodId) {
+  const safeId = String(buildingId ?? '');
+  if (!state.buildings?.[safeId]) return;
+  const methods = BUILDING_TYPES_BY_ID[safeId]?.productionMethods ?? [];
+  if (!methods.includes(methodId)) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 生产方式切换失败 - ${safeId} 不支持 ${methodId}`);
+    render();
+    return;
+  }
+
+  state.buildings[safeId].method = methodId;
+  state.yearLog.unshift(`Year ${state.calendar.year}: ${BUILDING_TYPES_BY_ID[safeId].name} 生产方式已调整为 ${methodId}。`);
+  render();
+}
+
 function render() {
   renderAll(
     state,
@@ -1524,6 +1601,8 @@ function render() {
     openHempLand,
     openMulberryLand,
     startResearchById,
+    buildById,
+    setBuildingMethod,
     handleManualSave,
     handleManualLoad,
     handleExportSave,
