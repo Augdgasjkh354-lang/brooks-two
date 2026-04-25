@@ -535,6 +535,7 @@ function allocateLabor() {
 
 function produceGoods() {
   state.__yearPipeline = state.__yearPipeline ?? {};
+  console.log('[pipeline] produceGoods start grainTreasury:', Math.round(Number(state.world?.grainTreasury ?? 0)));
 
   const farmlandCount = Math.max(0, Number(state.buildings?.farmland?.count ?? state.land?.farmlandAreaMu ?? 0));
   if (state.buildings?.farmland) {
@@ -549,6 +550,7 @@ function produceGoods() {
 
   state.__yearPipeline.buildingResult = calculateAllBuildingOutputs(state);
   state.__yearPipeline.econResult = updateEconomy(state.world);
+  console.log('[pipeline] produceGoods end grainTreasury:', Math.round(Number(state.world?.grainTreasury ?? 0)));
 }
 
 function settleMarket() {
@@ -558,9 +560,12 @@ function settleMarket() {
 function settleCommodityMarketPhase() {
   state.__yearPipeline = state.__yearPipeline ?? {};
   ensureCommodityState(state);
+  const grainBefore = Math.round(Number(state.world?.grainTreasury ?? 0));
 
   try {
     state.__yearPipeline.commodityMarketResult = settleCommodityMarket(state);
+    const grainAfter = Math.round(Number(state.world?.grainTreasury ?? 0));
+    console.log('[pipeline] settleCommodityMarket grainTreasury:', grainBefore, '->', grainAfter);
   } catch (err) {
     const context = {
       year: state.calendar?.year,
