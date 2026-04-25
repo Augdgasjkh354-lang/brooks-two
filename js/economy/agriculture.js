@@ -80,6 +80,15 @@ function getPrivateSectorState(world) {
   return world.__privateSector ?? world.privateSector ?? null;
 }
 
+function safeNumber(value, fallback = 0) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function safeNonNegativeNumber(value, fallback = 0) {
+  return Math.max(0, safeNumber(value, fallback));
+}
+
 function getPopulationGrainDemand(world) {
   const infantPop = Math.max(0, Number(world.infantPop ?? 0));
   const childPop = Math.max(0, Number(world.childPop ?? 0));
@@ -124,6 +133,8 @@ export function updateEconomy(world, options = {}) {
   const { collectTax = true } = options;
   const land = getLandState(world);
   const agriculture = getAgricultureState(world);
+  world.grainTreasury = safeNonNegativeNumber(world.grainTreasury);
+  agriculture.grainTreasury = safeNonNegativeNumber(agriculture.grainTreasury, world.grainTreasury);
   const ledger = ensureLedger(world);
   const savingsStart = {
     farmer: Math.max(0, Number(world.farmerSavings ?? 0)),
@@ -249,7 +260,7 @@ export function updateEconomy(world, options = {}) {
     })
   );
   const commerceGrainDemand = clamp(operatingShops * 200);
-  const availableGrainForCommerce = Math.max(0, agriculture.grainTreasury ?? 0);
+  const availableGrainForCommerce = safeNonNegativeNumber(world.grainTreasury ?? agriculture.grainTreasury);
   const grainConsumedByCommerce = Math.min(availableGrainForCommerce, commerceGrainDemand);
   const grainSupplyEfficiency =
     commerceGrainDemand > 0 ? grainConsumedByCommerce / commerceGrainDemand : 1;
@@ -494,6 +505,12 @@ export function updateEconomy(world, options = {}) {
 
   const privateSector = getPrivateSectorState(world);
   if (privateSector) {
+    privateSector.farmerGrain = safeNonNegativeNumber(privateSector.farmerGrain);
+    privateSector.merchantGrain = safeNonNegativeNumber(privateSector.merchantGrain);
+    privateSector.farmerCoupons = safeNonNegativeNumber(privateSector.farmerCoupons);
+    privateSector.merchantCoupons = safeNonNegativeNumber(privateSector.merchantCoupons);
+    privateSector.merchantGoods = safeNonNegativeNumber(privateSector.merchantGoods);
+
     const farmingLabor = Math.max(0, Number(world.farmingLaborAllocated ?? 0));
     const annualFarmerIncome =
       farmingLabor *
@@ -1063,6 +1080,8 @@ export function updateEconomy(world, options = {}) {
     world.purchasingPower = clampBetween((world.purchasingPower ?? 100) - 8, 10, 150);
   }
   world.saltReserve = clamp(saltReserve);
+  world.grainTreasury = safeNonNegativeNumber(world.grainTreasury);
+  agriculture.grainTreasury = safeNonNegativeNumber(world.grainTreasury);
   world.previousSaltReserveForMarket = saltReserve;
   world.previousClothReserveForMarket = clothReserve;
   world.previousClothImportReceived = clamp(clothTradeReceived);
