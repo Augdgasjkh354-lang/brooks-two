@@ -6728,3 +6728,216 @@ Z specific violations found
 - Summary shows invariant violation count
 - Labor conservation checked every year
 - Price direction checked every year
+## Phase 10A: Map System (Current)
+
+Phase 9F complete. Now adding map system.
+Replaces existing diplomacy tab with new map tab.
+All existing diplomacy/trade UI moves into map
+click-through panels.
+
+**Goal:** SVG-based ancient map with ink/parchment
+aesthetic. Factions shown as stamps/seals.
+Click faction to open interaction panel.
+Fog of war for undiscovered factions.
+
+**Visual Design: Ancient Chinese Ink Map Style**
+- Dark parchment/aged paper background texture
+  (CSS noise + sepia gradient)
+- Faction markers: circular seal/stamp style
+- Roads: brush-stroke style dashed lines
+- Classical color palette:
+  player: 金色 (#C9A84C)
+  neutral: 墨灰 (#6B6B6B)
+  friendly: 墨绿 (#2D5A3D)
+  hostile: 朱红 (#8B1A1A)
+  allied: 藏青 (#1A3A5C)
+- Fog of war: ink wash blur effect
+- Hover: subtle golden glow
+- Click: seal press animation
+
+**Map state (new state.mapState object):**
+state.mapState = {
+  factions: [
+    {
+      id: 'player',
+      name: '东陵城',
+      x: 30, y: 55,
+      type: 'player',
+      discovered: true,
+      size: 'large'
+    },
+    {
+      id: 'xikou',
+      name: '溪口村',
+      x: 68, y: 38,
+      type: 'village',
+      discovered: false,
+      size: 'medium'
+    },
+    {
+      id: 'northern_traders',
+      name: '北方商队',
+      x: 52, y: 18,
+      type: 'traders',
+      discovered: false,
+      size: 'small'
+    }
+  ],
+  roads: [
+    {
+      from: 'player',
+      to: 'xikou',
+      level: 0
+    }
+  ],
+  selectedFaction: null,
+  mapRevealed: false
+}
+
+**Discovery rules:**
+- player: always discovered
+- xikou: discovered when diplomaticContact = true
+- northern_traders: discovered when
+  newTradePartnerUnlocked = true
+
+Road level rules:
+- level 0: no line (roadLength = 0)
+- level 1: dashed thin line (roadLength 1-9)
+- level 2: solid medium line (roadLength 10-29)
+- level 3: thick brush stroke line (roadLength >= 30)
+
+**UI Structure:**
+
+Map Tab replaces 外交 Tab in bottom navigation.
+Label: 地图
+
+Layout:
+- Full height SVG map (80% of content area)
+- Right side panel (slides in on faction click)
+- Panel width: 45% of screen
+- Map shrinks to 55% when panel open
+
+SVG Map elements:
+1. Background: parchment texture rectangle
+   CSS: noise filter + sepia tones
+   gradient: radial from center lighter to edges darker
+
+2. Roads: SVG path elements
+   level 0: invisible
+   level 1: stroke-dasharray="4,4" stroke-width="1"
+             stroke="#8B7355" opacity="0.6"
+   level 2: stroke-dasharray="none" stroke-width="2"
+             stroke="#8B7355" opacity="0.8"
+   level 3: stroke-width="3" stroke="#6B5A3E"
+             filter="url(#brushStroke)"
+
+3. Fog of war areas: SVG circle with blur filter
+   undiscovered factions: large blurred ink circle
+   color: rgba(20,20,20,0.6)
+   filter: feGaussianBlur stdDeviation="8"
+
+4. Faction markers: SVG circle + text
+   Discovered:
+     outer ring: stroke circle (seal border)
+     inner fill: faction color
+     center text: first character of name
+     hover: golden glow filter
+     click: scale(0.95) animation (seal press)
+   Undiscovered:
+     gray blurred circle
+     center: "?" character
+     no click interaction
+
+5. Faction labels: SVG text below marker
+   font-family: serif (宋体 style)
+   discovered: faction name
+   undiscovered: "未知势力"
+
+6. Compass rose: decorative SVG in top-right corner
+   Simple 8-point star shape
+   stroke only, classical style
+
+7. Map border: decorative frame
+   Double-line SVG rectangle border
+   Corner ornaments (small diamond shapes)
+
+**Right side panel contents:**
+
+When player city clicked:
+- 城邦概览 header
+- Population / grain / stability / year
+- Quick stats only (no actions)
+
+When xikou clicked (discovered):
+- 溪口村 header with attitude indicator
+- All existing diplomacy content:
+  外交状态
+  派遣使者 button (if not contacted)
+  贸易操作 (grain for salt, grain for cloth)
+  蚕沙进口
+  溪口村详细数据
+
+When xikou clicked (undiscovered):
+- "神秘势力" header
+- "派遣探子可获取更多信息"
+- No interaction available
+
+When northern_traders clicked (discovered):
+- 北方商队 header
+- Trade interface for northern goods
+- (placeholder for future implementation)
+
+Panel animation:
+- Slides in from right: transform translateX
+- transition: 0.3s ease
+- Backdrop: slight darkening of map
+
+**Tab changes:**
+- Remove 外交 tab from bottom navigation
+- Add 地图 tab in same position
+- All diplomacy render functions now called
+  from within map panel, not separate tab
+
+**New file: js/ui/render_map.js**
+Contains:
+- renderMap(state) - main map render
+- renderFactionMarker(faction, state) - SVG marker
+- renderRoads(state) - SVG road lines
+- renderFactionPanel(factionId, state) - side panel
+- initMapInteractions(state) - click handlers
+- updateMapDiscovery(state) - fog of war updates
+
+**Files to modify:**
+- js/state.js (add mapState)
+- js/render.js (add map tab, remove diplomacy tab)
+- js/ui/render_map.js (new file)
+- style.css (map styles, panel animations)
+- index.html (add render_map.js script tag)
+
+**Move existing diplomacy content:**
+- js/ui/render_diplomacy.js stays unchanged
+- Its output is called inside render_map.js
+  when xikou panel is open
+- Do NOT delete render_diplomacy.js
+
+**Do NOT touch:** unlocks.js, policies.js,
+any economy/ society/ tech/ files
+game.js diplomacy/xikou.js
+
+**Definition of Done (Phase 10A):**
+- 地图 tab replaces 外交 tab in navigation
+- SVG map renders with parchment aesthetic
+- Player city always visible with gold marker
+- Xikou shows as fog until diplomaticContact
+- Northern traders hidden until tech unlocked
+- Roads render based on roadLength
+- Click player: shows city overview panel
+- Click xikou (discovered): shows full diplomacy
+  panel with all existing trade functions
+- Click xikou (undiscovered): shows mystery panel
+- Panel slides in smoothly from right
+- Compass rose decorative element present
+- Map border with corner ornaments
+- Hover effects on faction markers
+- Click animation (seal press) on markers
+- All existing diplomacy functions still work
