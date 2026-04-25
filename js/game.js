@@ -14,6 +14,7 @@ import { applyPoliceLifeQualityEffects, applyCourtTaxLifeQualityEffects, calcula
 import { BUILDING_TYPES_BY_ID } from './buildings/buildingTypes.js';
 import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buildingEngine.js';
 import { settleCommodityMarket } from './economy/commodityMarket.js';
+import { ensurePopState, updatePops } from './society/popSystem.js';
 
 const state = createGameState();
 
@@ -699,6 +700,11 @@ function updateDiplomacy() {
   // Diplomacy yearly settlement currently happens inside economy update.
 }
 
+function updatePopsPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.popsResult = updatePops(state);
+}
+
 function updateSatisfaction() {
   calculateLifeQuality(state.world);
   calculateClassSatisfaction(state.world);
@@ -733,6 +739,7 @@ function updateYearLog() {
   const completedTech = state.__yearPipeline?.completedTech;
   const debtResult = state.__yearPipeline?.debtResult;
   const moneylenderResult = state.__yearPipeline?.moneylenderResult;
+  const popsResult = state.__yearPipeline?.popsResult;
 
   if (econResult) {
     recordEconomySnapshot(econResult, true);
@@ -746,6 +753,12 @@ function updateYearLog() {
       potentialGrainOutput: econResult.potentialGrainOutput,
       lostGrainOutput: econResult.lostGrainOutput,
     });
+  }
+
+  if (popsResult) {
+    const p = popsResult.classSatisfactionFromPops ?? {};
+    const political = popsResult.political ?? {};
+    state.yearLog.unshift(`Year ${state.calendar.year}: Pop结构：农/商/官满意度 ${Math.round(p.farmer ?? 50)}/${Math.round(p.merchant ?? 50)}/${Math.round(p.official ?? 50)}；政治倾向 保守${Math.round(political.conservative ?? 0)} 改良${Math.round(political.reformist ?? 0)} 激进${Math.round(political.radical ?? 0)}。`);
   }
 
   if (schoolSettlement?.edu) {
@@ -850,6 +863,7 @@ const YEAR_PIPELINE = [
   { name: 'updateEducation', fn: updateEducation },
   { name: 'updateResearch', fn: updateResearchPhase },
   { name: 'updateDiplomacy', fn: updateDiplomacy },
+  { name: 'updatePops', fn: updatePopsPhase },
   { name: 'updateSatisfaction', fn: updateSatisfaction },
   { name: 'triggerEvents', fn: triggerEvents },
   { name: 'finalizeLedger', fn: finalizeLedger },
@@ -859,6 +873,7 @@ const YEAR_PIPELINE = [
 
 function advanceYear(gameState = state) {
   ensureCommodityState(gameState);
+  ensurePopState(gameState);
   gameState.calendar.year += 1;
   gameState.__yearPipeline = {};
 
@@ -1429,6 +1444,8 @@ function hydrateStateFromSave(savedState) {
 
   state.world.__buildings = state.buildings;
   state.world.__commodities = state.commodities;
+  state.pops = Array.isArray(savedState.pops) ? structuredClone(savedState.pops) : structuredClone(fresh.pops ?? []);
+  state.world.__pops = state.pops;
 
   state.xikou = {
     ...fresh.xikou,
@@ -1453,6 +1470,8 @@ function hydrateStateFromSave(savedState) {
   syncCourtTaxInstitutionSettings();
   syncTradeEngineeringSettings();
   calculateGovernmentWageBill(state.world);
+  ensureCommodityState(state);
+  ensurePopState(state);
 
   return true;
 }
@@ -1670,6 +1689,7 @@ function init() {
   }
 
   initResearch(state);
+  ensurePopState(state);
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);

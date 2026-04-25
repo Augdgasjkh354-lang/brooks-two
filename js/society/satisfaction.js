@@ -434,9 +434,14 @@ export function calculateClassSatisfaction(world) {
   // LANDLORD DISABLED - pending land reform
   const landlordEventModifier = 0;
 
-  classes.farmerSatisfaction = clampPercentIndex(Number(classes.farmerLifeQuality ?? 50) + farmerEventModifier);
-  classes.merchantSatisfaction = clampPercentIndex(Number(classes.merchantLifeQuality ?? 50) + merchantEventModifier);
-  classes.officialSatisfaction = clampPercentIndex(Number(classes.officialLifeQuality ?? 50) + officialEventModifier);
+  const popSatisfaction = world.popClassSatisfaction ?? {};
+  const farmerBase = Number(popSatisfaction.farmer ?? classes.farmerLifeQuality ?? 50);
+  const merchantBase = Number(popSatisfaction.merchant ?? classes.merchantLifeQuality ?? 50);
+  const officialBase = Number(popSatisfaction.official ?? classes.officialLifeQuality ?? 50);
+
+  classes.farmerSatisfaction = clampPercentIndex(farmerBase + farmerEventModifier);
+  classes.merchantSatisfaction = clampPercentIndex(merchantBase + merchantEventModifier);
+  classes.officialSatisfaction = clampPercentIndex(officialBase + officialEventModifier);
   classes.landlordSatisfaction = 0;
   if (false) {
     classes.landlordSatisfaction = clampPercentIndex(Number(classes.landlordLifeQuality ?? 50) + landlordEventModifier);
