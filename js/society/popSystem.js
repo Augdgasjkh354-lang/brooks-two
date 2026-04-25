@@ -31,6 +31,7 @@ function getClasses(world) {
 }
 
 
+
 function addYearLog(state, msg) {
   if (!state.logs) state.logs = {};
   if (!Array.isArray(state.logs.yearLog)) state.logs.yearLog = [];
@@ -174,6 +175,7 @@ export function ensurePopState(state) {
 
 export function updatePops(state) {
   ensurePopState(state);
+  if (!Array.isArray(state?.pops)) state.pops = [];
   const world = state?.world ?? {};
   const classes = getClasses(world);
   const prices = state?.commodityPrices ?? {};
@@ -203,7 +205,10 @@ export function updatePops(state) {
     const needsSatisfied = {};
     let expensePerPerson = 0;
 
-    Object.entries(pop.needs ?? {}).forEach(([commodity, requiredPerPerson]) => {
+    const popNeeds = pop?.needs && typeof pop.needs === 'object' ? pop.needs : {};
+    pop.needs = popNeeds;
+
+    Object.entries(popNeeds).forEach(([commodity, requiredPerPerson]) => {
       const unitPrice = Math.max(0, Number(prices?.[commodity]?.price ?? 1));
       const required = Math.max(0, Number(requiredPerPerson ?? 0));
       needsSatisfied[commodity] = getCommodityAvailability(state, commodity);

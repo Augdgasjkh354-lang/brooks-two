@@ -226,6 +226,7 @@ export function constructBuilding(buildingId, amount, state) {
 
 export function calculateAllBuildingOutputs(state) {
   const root = getRootState(state);
+  root.buildings = root.buildings ?? {};
   root.commodities = root.commodities ?? {};
   root.world = root.world ?? {};
   root.world.privateSector = root.world.privateSector ?? {};
@@ -238,6 +239,8 @@ export function calculateAllBuildingOutputs(state) {
   const availablePool = { ...root.commodities };
 
   for (const buildingType of BUILDING_TYPES) {
+    if (!buildingType || !buildingType.id) continue;
+
     // Authority (Phase 10H): farmland production is owned by agriculture.js only.
     if (buildingType.id === 'farmland') continue;
 
