@@ -846,3 +846,76 @@ All sector allocations must sum to <= laborForce.
 - grainTreasury non-zero after year 1
 - farmingLaborAllocated <= totalLaborForce
 - npm test passes
+## Current Phase: Phase 11A — Trade Contracts
+
+### Goal
+Replace manual annual imports with long-term trade contracts that auto-execute each year.
+
+### New file: js/diplomacy/tradeContracts.js
+Implement:
+- createTradeContract(state, params) — add contract to state.tradeContracts
+- cancelTradeContract(state, contractId) — set active=false
+- processTradeContracts(state) — called each year in pipeline, executes all active contracts
+- getContractFulfillmentRisk(state, contractId) — returns 'low'/'medium'/'high'
+
+Contract object shape:
+{
+  id: string,
+  partnerId: string,
+  commodity: string,
+  direction: 'import'|'export',
+  amountPerYear: number,
+  priceMode: 'fixed'|'market',
+  fixedPrice: number,
+  priceMultiplier: number,
+  durationYears: number,
+  yearsRemaining: number,
+  paymentAsset: 'grain'|'coupon',
+  active: boolean,
+  minAttitudeRequired: number,
+  reliability: number,
+  breachPenalty: { attitude: number, compensation: number }
+}
+
+processTradeContracts logic:
+- Skip if active=false or yearsRemaining<=0
+- Skip if partner attitude < minAttitudeRequired
+- deliverAmount = min(amountPerYear, partnerCommodityStock) * reliability
+- Deduct payment from player treasury
+- Transfer commodity to player
+- Deduct commodity from partner stock
+- Add payment to partner grain treasury
+- yearsRemaining -= 1
+- If yearsRemaining == 0, set active=false
+
+### Modify: js/state.js
+Add to initial state:
+  tradeContracts: []
+
+### Modify: js/game.js
+In advanceYear() pipeline, after updateDiplomacy, add:
+  processTradeContracts(gameState);
+
+### Modify: js/diplomacy/xikou.js
+Remove or disable the old one-time manual import logic for salt/cloth/dung.
+Keep updateXikouVillageEconomy() unchanged.
+
+### Modify: js/ui/render_diplomacy.js
+In the Xikou diplomacy panel, replace manual import buttons with:
+- List of active contracts (commodity, amount/year, price, years remaining, risk)
+- Button: "Sign Salt Import Contract" (50000/yr, fixed price 4, 5 years)
+- Button: "Sign Cloth Import Contract" (10000/yr, fixed price 2, 5 years)
+- Button: "Sign Dung Import Contract" (5000/yr, fixed price 1, 5 years)
+- Button: "Cancel" next to each active contract
+
+### Modify: index.html
+Add script tag for js/diplomacy/tradeContracts.js before game.js.
+
+### Acceptance criteria
+- Contracts auto-execute each year without player input
+- Player grain/coupon decreases by correct payment amount
+- Player commodity stock increases by correct delivery amount
+- Xikou stock decreases accordingly
+- Contract expires after durationYears
+- If Xikou stock insufficient, partial delivery occurs
+- npm test passes
