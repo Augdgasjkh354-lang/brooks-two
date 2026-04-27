@@ -1212,3 +1212,82 @@ Add to tradeState:
 - Iron shortfall applies building production penalty
 - All 5 polities (xikou, northernTraders, southernTribe, saltLakeTown, copperMountainCity, riverPort) update each year
 - npm test passes
+## Current Phase: Phase 11F — Foreign Polity Domestic Demand & Dynamic Prices
+
+### Goal
+Foreign polities consume their own resources each year and update prices based on
+supply/demand. They are no longer just resource stockpiles.
+
+### Modify: js/diplomacy/foreignPolities.js
+
+Add domesticDemand calculation per polity:
+  grain demand = polity.population * 360
+  salt demand  = polity.population * 15
+  cloth demand = polity.population * 0.3
+  herb demand  = polity.population * 0.05
+  iron demand  = (polity.militaryStrength || 0) * 0.02
+  copper demand = (polity.industryLevel || 1) * 500
+  silk demand  = polity.population * 0.01
+
+Store in polity.domesticDemand = { grain, salt, cloth, herb, iron, copper, silk }
+
+Update updateForeignPolities() loop — after production, apply domestic consumption:
+  for each commodity:
+    polity.commodities[commodity] = Math.max(0,
+      polity.commodities[commodity] + production[commodity] - domesticDemand[commodity]
+    )
+
+Add updateForeignPrices(polity):
+  for each commodity:
+    supply = polity.commodities[commodity]
+    demand = polity.domesticDemand[commodity]
+    if supply <= 0: supply = 1
+    elasticity = 0.5
+    targetPrice = polity.prices[commodity] * Math.pow(demand / supply, elasticity)
+    targetPrice = Math.max(basePriceFloor[commodity], Math.min(basePriceCap[commodity], targetPrice))
+    polity.prices[commodity] = lerp(polity.prices[commodity], targetPrice, 0.3)
+
+Base price floors and caps:
+  grain: floor 0.5, cap 5
+  salt:  floor 2,   cap 20
+  cloth: floor 1,   cap 10
+  herb:  floor 1,   cap 15
+  iron:  floor 3,   cap 30
+  copper:floor 4,   cap 40
+  silk:  floor 5,   cap 60
+
+Add updateForeignStress(polity):
+  shortages = 0
+  for each commodity where domesticDemand > 0:
+    if polity.commodities[commodity] < domesticDemand[commodity] * 0.5:
+      shortages += 1
+  polity.economicStress = Math.min(100, shortages * 20)
+
+  Diplomatic effect:
+  if polity.economicStress > 60:
+    polity.diplomacy.attitudeToPlayer += 2 (if player exports food to them)
+  if grain shortage:
+    polity.diplomacy.trust -= 1
+
+Store polity.economicStress in state.
+
+### Modify: js/state.js
+Add industryLevel to copperMountainCity and riverPort initial data:
+  copperMountainCity.industryLevel = 3
+  riverPort.industryLevel = 2
+  (others default to 1)
+
+### Modify: js/ui/render_diplomacy.js
+In each polity panel, add economy section showing:
+- domesticDemand per commodity
+- current stock vs demand ratio (green if >1, yellow if 0.5-1, red if <0.5)
+- economicStress value
+- current prices for key commodities
+
+### Acceptance criteria
+- Each polity consumes resources annually
+- Stockpiles no longer grow unbounded
+- Prices update based on supply/demand each year
+- economicStress computed and visible in diplomacy panel
+- Grain shortage reduces polity trust over time
+- npm test passes
