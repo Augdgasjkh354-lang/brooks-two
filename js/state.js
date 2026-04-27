@@ -350,6 +350,31 @@ export const initialState = {
 
   tradeContracts: [],
 
+  foreignPolities: {
+    xikou: {
+      id: 'xikou',
+      name: '溪口村',
+      type: 'village',
+      population: XIKOU_INIT_POPULATION,
+      laborForce: XIKOU_INIT_LABOR,
+      commodities: { grain: 500000, salt: 0, cloth: 0, dung: 0 },
+      production: { farmlandMu: XIKOU_FARMLAND_MU, saltMines: 2, mulberryLandMu: XIKOU_MULBERRY_MU },
+      prices: { grain: 1.0, salt: 4, cloth: 2 },
+      diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 20 },
+    },
+    northernTraders: {
+      id: 'northernTraders',
+      name: '北方商队',
+      type: 'traders',
+      population: 500,
+      laborForce: 300,
+      commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
+      production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
+      prices: { grain: 1.2, salt: 5, cloth: 3 },
+      diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
+    },
+  },
+
   commodityPrices: {
     grain: { price: 1.0, supply: 0, demand: 0, basePrice: 1.0, minPrice: 0.3, maxPrice: 5.0, elasticity: 0.5 },
     salt: { price: 4.0, supply: 0, demand: 0, basePrice: 4.0, minPrice: 1.0, maxPrice: 12.0, elasticity: 0.8 },
@@ -1451,6 +1476,31 @@ export function createGameState() {
   state.world.__commodities = state.commodities;
   state.world.__pops = state.pops;
   state.world.__interestGroups = state.interestGroups;
+  state.world.__foreignPolities = state.foreignPolities;
+
+  state.world.xikou = state.xikou;
+  if (state.foreignPolities?.xikou) {
+    state.foreignPolities.xikou = {
+      ...state.foreignPolities.xikou,
+      commodities: {
+        ...(state.foreignPolities.xikou.commodities ?? {}),
+        grain: Math.max(0, Number(state.xikou?.grainTreasury ?? state.foreignPolities.xikou.commodities?.grain ?? 0)),
+        salt: Math.max(0, Number(state.xikou?.saltReserve ?? state.foreignPolities.xikou.commodities?.salt ?? 0)),
+        cloth: Math.max(0, Number(state.xikou?.clothReserve ?? state.foreignPolities.xikou.commodities?.cloth ?? 0)),
+        dung: Math.max(0, Number(state.xikou?.silkwormDungAvailable ?? state.foreignPolities.xikou.commodities?.dung ?? 0)),
+      },
+      production: {
+        ...(state.foreignPolities.xikou.production ?? {}),
+        farmlandMu: Math.max(0, Number(state.xikou?.farmlandMu ?? state.foreignPolities.xikou.production?.farmlandMu ?? 0)),
+        saltMines: Math.max(0, Number(state.xikou?.saltMines ?? state.foreignPolities.xikou.production?.saltMines ?? 0)),
+        mulberryLandMu: Math.max(0, Number(state.xikou?.mulberryLandMu ?? state.foreignPolities.xikou.production?.mulberryLandMu ?? 0)),
+      },
+      diplomacy: {
+        ...(state.foreignPolities.xikou.diplomacy ?? {}),
+        attitudeToPlayer: Math.max(-100, Math.min(100, Number(state.xikou?.attitudeToPlayer ?? state.foreignPolities.xikou.diplomacy?.attitudeToPlayer ?? 0))),
+      },
+    };
+  }
 
   ensureCommodityState(state);
 
