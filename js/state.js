@@ -348,6 +348,8 @@ export const initialState = {
     hemp_stalk: 0,
   },
 
+  tradeContracts: [],
+
   commodityPrices: {
     grain: { price: 1.0, supply: 0, demand: 0, basePrice: 1.0, minPrice: 0.3, maxPrice: 5.0, elasticity: 0.5 },
     salt: { price: 4.0, supply: 0, demand: 0, basePrice: 4.0, minPrice: 1.0, maxPrice: 12.0, elasticity: 0.8 },
@@ -644,6 +646,7 @@ export const initialState = {
     saltReserve: 0,
     grainTreasury: 500000,
     clothOutput: 0,
+    clothReserve: 0,
     stabilityIndex: 75,
     attitudeToPlayer: 0,
     diplomaticContact: false,
