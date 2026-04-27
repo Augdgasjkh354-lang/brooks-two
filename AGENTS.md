@@ -988,3 +988,79 @@ Add script tag for js/diplomacy/foreignPolities.js before game.js.
 - tradeContracts still execute correctly reading from foreignPolities
 - world.xikou still exists (no broken references)
 - npm test passes
+## Current Phase: Phase 11C — Bilateral Dependency & Trade Disruption
+
+### Goal
+Make trade contracts create real strategic dependencies.
+Supply disruptions cascade into price spikes, satisfaction drops, and diplomatic consequences.
+
+### Modify: js/diplomacy/tradeContracts.js
+Add to processTradeContracts logic:
+
+Breach detection:
+- If deliverAmount < amountPerYear * 0.5, count as breach
+- On breach: partner diplomacy.attitudeToPlayer += breachPenalty.attitude
+- On breach: log event to state.yearLog
+
+Payment failure detection:
+- If player cannot afford payment (grain/coupon insufficient):
+  - deliverAmount = 0
+  - partner diplomacy.attitudeToPlayer -= 15
+  - partner diplomacy.trust -= 10
+  - log payment failure to state.yearLog
+
+Dependency tracking:
+- After processing all contracts, compute for each commodity:
+  importDependency[commodity] = totalImportedThisYear[commodity] / totalConsumedThisYear[commodity]
+- Store in state.tradeState.importDependency
+
+Add new functions:
+- getTradeRisk(state) — returns object with commodity risk levels
+  - dependency > 0.5 and single supplier: 'critical'
+  - dependency > 0.3: 'high'
+  - dependency > 0.1: 'medium'
+  - else: 'low'
+
+### New file: js/economy/tradeEffects.js
+Implement:
+- applyTradeDisruption(state, commodity, shortfallAmount)
+  - Increases commodity market price by shortfall ratio
+  - If salt shortfall > 30%: farmerSatisfaction -= 15, merchantSatisfaction -= 10
+  - If cloth shortfall > 30%: farmerSatisfaction -= 10
+  - Log disruption event to state.yearLog
+
+- applyTradeDependencyEffects(state)
+  - Called each year after processTradeContracts
+  - For each commodity where importDependency > 0.5:
+    - stabilityIndex -= 5 per year
+    - Log warning to state.yearLog
+
+### Modify: js/state.js
+Add to initial state:
+  tradeState: {
+    importDependency: { salt: 0, cloth: 0, dung: 0, grain: 0 },
+    lastYearImports: { salt: 0, cloth: 0, dung: 0, grain: 0 },
+    disruptions: []
+  }
+
+### Modify: js/game.js
+In advanceYear() pipeline, after processTradeContracts:
+  applyTradeDependencyEffects(gameState);
+
+### Modify: js/ui/render_diplomacy.js
+Add trade risk panel showing:
+- Per commodity: dependency ratio, risk level, active contracts count
+- Warning highlight if risk is 'critical' or 'high'
+- Recent disruption events from state.tradeState.disruptions (last 3)
+
+### Modify: index.html
+Add script tag for js/economy/tradeEffects.js before game.js.
+
+### Acceptance criteria
+- Payment failure triggers attitude penalty and yearLog entry
+- Partial delivery triggers breach logic
+- importDependency computed correctly each year
+- Salt shortfall > 30% reduces farmerSatisfaction
+- High dependency reduces stabilityIndex
+- Trade risk panel visible in diplomacy tab
+- npm test passes
