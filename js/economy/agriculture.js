@@ -1054,7 +1054,14 @@ export function updateEconomy(world, options = {}) {
       actualGrainSalary = totalSalaryCost;
     }
 
-    world.grainTreasury = clamp(treasuryAfterCommerce + taxToGrain + rentToGrain + landTaxToGrain - actualGrainSalary);
+    world.grainTreasury = clamp(
+      Math.max(0, Number(world.grainTreasury ?? 0)) +
+      (collectTax ? -grainConsumedByCommerce : 0) +
+      taxToGrain +
+      rentToGrain +
+      landTaxToGrain -
+      actualGrainSalary
+    );
 
     const retainedByLedger = clamp((world.grainTreasury ?? 0) * bureaucracyEffects.grainRetentionRate);
     world.grainTreasury = clamp((world.grainTreasury ?? 0) + retainedByLedger);

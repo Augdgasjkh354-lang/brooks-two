@@ -257,6 +257,7 @@ export function settleCommodityMarket(state) {
     const grainTreasuryAfter = Math.max(0, Number(state.world?.grainTreasury ?? 0));
     if (grainTreasuryAfter !== grainTreasuryBefore) {
       console.warn('[commodityMarket] grainTreasury changed during market settlement:', grainTreasuryBefore, '->', grainTreasuryAfter);
+      state.world.grainTreasury = grainTreasuryBefore;
     }
 
     return summary;

@@ -271,7 +271,7 @@ export function calculateLaborAllocation(world) {
     unemployed -= moved;
   }
 
-  const finalFarming = clamp(newBySector.farming ?? 0);
+  const finalFarming = Math.min(clamp(newBySector.farming ?? 0), clamp(laborForce));
   const finalCommerceRaw = clamp(newBySector.commerce ?? 0);
   const finalHemp = clamp(newBySector.hemp ?? 0);
   const finalMulberry = clamp(newBySector.mulberry ?? 0);

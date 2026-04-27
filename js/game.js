@@ -512,6 +512,8 @@ function runEngineeringProject(type) {
 function resetAnnualFlags() {
   ensureLedgerState();
   resetLedgerForYear();
+  state.world.grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? state.agriculture.grainTreasury ?? 0));
+  state.agriculture.grainTreasury = state.world.grainTreasury;
   state.world.grainRedistributionUsed = false;
   state.world.merchantTaxUsed = false;
   state.world.saltTradeUsed = false;

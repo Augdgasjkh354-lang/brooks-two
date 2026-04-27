@@ -1382,11 +1382,16 @@ export function ensureCommodityState(state) {
   state.commodities = state.commodities ?? {};
   state.commodityPrices = state.commodityPrices ?? {};
 
+  const grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? state.agriculture?.grainTreasury ?? 0));
+  const saltReserve = Math.max(0, Number(state.world.saltReserve ?? 0));
+  const clothReserve = Math.max(0, Number(state.world.clothReserve ?? 0));
+  const rawSilkOutput = Math.max(0, Number(state.world.rawSilkOutput ?? 0));
+
   const commodityDefaults = {
-    grain: 0,
-    salt: 0,
-    cloth: 0,
-    silk: 0,
+    grain: grainTreasury,
+    salt: saltReserve,
+    cloth: clothReserve,
+    silk: rawSilkOutput,
     paper: 0,
     iron_tools: 0,
     weapons: 0,
@@ -1402,18 +1407,16 @@ export function ensureCommodityState(state) {
   };
 
   Object.entries(commodityDefaults).forEach(([commodity, defaultValue]) => {
-    state.commodities[commodity] = Math.max(0, Number(state.commodities[commodity] ?? defaultValue));
+    const currentValue = state.commodities[commodity];
+    state.commodities[commodity] = Math.max(
+      0,
+      Number(currentValue === undefined || currentValue === null ? defaultValue : currentValue)
+    );
   });
 
-  state.commodities.grain = Math.max(0, Number(state.commodities.grain ?? state.world.grainTreasury ?? 0));
-  state.commodities.salt = Math.max(0, Number(state.commodities.salt ?? state.world.saltReserve ?? 0));
-  state.commodities.cloth = Math.max(0, Number(state.commodities.cloth ?? state.world.clothReserve ?? 0));
-  state.commodities.silk = Math.max(0, Number(state.commodities.silk ?? state.world.rawSilkOutput ?? 0));
-
-  state.world.grainTreasury = state.commodities.grain;
-  state.world.saltReserve = state.commodities.salt;
-  state.world.clothReserve = state.commodities.cloth;
-  state.world.rawSilkOutput = state.commodities.silk;
+  state.world.marketGrainInventory = state.commodities.grain;
+  state.world.marketSaltInventory = state.commodities.salt;
+  state.world.marketClothInventory = state.commodities.cloth;
 
   state.agriculture.grainTreasury = state.world.grainTreasury;
   state.agriculture.rawSilkOutput = state.world.rawSilkOutput;
