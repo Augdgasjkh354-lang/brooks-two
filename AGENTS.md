@@ -1291,3 +1291,74 @@ In each polity panel, add economy section showing:
 - economicStress computed and visible in diplomacy panel
 - Grain shortage reduces polity trust over time
 - npm test passes
+## Current Phase: Phase 11G — Trade Contract Risk Model
+
+### Goal
+Contract fulfillment is no longer binary. Each contract has a fulfillment rate
+based on partner stock, trust, attitude, and economic stress.
+
+### Modify: js/diplomacy/tradeContracts.js
+
+Add calculateFulfillmentRate(state, contract):
+  polity = state.foreignPolities[contract.partnerId]
+  
+  stockRatio = polity.commodities[contract.commodity] / contract.amountPerYear
+  stockMultiplier = Math.min(1, stockRatio)
+
+  trustMultiplier = polity.diplomacy.trust / 100
+
+  attitudeMultiplier = polity.diplomacy.attitudeToPlayer < 0
+    ? Math.max(0.3, 1 + polity.diplomacy.attitudeToPlayer / 100)
+    : 1
+
+  stressMultiplier = Math.max(0.2, 1 - polity.economicStress / 200)
+
+  fulfillmentRate = stockMultiplier * trustMultiplier * attitudeMultiplier * stressMultiplier
+  fulfillmentRate = Math.max(0, Math.min(1, fulfillmentRate))
+
+  return fulfillmentRate
+
+Update processTradeContracts():
+  Replace fixed reliability multiplier with calculateFulfillmentRate()
+  delivered = contract.amountPerYear * fulfillmentRate
+  shortfall = contract.amountPerYear - delivered
+
+  Store on contract:
+    contract.lastFulfillmentRate = fulfillmentRate
+    contract.lastDelivered = delivered
+    contract.lastShortfall = shortfall
+
+  If fulfillmentRate < 0.5:
+    count as breach
+    apply breachPenalty
+    log to state.yearLog
+
+  If fulfillmentRate < 0.8:
+    log warning to state.yearLog
+
+Add getContractFulfillmentRisk(state, contractId):
+  rate = contract.lastFulfillmentRate
+  if rate >= 0.9: return 'low'
+  if rate >= 0.7: return 'medium'
+  if rate >= 0.5: return 'high'
+  return 'critical'
+
+### Modify: js/state.js
+Add to each contract shape (tradeContracts array):
+  lastFulfillmentRate: 1,
+  lastDelivered: 0,
+  lastShortfall: 0
+
+### Modify: js/ui/render_diplomacy.js
+In contract list display, show per contract:
+- Fulfillment rate last year (%)
+- Amount delivered vs requested
+- Risk level (color coded: green/yellow/orange/red)
+- Shortfall amount if any
+
+### Acceptance criteria
+- Fulfillment rate computed from stock, trust, attitude, stress
+- Partial delivery triggers shortfall and disruption effects
+- Breach logged when fulfillmentRate < 0.5
+- Contract panel shows fulfillment rate and risk level
+- npm test passes
