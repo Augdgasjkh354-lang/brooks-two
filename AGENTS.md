@@ -1362,3 +1362,67 @@ In contract list display, show per contract:
 - Breach logged when fulfillmentRate < 0.5
 - Contract panel shows fulfillment rate and risk level
 - npm test passes
+## Current Phase: Phase 11H — Trade Route Capacity
+
+### Phase goal
+Add trade route objects that cap how much can be delivered per contract per year.
+Road level, trade bureau efficiency, and security all affect capacity.
+Without this, signed contracts can deliver unlimited goods regardless of infrastructure.
+
+### New data: state.tradeRoutes
+Add to js/state.js initial state:
+  tradeRoutes: {
+    xikou:              { roadLevel: 1, capacity: 100000, security: 0.9 },
+    northernTraders:    { roadLevel: 1, capacity: 80000,  security: 0.7 },
+    southernTribe:      { roadLevel: 0, capacity: 40000,  security: 0.5 },
+    saltLakeTown:       { roadLevel: 1, capacity: 120000, security: 0.8 },
+    copperMountainCity: { roadLevel: 1, capacity: 100000, security: 0.75 },
+    riverPort:          { roadLevel: 2, capacity: 200000, security: 0.85 }
+  }
+
+roadLevel: 0=dirt path, 1=maintained road, 2=paved road
+capacity: max total goods deliverable per year across all contracts with this partner
+security: multiplier on actual delivery (bandit risk etc.)
+
+### Modify: js/diplomacy/tradeContracts.js
+
+Update calculateFulfillmentRate(state, contract):
+  Add transportMultiplier:
+    route = state.tradeRoutes[contract.partnerId]
+    if no route: transportMultiplier = 0.5
+    else:
+      usedCapacity = sum of amountPerYear for all active contracts with same partnerId
+      capacityRatio = Math.min(1, route.capacity / Math.max(1, usedCapacity))
+      transportMultiplier = capacityRatio * route.security
+
+  Multiply into final fulfillmentRate:
+    fulfillmentRate = stockMultiplier * trustMultiplier * attitudeMultiplier
+                    * stressMultiplier * transportMultiplier
+    fulfillmentRate = Math.max(0, Math.min(1, fulfillmentRate))
+
+Add updateTradeRouteCapacity(state):
+  Called once per year in advanceYear() after processTradeContracts.
+  For each route:
+    base = roadLevel * 50000 + 50000
+    bureauBonus = institutions.tradeBureau active ? tradeBureauEfficiency * 500 : 0
+    route.capacity = base + bureauBonus
+
+### Modify: js/game.js
+In advanceYear() pipeline, after processTradeContracts:
+  updateTradeRouteCapacity(gameState);
+
+### Modify: js/ui/render_diplomacy.js
+In each polity panel, add trade route section showing:
+  - Road level (dirt/maintained/paved)
+  - Annual capacity (total goods/year)
+  - Current usage (sum of active contract volumes)
+  - Security rating (%)
+  - Warning if usage > 80% of capacity
+
+### Acceptance criteria
+- state.tradeRoutes exists with all 6 partners
+- Contracts with same partner share capacity pool
+- High contract volume reduces fulfillmentRate via capacityRatio
+- Trade bureau improves capacity each year
+- Route info visible in diplomacy panel
+- npm test passes
