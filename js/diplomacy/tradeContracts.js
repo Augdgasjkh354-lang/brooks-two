@@ -100,7 +100,7 @@ export function getContractFulfillmentRisk(state, contractId) {
   if (!contract) return 'high';
 
   const partner = state?.foreignPolities?.[contract.partnerId ?? 'xikou'];
-  const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? 0);
+  const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? -100);
   const reliability = Math.max(0, Math.min(1, Number(contract.reliability ?? 0)));
   const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
 
@@ -134,7 +134,7 @@ export function processTradeContracts(state) {
     processed += 1;
 
     const partner = state?.foreignPolities?.[contract.partnerId ?? 'xikou'];
-    const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? -100);
+    const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? -100);
     if (attitude < Number(contract.minAttitudeRequired ?? -10)) {
       failed += 1;
       logs.push(`贸易合约未执行（${contract.commodity}）：对方态度不足。`);
@@ -145,6 +145,23 @@ export function processTradeContracts(state) {
         direction: contract.direction,
         success: false,
         reason: 'attitude',
+        deliveredAmount: 0,
+        totalPayment: 0,
+        paymentAsset: contract.paymentAsset,
+      });
+      continue;
+    }
+
+    if (!partner) {
+      failed += 1;
+      logs.push(`贸易合约未执行（${contract.commodity}）：贸易对象不存在。`);
+      executions.push({
+        contractId: contract.id,
+        partnerId: contract.partnerId,
+        commodity: contract.commodity,
+        direction: contract.direction,
+        success: false,
+        reason: 'partner_missing',
         deliveredAmount: 0,
         totalPayment: 0,
         paymentAsset: contract.paymentAsset,
