@@ -73,7 +73,7 @@ export function bindDiplomacyEvents(onSendEnvoy) {
   if (envoyBtn && typeof onSendEnvoy === 'function') envoyBtn.addEventListener('click', onSendEnvoy);
 }
 
-export function getTradeControlsHtml(world, xikou) {
+export function getTradeControlsHtml(world, xikou, state) {
   if (!xikou || !getDiplomaticContact(xikou)) return '<span class="muted">需先建立外交关系</span>';
   if (getAttitudeToPlayer(xikou) < -9) return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
 
@@ -82,12 +82,18 @@ export function getTradeControlsHtml(world, xikou) {
     ? `<div style="display:flex;flex-direction:column;gap:8px;">
         ${contracts.map((contract) => `
           <div style="padding:8px;border:1px solid #d1d5db;border-radius:6px;">
-            <div><strong>${contract.commodity}</strong> | ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
+            <div><strong>${contract.commodity}</strong> | ${contract.direction === 'export' ? '出口' : '进口'} ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
+            <div class="muted">最近执行：Year ${contract.lastExecutedYear ?? '-'}，交付 ${formatNumber(contract.lastDeliveredAmount ?? 0)}，结算 ${formatNumber(contract.lastPaymentAmount ?? 0)}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}</div>
             <button class="cancel-contract-btn" data-contract-id="${contract.id}">Cancel</button>
           </div>
         `).join('')}
       </div>`
     : '<div class="muted">暂无有效贸易合约</div>';
+
+  const summary = state?.tradeEffects?.lastYearSummary ?? {};
+  const commodityFlows = Object.entries(summary.commodityFlows ?? {})
+    .map(([commodity, amount]) => `${commodity}:${formatNumber(amount)}`)
+    .join(' / ');
 
   return `
     <div style="display:flex;flex-direction:column;gap:10px;">
@@ -96,7 +102,9 @@ export function getTradeControlsHtml(world, xikou) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button id="sign-salt-contract-btn">Sign Salt Import Contract</button>
         <button id="sign-cloth-contract-btn">Sign Cloth Import Contract</button>
+        <button id="sign-dung-contract-btn">Sign Dung Import Contract</button>
       </div>
+      <div class="muted">上年贸易：进口${formatNumber(summary.imports ?? 0)} / 出口${formatNumber(summary.exports ?? 0)} / 支付粮${formatNumber(summary.grainPayments ?? 0)} / 支付劵${formatNumber(summary.couponPayments ?? 0)}${commodityFlows ? ` / 流量 ${commodityFlows}` : ''}</div>
     </div>
   `;
 }
@@ -120,14 +128,7 @@ export function bindTradeEvents(onTradeSalt, onTradeCloth) {
 
 export function getDungImportControlsHtml(world, xikou) {
   if (!getDiplomaticContact(xikou)) return '<span class="muted">需先建立外交关系</span>';
-  if (getAttitudeToPlayer(xikou) < -9) return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
-
-  return `
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <div><strong>Dung Contract</strong>（5000/年，固定价1，5年）</div>
-      <button id="sign-dung-contract-btn">Sign Dung Import Contract</button>
-    </div>
-  `;
+  return '<span class="muted">蚕沙进口已并入贸易合约面板。</span>';
 }
 
 export function bindDungImportEvents(onSetDungImportQuota) {
@@ -198,8 +199,7 @@ export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth
       ${statItem('Attitude Label', getXikouAttitudeLabel(getAttitudeToPlayer(xikou)))}
     </section>
     <section class="panel"><h2>Diplomatic Contact</h2>${getDiplomacyControlsHtml(world, xikou)}</section>
-    <section class="panel"><h2>Trade</h2>${getTradeControlsHtml(world, xikou)}</section>
-    <section class="panel"><h2>Silkworm Dung Import</h2>${getDungImportControlsHtml(world, xikou)}</section>
+    <section class="panel"><h2>Trade</h2>${getTradeControlsHtml(world, xikou, state)}</section>
     <section class="panel"><h2>Northern Traders</h2>${statItem('Overview', getNorthernTradersPanelHtml(state))}</section>
   `;
 
@@ -207,3 +207,4 @@ export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth
   bindTradeEvents(onTradeSalt, onTradeCloth);
   bindDungImportEvents(onSetDungImportQuota);
 }
+

@@ -33,6 +33,14 @@ function deductPartnerCommodityStock(partner, commodity, amount) {
   partner.commodities[key] = Math.max(0, Number(partner.commodities[key] ?? 0) - safeAmount);
 }
 
+function addPartnerCommodityStock(partner, commodity, amount) {
+  if (!partner) return;
+  const safeAmount = Math.max(0, Number(amount ?? 0));
+  const key = normalizeCommodityKey(commodity);
+  partner.commodities = partner.commodities ?? {};
+  partner.commodities[key] = Math.max(0, Number(partner.commodities[key] ?? 0) + safeAmount);
+}
+
 export function createTradeContract(state, params = {}) {
   if (!state) return { success: false, reason: 'state missing' };
 
@@ -66,6 +74,9 @@ export function createTradeContract(state, params = {}) {
       attitude: Number(params?.breachPenalty?.attitude ?? -5),
       compensation: Math.max(0, Number(params?.breachPenalty?.compensation ?? 0)),
     },
+    lastExecutedYear: null,
+    lastDeliveredAmount: 0,
+    lastPaymentAmount: 0,
   };
 
   state.tradeContracts.push(contract);
@@ -100,13 +111,14 @@ export function getContractFulfillmentRisk(state, contractId) {
 }
 
 export function processTradeContracts(state) {
-  if (!state) return { processed: 0, fulfilled: 0, failed: 0, logs: [] };
+  if (!state) return { processed: 0, fulfilled: 0, failed: 0, logs: [], executions: [] };
 
   state.tradeContracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
   state.commodities = state.commodities ?? {};
 
   const monetary = getMonetaryState(state);
   const logs = [];
+  const executions = [];
 
   let processed = 0;
   let fulfilled = 0;
@@ -125,7 +137,18 @@ export function processTradeContracts(state) {
     const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? -100);
     if (attitude < Number(contract.minAttitudeRequired ?? -10)) {
       failed += 1;
-      logs.push(`贸易合约未执行（${contract.commodity}）：溪口态度不足。`);
+      logs.push(`贸易合约未执行（${contract.commodity}）：对方态度不足。`);
+      executions.push({
+        contractId: contract.id,
+        partnerId: contract.partnerId,
+        commodity: contract.commodity,
+        direction: contract.direction,
+        success: false,
+        reason: 'attitude',
+        deliveredAmount: 0,
+        totalPayment: 0,
+        paymentAsset: contract.paymentAsset,
+      });
       continue;
     }
 
@@ -144,6 +167,17 @@ export function processTradeContracts(state) {
         if (couponTreasury < totalPayment) {
           failed += 1;
           logs.push(`贸易合约未执行（${contract.commodity}）：粮劵不足。`);
+          executions.push({
+            contractId: contract.id,
+            partnerId: contract.partnerId,
+            commodity: contract.commodity,
+            direction: contract.direction,
+            success: false,
+            reason: 'coupon',
+            deliveredAmount: 0,
+            totalPayment,
+            paymentAsset: contract.paymentAsset,
+          });
           continue;
         }
         monetary.couponTreasury = couponTreasury - totalPayment;
@@ -152,6 +186,17 @@ export function processTradeContracts(state) {
         if (grainTreasury < totalPayment) {
           failed += 1;
           logs.push(`贸易合约未执行（${contract.commodity}）：粮仓不足。`);
+          executions.push({
+            contractId: contract.id,
+            partnerId: contract.partnerId,
+            commodity: contract.commodity,
+            direction: contract.direction,
+            success: false,
+            reason: 'grain',
+            deliveredAmount: 0,
+            totalPayment,
+            paymentAsset: contract.paymentAsset,
+          });
           continue;
         }
         state.world.grainTreasury = grainTreasury - totalPayment;
@@ -166,7 +211,55 @@ export function processTradeContracts(state) {
       }
       fulfilled += 1;
       logs.push(`贸易合约执行：进口${contract.commodity} ${deliverAmount}，支付${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
+    } else {
+      const available = Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0));
+      const exportAmount = Math.min(deliverAmount, available);
+      if (exportAmount <= 0) {
+        failed += 1;
+        logs.push(`贸易合约未执行（${contract.commodity}）：本地库存不足。`);
+        executions.push({
+          contractId: contract.id,
+          partnerId: contract.partnerId,
+          commodity: contract.commodity,
+          direction: contract.direction,
+          success: false,
+          reason: 'inventory',
+          deliveredAmount: 0,
+          totalPayment: 0,
+          paymentAsset: contract.paymentAsset,
+        });
+        continue;
+      }
+
+      state.commodities[contract.commodity] = Math.max(0, available - exportAmount);
+      addPartnerCommodityStock(partner, contract.commodity, exportAmount);
+
+      if (contract.paymentAsset === 'coupon') {
+        monetary.couponTreasury = Math.max(0, Number(monetary.couponTreasury ?? 0) + totalPayment);
+      } else {
+        state.world.grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? 0) + totalPayment);
+        if (state.agriculture) state.agriculture.grainTreasury = state.world.grainTreasury;
+      }
+
+      fulfilled += 1;
+      logs.push(`贸易合约执行：出口${contract.commodity} ${exportAmount}，收入${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
     }
+
+    contract.lastExecutedYear = state.calendar?.year ?? null;
+    contract.lastDeliveredAmount = deliverAmount;
+    contract.lastPaymentAmount = totalPayment;
+
+    executions.push({
+      contractId: contract.id,
+      partnerId: contract.partnerId,
+      commodity: contract.commodity,
+      direction: contract.direction,
+      success: true,
+      deliveredAmount: deliverAmount,
+      unitPrice,
+      totalPayment,
+      paymentAsset: contract.paymentAsset,
+    });
 
     contract.yearsRemaining = Math.max(0, Number(contract.yearsRemaining ?? 0) - 1);
     if (contract.yearsRemaining <= 0) {
@@ -180,5 +273,5 @@ export function processTradeContracts(state) {
     else if (Array.isArray(state?.yearLog)) state.yearLog.unshift(`Year ${state.calendar?.year ?? '?'}: ${msg}`);
   });
 
-  return { processed, fulfilled, failed, logs };
+  return { processed, fulfilled, failed, logs, executions };
 }

@@ -18,6 +18,7 @@ import { ensurePopState, updatePops } from './society/popSystem.js';
 import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } from './society/interestGroups.js';
 import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts } from './diplomacy/tradeContracts.js';
 import { initForeignPolities, updateForeignPolities } from './diplomacy/foreignPolities.js';
+import { applyTradeEffects } from './economy/tradeEffects.js';
 
 const state = createGameState();
 
@@ -736,6 +737,11 @@ function processTradeContractsPhase() {
   state.__yearPipeline.tradeContractResult = processTradeContracts(state);
 }
 
+function applyTradeEffectsPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.tradeEffectsResult = applyTradeEffects(state, state.__yearPipeline.tradeContractResult);
+}
+
 function updatePopsPhase() {
   state.__yearPipeline = state.__yearPipeline ?? {};
   state.__yearPipeline.popsResult = updatePops(state);
@@ -853,6 +859,12 @@ function updateYearLog() {
     state.yearLog.unshift(`Year ${state.calendar.year}: 商品市场：${marketSummary || '无关键价格数据'}。`);
   }
 
+  const tradeEffectsResult = state.__yearPipeline?.tradeEffectsResult;
+  if (tradeEffectsResult?.applied) {
+    const summary = tradeEffectsResult.yearly ?? {};
+    state.yearLog.unshift(`Year ${state.calendar.year}: 对外贸易：进口${Math.round(summary.imports ?? 0)}，出口${Math.round(summary.exports ?? 0)}，支付粮${Math.round(summary.grainPayments ?? 0)}，支付劵${Math.round(summary.couponPayments ?? 0)}。`);
+  }
+
   const buildingResult = state.__yearPipeline?.buildingResult;
   if (buildingResult) {
     const topOutputs = Object.entries(buildingResult.outputs ?? {})
@@ -916,6 +928,7 @@ const YEAR_PIPELINE = [
   { name: 'updateResearch', fn: updateResearchPhase },
   { name: 'updateDiplomacy', fn: updateDiplomacy },
   { name: 'processTradeContracts', fn: processTradeContractsPhase },
+  { name: 'applyTradeEffects', fn: applyTradeEffectsPhase },
   { name: 'updatePops', fn: updatePopsPhase },
   { name: 'updateSatisfaction', fn: updateSatisfaction },
   { name: 'updateInterestGroups', fn: updateInterestGroupsPhase },
@@ -1455,6 +1468,23 @@ function hydrateStateFromSave(savedState) {
   state.foreignPolities = {
     ...(fresh.foreignPolities ?? {}),
     ...(savedState.foreignPolities ?? {}),
+  };
+
+  state.tradeEffects = {
+    ...(fresh.tradeEffects ?? {}),
+    ...(savedState.tradeEffects ?? {}),
+    totals: {
+      ...((fresh.tradeEffects ?? {}).totals ?? {}),
+      ...((savedState.tradeEffects ?? {}).totals ?? {}),
+    },
+    lastYearSummary: {
+      ...((fresh.tradeEffects ?? {}).lastYearSummary ?? {}),
+      ...((savedState.tradeEffects ?? {}).lastYearSummary ?? {}),
+      commodityFlows: {
+        ...(((fresh.tradeEffects ?? {}).lastYearSummary ?? {}).commodityFlows ?? {}),
+        ...(((savedState.tradeEffects ?? {}).lastYearSummary ?? {}).commodityFlows ?? {}),
+      },
+    },
   };
 
   state.research = {
