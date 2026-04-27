@@ -12,6 +12,136 @@ function normalizeCommodity(commodity) {
   return String(commodity ?? '').trim();
 }
 
+function pushYearLog(state, message) {
+  if (!state?.logs) state.logs = {};
+  if (!Array.isArray(state.logs.yearLog)) state.logs.yearLog = [];
+  state.logs.yearLog.unshift(message);
+  if (state.logs.yearLog.length > 200) state.logs.yearLog.length = 200;
+}
+
+function ensureTradeState(state) {
+  state.tradeState = state.tradeState ?? {};
+  state.tradeState.importDependency = {
+    salt: 0,
+    cloth: 0,
+    dung: 0,
+    grain: 0,
+    herb: 0,
+    iron: 0,
+    copper: 0,
+    silk: 0,
+    ...(state.tradeState.importDependency ?? {}),
+  };
+  state.tradeState.lastYearImports = {
+    salt: 0,
+    cloth: 0,
+    dung: 0,
+    grain: 0,
+    herb: 0,
+    iron: 0,
+    copper: 0,
+    silk: 0,
+    ...(state.tradeState.lastYearImports ?? {}),
+  };
+  if (!Array.isArray(state.tradeState.disruptions)) state.tradeState.disruptions = [];
+  state.tradeState.buildingProductionPenalty = safeNumber(state.tradeState.buildingProductionPenalty, 0);
+}
+
+function recordDisruption(state, disruption) {
+  ensureTradeState(state);
+  state.tradeState.disruptions.unshift(disruption);
+  if (state.tradeState.disruptions.length > 20) state.tradeState.disruptions.length = 20;
+}
+
+export function applyTradeDisruption(state, commodity, shortfallAmount) {
+  if (!state) return { applied: false, reason: 'state missing' };
+
+  const key = normalizeCommodity(commodity);
+  const shortfall = Math.max(0, safeNumber(shortfallAmount, 0));
+  const demand = Math.max(1, safeNumber(state?.commodityPrices?.[key]?.demand, 0));
+  const ratio = shortfall / demand;
+
+  ensureTradeState(state);
+
+  const priceState = state.commodityPrices?.[key];
+  if (priceState) {
+    const currentPrice = Math.max(0, safeNumber(priceState.price, priceState.basePrice ?? 1));
+    const boosted = currentPrice * (1 + ratio);
+    priceState.price = clamp(
+      boosted,
+      safeNumber(priceState.minPrice, 0),
+      safeNumber(priceState.maxPrice, Math.max(boosted, currentPrice))
+    );
+  }
+
+  if (ratio > 0.3) {
+    if (key === 'salt') {
+      state.classes = state.classes ?? {};
+      state.classes.farmerSatisfaction = clamp(safeNumber(state.classes.farmerSatisfaction, 50) - 15, 0, 100);
+      state.classes.merchantSatisfaction = clamp(safeNumber(state.classes.merchantSatisfaction, 50) - 10, 0, 100);
+    }
+
+    if (key === 'cloth') {
+      state.classes = state.classes ?? {};
+      state.classes.farmerSatisfaction = clamp(safeNumber(state.classes.farmerSatisfaction, 50) - 10, 0, 100);
+    }
+
+    if (key === 'iron') {
+      state.classes = state.classes ?? {};
+      state.classes.merchantSatisfaction = clamp(safeNumber(state.classes.merchantSatisfaction, 50) - 10, 0, 100);
+      state.tradeState.buildingProductionPenalty = clamp(
+        safeNumber(state.tradeState.buildingProductionPenalty, 0) + 20,
+        0,
+        100
+      );
+    }
+
+    if (key === 'copper') {
+      state.tradeState.buildingProductionPenalty = clamp(
+        safeNumber(state.tradeState.buildingProductionPenalty, 0) + 20,
+        0,
+        100
+      );
+    }
+  }
+
+  const disruption = {
+    year: safeNumber(state.calendar?.year, 0),
+    commodity: key,
+    shortfall,
+    shortfallRatio: ratio,
+    message: `Year ${safeNumber(state.calendar?.year, '?')}: ${key} 贸易短缺 ${Math.round(ratio * 100)}%。`,
+  };
+
+  recordDisruption(state, disruption);
+  pushYearLog(state, disruption.message);
+
+  return { applied: true, disruption };
+}
+
+export function applyTradeDependencyEffects(state) {
+  if (!state) return { applied: false, reason: 'state missing' };
+
+  ensureTradeState(state);
+  state.classes = state.classes ?? {};
+
+  const dependencies = state.tradeState.importDependency;
+  const highRiskCommodities = Object.entries(dependencies)
+    .filter(([, ratio]) => safeNumber(ratio, 0) > 0.5)
+    .map(([commodity]) => commodity);
+
+  if (highRiskCommodities.length > 0) {
+    const penalty = highRiskCommodities.length * 5;
+    state.classes.stabilityIndex = clamp(safeNumber(state.classes.stabilityIndex, 50) - penalty, 0, 100);
+    pushYearLog(
+      state,
+      `Year ${safeNumber(state.calendar?.year, '?')}: 贸易依赖过高（${highRiskCommodities.join('、')}），稳定度 -${penalty}。`
+    );
+  }
+
+  return { applied: true, highRiskCommodities };
+}
+
 function ensureTradeEffectsState(state) {
   state.tradeEffects = state.tradeEffects ?? {};
   state.tradeEffects.lastYear = safeNumber(state.tradeEffects.lastYear, 0);
@@ -33,6 +163,7 @@ function ensureTradeEffectsState(state) {
 
 export function applyTradeEffects(state, contractResult = {}) {
   if (!state) return { applied: false, reason: 'state missing' };
+  ensureTradeState(state);
   ensureTradeEffectsState(state);
 
   const executions = Array.isArray(contractResult.executions) ? contractResult.executions : [];
@@ -54,27 +185,15 @@ export function applyTradeEffects(state, contractResult = {}) {
 
     yearly.commodityFlows[commodity] = Math.max(0, safeNumber(yearly.commodityFlows[commodity], 0)) + delivered;
 
-    if (direction === 'import') yearly.imports += delivered;
-    else yearly.exports += delivered;
+    if (direction === 'import') {
+      yearly.imports += delivered;
+      state.tradeState.lastYearImports[commodity] = Math.max(0, safeNumber(state.tradeState.lastYearImports[commodity], 0)) + delivered;
+    } else {
+      yearly.exports += delivered;
+    }
 
     if (execution.paymentAsset === 'coupon') yearly.couponPayments += paid;
     else yearly.grainPayments += paid;
-
-    const partner = state.foreignPolities?.[execution.partnerId];
-    if (partner?.diplomacy) {
-      const trustDelta = Math.max(1, Math.round(delivered / 50000));
-      partner.diplomacy.trust = clamp(safeNumber(partner.diplomacy.trust, 30) + trustDelta, 0, 100);
-      partner.diplomacy.dependency = clamp(safeNumber(partner.diplomacy.dependency, 0) + (direction === 'import' ? 1 : -1), 0, 100);
-    }
-
-    if (commodity === 'salt') {
-      state.world.actualSaltImport = Math.max(0, safeNumber(state.world.actualSaltImport, 0)) + delivered;
-    } else if (commodity === 'cloth') {
-      state.world.clothTradeReceived = Math.max(0, safeNumber(state.world.clothTradeReceived, 0)) + delivered;
-    } else if (commodity === 'dung') {
-      state.world.importedDung = Math.max(0, safeNumber(state.world.importedDung, 0)) + delivered;
-      state.world.totalDung = Math.max(0, safeNumber(state.world.playerSilkwormDung, 0)) + Math.max(0, safeNumber(state.world.importedDung, 0));
-    }
   });
 
   state.tradeEffects.totals.imports = safeNumber(state.tradeEffects.totals.imports, 0) + yearly.imports;
@@ -84,8 +203,9 @@ export function applyTradeEffects(state, contractResult = {}) {
   state.tradeEffects.lastYear = safeNumber(state.calendar?.year, 0);
   state.tradeEffects.lastYearSummary = yearly;
 
-  if ((yearly.imports > 0 || yearly.exports > 0) && Array.isArray(state.logs?.yearLog)) {
-    state.logs.yearLog.unshift(
+  if (yearly.imports > 0 || yearly.exports > 0) {
+    pushYearLog(
+      state,
       `Year ${state.calendar?.year ?? '?'}: 贸易结算：进口${Math.round(yearly.imports)}，出口${Math.round(yearly.exports)}，支付粮${Math.round(yearly.grainPayments)}，支付劵${Math.round(yearly.couponPayments)}。`
     );
   }
