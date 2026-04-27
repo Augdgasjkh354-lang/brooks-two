@@ -271,15 +271,40 @@ export function calculateLaborAllocation(world) {
     unemployed -= moved;
   }
 
-  const finalFarming = Math.min(clamp(newBySector.farming ?? 0), clamp(laborForce));
-  const finalCommerceRaw = clamp(newBySector.commerce ?? 0);
-  const finalHemp = clamp(newBySector.hemp ?? 0);
-  const finalMulberry = clamp(newBySector.mulberry ?? 0);
+  let finalFarming = Math.min(clamp(newBySector.farming ?? 0), clamp(laborForce));
+  finalFarming = Math.min(finalFarming, laborForce);
+
+  const maxVariableLabor = Math.max(0, laborForce - fixedAllocatedLabor);
+  const finalCommerceRaw = clamp(Math.min(newBySector.commerce ?? 0, maxVariableLabor));
+  let finalHemp = clamp(newBySector.hemp ?? 0);
+  let finalMulberry = clamp(newBySector.mulberry ?? 0);
 
   const shopOps = calculateShopOperationState(world, finalCommerceRaw);
-  const finalCommerce = clamp(shopOps.commerceLaborDemand ?? 0);
+  let finalCommerce = clamp(Math.min(shopOps.commerceLaborDemand ?? 0, maxVariableLabor));
 
-  const variableLaborUsed = finalFarming + finalCommerce + finalHemp + finalMulberry;
+  let variableLaborUsed = finalFarming + finalCommerce + finalHemp + finalMulberry;
+  if (variableLaborUsed > maxVariableLabor) {
+    let overflow = variableLaborUsed - maxVariableLabor;
+
+    const trimMulberry = Math.min(finalMulberry, overflow);
+    finalMulberry -= trimMulberry;
+    overflow -= trimMulberry;
+
+    const trimHemp = Math.min(finalHemp, overflow);
+    finalHemp -= trimHemp;
+    overflow -= trimHemp;
+
+    const commerceFloor = 0;
+    const trimCommerce = Math.min(Math.max(0, finalCommerce - commerceFloor), overflow);
+    finalCommerce -= trimCommerce;
+    overflow -= trimCommerce;
+
+    const farmingFloor = Math.min(foodSecurityLaborFloor, laborForce);
+    const trimFarming = Math.min(Math.max(0, finalFarming - farmingFloor), overflow);
+    finalFarming -= trimFarming;
+  }
+
+  variableLaborUsed = finalFarming + finalCommerce + finalHemp + finalMulberry;
   const finalUnemployed = Math.max(0, laborForce - fixedAllocatedLabor - variableLaborUsed);
   const unemploymentRate = laborForce > 0 ? finalUnemployed / laborForce : 0;
 

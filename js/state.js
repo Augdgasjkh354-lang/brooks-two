@@ -1382,7 +1382,7 @@ export function ensureCommodityState(state) {
   state.commodities = state.commodities ?? {};
   state.commodityPrices = state.commodityPrices ?? {};
 
-  const grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? state.agriculture?.grainTreasury ?? 0));
+  const grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? state.agriculture?.grainTreasury ?? 15000000));
   const saltReserve = Math.max(0, Number(state.world.saltReserve ?? 0));
   const clothReserve = Math.max(0, Number(state.world.clothReserve ?? 0));
   const rawSilkOutput = Math.max(0, Number(state.world.rawSilkOutput ?? 0));
