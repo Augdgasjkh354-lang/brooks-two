@@ -17,7 +17,6 @@ function getRiskLabel(risk) {
   return '高';
 }
 
-
 function getForeignPolity(state, id) {
   return state?.foreignPolities?.[id] ?? null;
 }
@@ -30,6 +29,17 @@ function getNorthernTradersState(state) {
   return getForeignPolity(state, 'northernTraders') ?? null;
 }
 
+function getSouthernTribeState(state) {
+  return getForeignPolity(state, 'southernTribe') ?? null;
+}
+
+function getSaltLakeTownState(state) {
+  return getForeignPolity(state, 'saltLakeTown') ?? null;
+}
+
+function hasEnvoyContact(state, polityId) {
+  return Boolean(state?.diplomacy?.envoysSent?.[polityId]);
+}
 
 function getDiplomaticContact(xikou) {
   if (!xikou) return false;
@@ -170,7 +180,6 @@ export function getXikouVillagePanelHtml(state) {
   ].join('<br/>');
 }
 
-
 export function getNorthernTradersPanelHtml(state) {
   const polity = getNorthernTradersState(state);
   if (!polity) return 'Northern Traders data unavailable';
@@ -183,6 +192,51 @@ export function getNorthernTradersPanelHtml(state) {
     `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
     `对我方态度：${formatNumber(polity.diplomacy?.attitudeToPlayer ?? 0)}`,
     `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
+  ].join('<br/>');
+}
+
+function getFogPanelHtml() {
+  return '<div class="muted">未探明势力</div>';
+}
+
+function getSouthernTribePanelHtml(state) {
+  if (!hasEnvoyContact(state, 'southernTribe')) return getFogPanelHtml();
+
+  const polity = getSouthernTribeState(state);
+  if (!polity) return 'Southern Tribe data unavailable';
+
+  const attitude = Number(polity.diplomacy?.attitudeToPlayer ?? 0);
+  const hostileWarning = attitude <= -20
+    ? '<span style="color:#b42318;font-weight:700;">警告：初始态度敌对</span>'
+    : '<span style="color:#6b7280;">外交态势平稳</span>';
+
+  return [
+    `人口：${formatNumber(polity.population ?? 0)}`,
+    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
+    `粮食：${formatNumber(polity.commodities?.grain ?? 0)}`,
+    `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
+    `草药：${formatNumber(polity.commodities?.herb ?? 0)}`,
+    `对我方态度：${formatNumber(attitude)}`,
+    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
+    hostileWarning,
+  ].join('<br/>');
+}
+
+function getSaltLakeTownPanelHtml(state) {
+  if (!hasEnvoyContact(state, 'saltLakeTown')) return getFogPanelHtml();
+
+  const polity = getSaltLakeTownState(state);
+  if (!polity) return 'Salt Lake Town data unavailable';
+
+  return [
+    `人口：${formatNumber(polity.population ?? 0)}`,
+    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
+    `粮食：${formatNumber(polity.commodities?.grain ?? 0)}`,
+    `食盐：${formatNumber(polity.commodities?.salt ?? 0)}`,
+    `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
+    `对我方态度：${formatNumber(polity.diplomacy?.attitudeToPlayer ?? 0)}`,
+    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
+    '<span style="color:#1d4ed8;">可贸易资源：盐</span>',
   ].join('<br/>');
 }
 
@@ -201,10 +255,11 @@ export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth
     <section class="panel"><h2>Diplomatic Contact</h2>${getDiplomacyControlsHtml(world, xikou)}</section>
     <section class="panel"><h2>Trade</h2>${getTradeControlsHtml(world, xikou, state)}</section>
     <section class="panel"><h2>Northern Traders</h2>${statItem('Overview', getNorthernTradersPanelHtml(state))}</section>
+    <section class="panel"><h2>Southern Tribe</h2>${statItem('Overview', getSouthernTribePanelHtml(state))}</section>
+    <section class="panel"><h2>Salt Lake Town</h2>${statItem('Overview', getSaltLakeTownPanelHtml(state))}</section>
   `;
 
   bindDiplomacyEvents(onSendEnvoy);
   bindTradeEvents(onTradeSalt, onTradeCloth);
   bindDungImportEvents(onSetDungImportQuota);
 }
-

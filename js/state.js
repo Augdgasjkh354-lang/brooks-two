@@ -367,6 +367,16 @@ export const initialState = {
     },
   },
 
+  tradeState: {
+    importDependency: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0 },
+    lastYearImports: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0 },
+    disruptions: [],
+  },
+
+  diplomacy: {
+    envoysSent: { xikou: true, northernTraders: false, southernTribe: false, saltLakeTown: false },
+  },
+
   foreignPolities: {
     xikou: {
       id: 'xikou',
@@ -374,9 +384,9 @@ export const initialState = {
       type: 'village',
       population: XIKOU_INIT_POPULATION,
       laborForce: XIKOU_INIT_LABOR,
-      commodities: { grain: 500000, salt: 0, cloth: 0, dung: 0 },
-      production: { farmlandMu: XIKOU_FARMLAND_MU, saltMines: 2, mulberryLandMu: XIKOU_MULBERRY_MU },
-      prices: { grain: 1.0, salt: 4, cloth: 2 },
+      commodities: { grain: 500000, salt: 0, cloth: 0, dung: 0, herb: 0 },
+      production: { farmlandMu: XIKOU_FARMLAND_MU, saltMines: 2, mulberryLandMu: XIKOU_MULBERRY_MU, herbFields: 0 },
+      prices: { grain: 1.0, salt: 4, cloth: 2, herb: 3 },
       diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 20 },
     },
     northernTraders: {
@@ -385,9 +395,31 @@ export const initialState = {
       type: 'traders',
       population: 500,
       laborForce: 300,
-      commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
-      production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
-      prices: { grain: 1.2, salt: 5, cloth: 3 },
+      commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0, herb: 0 },
+      production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0, herbFields: 0 },
+      prices: { grain: 1.2, salt: 5, cloth: 3, herb: 4 },
+      diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
+    },
+    southernTribe: {
+      id: 'southernTribe',
+      name: '南部部落',
+      type: 'tribe',
+      population: 2000,
+      laborForce: 1200,
+      commodities: { grain: 200000, salt: 0, cloth: 3000, dung: 0, herb: 50000 },
+      production: { farmlandMu: 2000, saltMines: 0, mulberryLandMu: 0, herbFields: 500 },
+      prices: { grain: 1, salt: 6, cloth: 2, herb: 3 },
+      diplomacy: { attitudeToPlayer: -20, trust: 20, dependency: 0 },
+    },
+    saltLakeTown: {
+      id: 'saltLakeTown',
+      name: '盐湖镇',
+      type: 'town',
+      population: 4000,
+      laborForce: 2400,
+      commodities: { grain: 300000, salt: 800000, cloth: 5000, dung: 0, herb: 0 },
+      production: { farmlandMu: 4000, saltMines: 5, mulberryLandMu: 0, herbFields: 0 },
+      prices: { grain: 1, salt: 3, cloth: 2.5, herb: 4 },
       diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
     },
   },
