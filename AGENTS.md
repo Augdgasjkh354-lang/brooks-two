@@ -1134,3 +1134,81 @@ Add to initial state:
 - herb commodity tracked in tradeState
 - Sending envoy to southernTribe or saltLakeTown reveals full panel
 - npm test passes
+## Current Phase: Phase 11E — New Polities: Copper Mountain City & River Port
+
+### Goal
+Add two economic-type Level 2 polities with more complex production and trade potential.
+
+### Modify: js/diplomacy/foreignPolities.js
+Add to initForeignPolities():
+
+foreignPolities.copperMountainCity:
+{
+  id: 'copperMountainCity',
+  name: '铜山城',
+  type: 'city',
+  population: 8000,
+  laborForce: 4800,
+  commodities: { grain: 500000, salt: 0, cloth: 8000, dung: 0, iron: 200000, copper: 300000 },
+  production: { farmlandMu: 6000, saltMines: 0, mulberryLandMu: 0, ironMines: 3, copperMines: 5 },
+  prices: { grain: 1.2, cloth: 2.5, iron: 6, copper: 8 },
+  diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 0 },
+  gdp: 2000000,
+  militaryStrength: 500
+}
+
+foreignPolities.riverPort:
+{
+  id: 'riverPort',
+  name: '河口商港',
+  type: 'city',
+  population: 10000,
+  laborForce: 6000,
+  commodities: { grain: 800000, salt: 100000, cloth: 50000, dung: 0, iron: 50000, silk: 30000 },
+  production: { farmlandMu: 5000, saltMines: 1, mulberryLandMu: 2000, ironMines: 1, copperMines: 0 },
+  prices: { grain: 1.1, salt: 4, cloth: 2, iron: 5, silk: 15 },
+  diplomacy: { attitudeToPlayer: 10, trust: 50, dependency: 0 },
+  gdp: 5000000,
+  militaryStrength: 800
+}
+
+Update updateForeignPolities() to handle:
+- ironMines production: ironMines * 100000 iron per year
+- copperMines production: copperMines * 80000 copper per year
+- silk production: mulberryLandMu * 0.1 silk per year
+- GDP update: gdp = sum of all commodity stocks * average price * 0.01
+
+### Modify: js/state.js
+Add iron, copper, silk to tradeState tracking:
+  importDependency: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0, iron: 0, copper: 0, silk: 0 }
+  lastYearImports: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0, iron: 0, copper: 0, silk: 0 }
+
+Add to diplomacy.envoysSent:
+  copperMountainCity: false
+  riverPort: false
+
+### Modify: js/ui/render_diplomacy.js
+Add panels for copperMountainCity and riverPort:
+- Show population, gdp, militaryStrength, commodities, attitude, trust
+- riverPort: highlight as major trading hub, show silk and iron availability
+- copperMountainCity: highlight iron and copper as key exports
+- Both fogged until envoy sent
+- Add "Sign Contract" buttons for iron, copper, silk imports
+  (reuse existing createTradeContract logic from Phase 11A)
+
+### Modify: js/economy/tradeEffects.js
+Add iron and copper to disruption logic:
+- If iron shortfall > 30%: merchantSatisfaction -= 10, buildingProductionPenalty += 20%
+- buildingProductionPenalty stored in state.tradeState.buildingProductionPenalty
+
+### Modify: js/state.js
+Add to tradeState:
+  buildingProductionPenalty: 0
+
+### Acceptance criteria
+- copperMountainCity and riverPort appear fogged in diplomacy tab
+- Both produce iron/copper/silk each year
+- Envoy reveals full panel and contract buttons
+- Iron shortfall applies building production penalty
+- All 5 polities (xikou, northernTraders, southernTribe, saltLakeTown, copperMountainCity, riverPort) update each year
+- npm test passes
