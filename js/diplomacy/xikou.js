@@ -7,6 +7,8 @@ import {
 
 export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
 
+// Phase 11A: manual one-time import actions are removed in favor of yearly trade contracts.
+
 
 function getCommodityPrice(world, commodity, fallbackPrice) {
   const marketPrice = Number(world?.commodityPrices?.[commodity]?.price ?? NaN);
@@ -80,6 +82,7 @@ export function updateXikouVillageEconomy(world) {
   xikou.farmEfficiency = farmEfficiency;
   xikou.grainOutput = grainOutput;
   xikou.clothOutput = clothOutput;
+  xikou.clothReserve = clamp((xikou.clothReserve ?? 0) + clothOutput);
   xikou.saltOutputJin = clamp(saltOutputJin);
   xikou.saltReserve = clamp((xikou.saltReserve ?? 0) + saltOutputJin);
   xikou.grainTreasury = nextGrainTreasury;

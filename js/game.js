@@ -16,6 +16,7 @@ import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buil
 import { settleCommodityMarket } from './economy/commodityMarket.js';
 import { ensurePopState, updatePops } from './society/popSystem.js';
 import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } from './society/interestGroups.js';
+import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts } from './diplomacy/tradeContracts.js';
 
 const state = createGameState();
 
@@ -729,6 +730,11 @@ function updateDiplomacy() {
   // Diplomacy yearly settlement currently happens inside economy update.
 }
 
+function processTradeContractsPhase() {
+  state.__yearPipeline = state.__yearPipeline ?? {};
+  state.__yearPipeline.tradeContractResult = processTradeContracts(state);
+}
+
 function updatePopsPhase() {
   state.__yearPipeline = state.__yearPipeline ?? {};
   state.__yearPipeline.popsResult = updatePops(state);
@@ -908,6 +914,7 @@ const YEAR_PIPELINE = [
   { name: 'updateEducation', fn: updateEducation },
   { name: 'updateResearch', fn: updateResearchPhase },
   { name: 'updateDiplomacy', fn: updateDiplomacy },
+  { name: 'processTradeContracts', fn: processTradeContractsPhase },
   { name: 'updatePops', fn: updatePopsPhase },
   { name: 'updateSatisfaction', fn: updateSatisfaction },
   { name: 'updateInterestGroups', fn: updateInterestGroupsPhase },
@@ -1243,177 +1250,106 @@ function sendEnvoyToXikou() {
   render();
 }
 
-function applyDualTradeBonusIfEligible(baseAttitudeGain) {
-  const bothTradesUsed = state.world.saltTradeUsed && state.world.clothTradeUsed;
-  if (bothTradesUsed) {
-    state.xikou.attitudeToPlayer = Math.max(
-      -100,
-      Math.min(100, (state.xikou.attitudeToPlayer ?? 0) + 3)
-    );
-    return baseAttitudeGain + 3;
-  }
+function signSaltImportContract() {
+  const result = createTradeContract(state, {
+    partnerId: 'xikou',
+    commodity: 'salt',
+    direction: 'import',
+    amountPerYear: 50000,
+    priceMode: 'fixed',
+    fixedPrice: 4,
+    priceMultiplier: 1,
+    durationYears: 5,
+    paymentAsset: 'grain',
+    minAttitudeRequired: -9,
+    reliability: 0.95,
+    breachPenalty: { attitude: -5, compensation: 0 },
+  });
 
-  return baseAttitudeGain;
-}
-
-function tradeGrainForSalt() {
-  const xikou = state.xikou;
-  const grainAmount = Math.floor(Number(document.getElementById('salt-trade-input')?.value ?? 0));
-
-  if (!xikou?.diplomaticContact) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 尚未建立外交关系。`);
+  if (!result.success) {
+    addYearLog(state, `Year ${state.calendar.year}: 签订食盐贸易合约失败 - ${result.reason}`);
     render();
     return;
   }
 
-  if ((xikou.attitudeToPlayer ?? 0) < -9) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 溪口态度低于中立。`);
-    render();
-    return;
-  }
-
-  if (state.world.saltTradeUsed) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 本年已完成该交易。`);
-    render();
-    return;
-  }
-
-  if (grainAmount < 10000) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 最低交易量为10000粮。`);
-    render();
-    return;
-  }
-
-  if ((state.agriculture.grainTreasury ?? 0) < grainAmount) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 我方粮仓不足。`);
-    render();
-    return;
-  }
-
-  const saltTradeCapByOutput = Math.floor((xikou.saltOutputJin ?? 0) * 0.5);
-  const saltAvailable = Math.max(0, Math.min(xikou.saltReserve ?? 0, saltTradeCapByOutput));
-  if (saltAvailable <= 0) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮盐交易失败 - 溪口本年无可交易盐。`);
-    render();
-    return;
-  }
-
-  const saltReceived = Math.floor(grainAmount * 0.5);
-  if (saltReceived > saltAvailable) {
-    state.yearLog.unshift(
-      `Year ${state.calendar.year}: 粮盐交易失败 - 超过本年盐交易上限（最多可换${saltAvailable}斤盐）。`
-    );
-    render();
-    return;
-  }
-
-  state.agriculture.grainTreasury -= grainAmount;
-  state.world.saltReserve = (state.world.saltReserve ?? 0) + saltReceived;
-  xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
-  xikou.saltReserve = Math.max(0, (xikou.saltReserve ?? 0) - saltReceived);
-  state.world.saltTradeUsed = true;
-
-  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 3));
-  const totalAttitudeGain = applyDualTradeBonusIfEligible(3);
-
-  state.yearLog.unshift(
-    `Year ${state.calendar.year}: 与溪口村完成粮盐交易（支付${grainAmount}粮，获得${saltReceived}斤盐，态度+${totalAttitudeGain}）。`
-  );
+  addYearLog(state, `Year ${state.calendar.year}: 已签订食盐进口合约（50000/年，固定价4，5年）。`);
   render();
 }
 
-function tradeGrainForCloth() {
-  const xikou = state.xikou;
-  const grainAmount = Math.floor(Number(document.getElementById('cloth-trade-input')?.value ?? 0));
+function signClothImportContract() {
+  const result = createTradeContract(state, {
+    partnerId: 'xikou',
+    commodity: 'cloth',
+    direction: 'import',
+    amountPerYear: 10000,
+    priceMode: 'fixed',
+    fixedPrice: 2,
+    priceMultiplier: 1,
+    durationYears: 5,
+    paymentAsset: 'grain',
+    minAttitudeRequired: -9,
+    reliability: 0.92,
+    breachPenalty: { attitude: -5, compensation: 0 },
+  });
 
-  if (!xikou?.diplomaticContact) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 尚未建立外交关系。`);
+  if (!result.success) {
+    addYearLog(state, `Year ${state.calendar.year}: 签订布匹贸易合约失败 - ${result.reason}`);
     render();
     return;
   }
 
-  if ((xikou.attitudeToPlayer ?? 0) < -9) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 溪口态度低于中立。`);
-    render();
-    return;
-  }
-
-  if (state.world.clothTradeUsed) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 本年已完成该交易。`);
-    render();
-    return;
-  }
-
-  if (grainAmount < 5000) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 最低交易量为5000粮。`);
-    render();
-    return;
-  }
-
-  if ((state.agriculture.grainTreasury ?? 0) < grainAmount) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 我方粮仓不足。`);
-    render();
-    return;
-  }
-
-  const clothAvailable = Math.max(0, Math.floor(xikou.clothOutput ?? 0));
-  if (clothAvailable <= 0) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 粮布交易失败 - 溪口当前无布匹可交易。`);
-    render();
-    return;
-  }
-
-  const clothReceived = Math.floor(grainAmount * 0.3);
-  if (clothReceived > clothAvailable) {
-    state.yearLog.unshift(
-      `Year ${state.calendar.year}: 粮布交易失败 - 超过本年布匹交易上限（最多可换${clothAvailable}斤布）。`
-    );
-    render();
-    return;
-  }
-
-  state.agriculture.grainTreasury -= grainAmount;
-  state.world.clothReserve = (state.world.clothReserve ?? 0) + clothReceived;
-  xikou.grainTreasury = (xikou.grainTreasury ?? 0) + grainAmount;
-  state.world.clothTradeUsed = true;
-
-  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 2));
-  const totalAttitudeGain = applyDualTradeBonusIfEligible(2);
-
-  state.yearLog.unshift(
-    `Year ${state.calendar.year}: 与溪口村完成粮布交易（支付${grainAmount}粮，获得${clothReceived}斤布，态度+${totalAttitudeGain}）。`
-  );
+  addYearLog(state, `Year ${state.calendar.year}: 已签订布匹进口合约（10000/年，固定价2，5年）。`);
   render();
 }
 
-function setDungImportQuota() {
-  const input = document.getElementById('dung-import-input');
-  const quota = Math.max(0, Math.floor(Number(input?.value ?? 0)));
-  const xikou = state.xikou;
+function signDungImportContract() {
+  const result = createTradeContract(state, {
+    partnerId: 'xikou',
+    commodity: 'silkworm_dung',
+    direction: 'import',
+    amountPerYear: 5000,
+    priceMode: 'fixed',
+    fixedPrice: 1,
+    priceMultiplier: 1,
+    durationYears: 5,
+    paymentAsset: 'grain',
+    minAttitudeRequired: -9,
+    reliability: 0.9,
+    breachPenalty: { attitude: -5, compensation: 0 },
+  });
 
-  if (!xikou?.diplomaticContact) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 设置蚕沙进口失败 - 尚未建立外交关系。`);
+  if (!result.success) {
+    addYearLog(state, `Year ${state.calendar.year}: 签订蚕沙贸易合约失败 - ${result.reason}`);
     render();
     return;
   }
 
-  const available = Math.max(0, Math.floor(xikou.silkwormDungAvailable ?? 0));
-  if (quota > available) {
-    state.yearLog.unshift(`Year ${state.calendar.year}: 设置蚕沙进口失败 - 超过溪口本年可供上限（${available}斤）。`);
-    render();
-    return;
-  }
-
-  state.world.dungImportQuota = quota;
-  const currencyLabel = state.world.grainCouponsUnlocked ? '粮劵' : '粮食';
-  const estimatedCost = Math.ceil(quota / 100);
-  state.yearLog.unshift(
-    `Year ${state.calendar.year}: 已设置蚕沙进口配额为${quota}斤（预计成本${estimatedCost}${currencyLabel}，次年结算）。`
-  );
+  addYearLog(state, `Year ${state.calendar.year}: 已签订蚕沙进口合约（5000/年，固定价1，5年）。`);
   render();
+}
+
+function cancelTradeContractById(contractId) {
+  const result = cancelTradeContract(state, contractId);
+  if (!result.success) {
+    addYearLog(state, `Year ${state.calendar.year}: 取消贸易合约失败 - ${result.reason}`);
+    render();
+    return;
+  }
+
+  addYearLog(state, `Year ${state.calendar.year}: 已取消贸易合约 ${contractId}。`);
+  render();
+}
+
+function getTradeContractUiState() {
+  const contracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
+  return contracts.map((contract) => ({
+    ...contract,
+    risk: getContractFulfillmentRisk(state, contract.id),
+  }));
 }
 
 function executeOfficialSaltSaleFromInput() {
+
   const priceInput = document.getElementById('official-salt-price-input');
   const amountInput = document.getElementById('official-salt-amount-input');
   const price = Number(priceInput?.value ?? 0);
@@ -1671,6 +1607,12 @@ function bindEvents() {
     render();
   });
 
+  document.addEventListener('trade:cancel-contract', (event) => {
+    const contractId = String(event?.detail?.contractId ?? '').trim();
+    if (!contractId) return;
+    cancelTradeContractById(contractId);
+  });
+
   document.addEventListener('trade:config', (event) => {
     const key = String(event?.detail?.key ?? '');
     if (!key) return;
@@ -1743,9 +1685,9 @@ function render() {
       resolveByEmergencyRecirculation,
       resolveByEmergencyRedemption,
       sendEnvoyToXikou,
-      tradeGrainForSalt,
-      tradeGrainForCloth,
-      setDungImportQuota,
+      signSaltImportContract,
+      signClothImportContract,
+      signDungImportContract,
       executeOfficialSaltSaleFromInput,
       openHempLand,
       openMulberryLand,
@@ -1765,6 +1707,7 @@ function render() {
 }
 
 function init() {
+  window.getTradeContractUiState = getTradeContractUiState;
   const shouldLoadExistingSave = hasSave() && window.confirm('发现存档，是否继续？');
   if (shouldLoadExistingSave) {
     const saved = loadGame();

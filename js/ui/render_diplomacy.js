@@ -2,6 +2,21 @@ import { formatNumber, statItem } from './render_world.js';
 
 const DIPLOMACY_CONTACT_ESTABLISHED_TEXT = '外交联系已建立';
 
+function getTradeContractsForUi() {
+  const getter = window?.getTradeContractUiState;
+  if (typeof getter === 'function') {
+    const data = getter();
+    if (Array.isArray(data)) return data;
+  }
+  return [];
+}
+
+function getRiskLabel(risk) {
+  if (risk === 'low') return '低';
+  if (risk === 'medium') return '中';
+  return '高';
+}
+
 export function getXikouAttitudeLabel(attitudeToPlayer) {
   if (attitudeToPlayer <= -50) return '敌对';
   if (attitudeToPlayer <= -10) return '警惕';
@@ -35,66 +50,61 @@ export function getTradeControlsHtml(world, xikou) {
   if (!xikou || !xikou.diplomaticContact) return '<span class="muted">需先建立外交关系</span>';
   if ((xikou.attitudeToPlayer ?? 0) < -9) return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
 
-  const saltTradeCapByOutput = Math.floor((xikou.saltOutputJin ?? 0) * 0.5);
-  const saltAvailable = Math.max(0, Math.min(xikou.saltReserve ?? 0, saltTradeCapByOutput));
-  const maxSaltTradeGrain = saltAvailable > 0 ? Math.floor(saltAvailable / 0.5) : 0;
-  const saltDisabled = world.saltTradeUsed || saltAvailable <= 0 || (world.grainTreasury ?? 0) < 10000;
-
-  const clothAvailable = Math.max(0, xikou.clothOutput ?? 0);
-  const maxClothTradeGrain = clothAvailable > 0 ? Math.floor(clothAvailable / 0.3) : 0;
-  const clothDisabled = world.clothTradeUsed || clothAvailable <= 0 || (world.grainTreasury ?? 0) < 5000;
+  const contracts = getTradeContractsForUi().filter((item) => item.partnerId === 'xikou' && item.active);
+  const listHtml = contracts.length
+    ? `<div style="display:flex;flex-direction:column;gap:8px;">
+        ${contracts.map((contract) => `
+          <div style="padding:8px;border:1px solid #d1d5db;border-radius:6px;">
+            <div><strong>${contract.commodity}</strong> | ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
+            <button class="cancel-contract-btn" data-contract-id="${contract.id}">Cancel</button>
+          </div>
+        `).join('')}
+      </div>`
+    : '<div class="muted">暂无有效贸易合约</div>';
 
   return `
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      <div>
-        <div><strong>粮食换盐</strong>（2粮:1盐，最低10000粮）</div>
-        <div class="muted">可交易盐：${formatNumber(saltAvailable)} 斤（本年上限）</div>
-        <div class="muted">最大可输入粮食：${formatNumber(maxSaltTradeGrain)}</div>
-        <input id="salt-trade-input" type="number" min="10000" step="1000" placeholder="输入粮食数量" />
-        <button id="trade-salt-btn" ${saltDisabled ? 'disabled' : ''}>${world.saltTradeUsed ? '本年已交易' : '确认粮盐交易'}</button>
-      </div>
-      <div>
-        <div><strong>粮食换布匹</strong>（10粮:3布，最低5000粮）</div>
-        <div class="muted">可交易布匹：${formatNumber(clothAvailable)} 斤</div>
-        <div class="muted">最大可输入粮食：${formatNumber(maxClothTradeGrain)}</div>
-        <input id="cloth-trade-input" type="number" min="5000" step="500" placeholder="输入粮食数量" />
-        <button id="trade-cloth-btn" ${clothDisabled ? 'disabled' : ''}>${world.clothTradeUsed ? '本年已交易' : '确认粮布交易'}</button>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div><strong>长期贸易合约</strong></div>
+      ${listHtml}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="sign-salt-contract-btn">Sign Salt Import Contract</button>
+        <button id="sign-cloth-contract-btn">Sign Cloth Import Contract</button>
       </div>
     </div>
   `;
 }
 
 export function bindTradeEvents(onTradeSalt, onTradeCloth) {
-  const tradeSaltBtn = document.getElementById('trade-salt-btn');
-  if (tradeSaltBtn && typeof onTradeSalt === 'function') tradeSaltBtn.addEventListener('click', onTradeSalt);
+  const signSaltBtn = document.getElementById('sign-salt-contract-btn');
+  if (signSaltBtn && typeof onTradeSalt === 'function') signSaltBtn.addEventListener('click', onTradeSalt);
 
-  const tradeClothBtn = document.getElementById('trade-cloth-btn');
-  if (tradeClothBtn && typeof onTradeCloth === 'function') tradeClothBtn.addEventListener('click', onTradeCloth);
+  const signClothBtn = document.getElementById('sign-cloth-contract-btn');
+  if (signClothBtn && typeof onTradeCloth === 'function') signClothBtn.addEventListener('click', onTradeCloth);
+
+  const cancelButtons = Array.from(document.querySelectorAll('.cancel-contract-btn'));
+  cancelButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const contractId = String(button?.dataset?.contractId ?? '').trim();
+      if (!contractId) return;
+      document.dispatchEvent(new CustomEvent('trade:cancel-contract', { detail: { contractId } }));
+    });
+  });
 }
 
 export function getDungImportControlsHtml(world, xikou) {
   if (!xikou?.diplomaticContact) return '<span class="muted">需先建立外交关系</span>';
-
-  const availableDung = Math.max(0, Math.floor(xikou.silkwormDungAvailable ?? 0));
-  const defaultQuota = Math.max(0, Math.floor(world.dungImportQuota ?? 0));
-  const minValue = availableDung > 0 ? 1000 : 0;
-  const disabled = availableDung <= 0;
-  const currencyLabel = world.grainCouponsUnlocked ? '粮劵' : '粮食';
-  const estimatedCost = Math.ceil(defaultQuota / 100);
+  if ((xikou.attitudeToPlayer ?? 0) < -9) return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
 
   return `
-    <div style="display: flex; flex-direction: column; gap: 8px;">
-      <div><strong>蚕沙进口</strong>（100斤蚕沙 = 1${currencyLabel}）</div>
-      <div class="muted">溪口本年可供：${formatNumber(availableDung)} 斤</div>
-      <input id="dung-import-input" type="number" min="${minValue}" step="1000" value="${defaultQuota}" ${disabled ? 'disabled' : ''}/>
-      <div class="muted">当前配额预估成本：${formatNumber(estimatedCost)}${currencyLabel}</div>
-      <button id="set-dung-import-btn" ${disabled ? 'disabled' : ''}>设置蚕沙进口配额（次年结算）</button>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div><strong>Dung Contract</strong>（5000/年，固定价1，5年）</div>
+      <button id="sign-dung-contract-btn">Sign Dung Import Contract</button>
     </div>
   `;
 }
 
 export function bindDungImportEvents(onSetDungImportQuota) {
-  const button = document.getElementById('set-dung-import-btn');
+  const button = document.getElementById('sign-dung-contract-btn');
   if (button && typeof onSetDungImportQuota === 'function') button.addEventListener('click', onSetDungImportQuota);
 }
 

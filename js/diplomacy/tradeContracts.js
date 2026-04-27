@@ -1,0 +1,189 @@
+function getMonetaryState(state) {
+  return state?.monetary ?? state?.world ?? {};
+}
+
+function getContractPrice(state, contract) {
+  if (contract.priceMode === 'fixed') {
+    return Math.max(0, Number(contract.fixedPrice ?? 0));
+  }
+
+  const marketPrice = Number(state?.commodityPrices?.[contract.commodity]?.price ?? 0);
+  const basePrice = Number(contract.fixedPrice ?? marketPrice ?? 0);
+  const multiplier = Math.max(0, Number(contract.priceMultiplier ?? 1));
+  const rawPrice = Number.isFinite(marketPrice) && marketPrice > 0 ? marketPrice : basePrice;
+  return Math.max(0, rawPrice * multiplier);
+}
+
+function getXikouStockByCommodity(xikou, commodity) {
+  if (!xikou) return 0;
+  if (commodity === 'salt') return Math.max(0, Number(xikou.saltReserve ?? 0));
+  if (commodity === 'cloth') return Math.max(0, Number(xikou.clothReserve ?? xikou.clothOutput ?? 0));
+  if (commodity === 'silkworm_dung') return Math.max(0, Number(xikou.silkwormDungAvailable ?? 0));
+  return Math.max(0, Number(xikou[`${commodity}Stock`] ?? 0));
+}
+
+function deductXikouStockByCommodity(xikou, commodity, amount) {
+  const safeAmount = Math.max(0, Number(amount ?? 0));
+  if (commodity === 'salt') {
+    xikou.saltReserve = Math.max(0, Number(xikou.saltReserve ?? 0) - safeAmount);
+    return;
+  }
+  if (commodity === 'cloth') {
+    xikou.clothReserve = Math.max(0, Number(xikou.clothReserve ?? xikou.clothOutput ?? 0) - safeAmount);
+    return;
+  }
+  if (commodity === 'silkworm_dung') {
+    xikou.silkwormDungAvailable = Math.max(0, Number(xikou.silkwormDungAvailable ?? 0) - safeAmount);
+    return;
+  }
+
+  const key = `${commodity}Stock`;
+  xikou[key] = Math.max(0, Number(xikou[key] ?? 0) - safeAmount);
+}
+
+export function createTradeContract(state, params = {}) {
+  if (!state) return { success: false, reason: 'state missing' };
+
+  state.tradeContracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
+
+  const commodity = String(params.commodity ?? '').trim();
+  const direction = params.direction === 'export' ? 'export' : 'import';
+  const amountPerYear = Math.max(0, Number(params.amountPerYear ?? 0));
+  const durationYears = Math.max(1, Math.floor(Number(params.durationYears ?? 1)));
+  const paymentAsset = params.paymentAsset === 'coupon' ? 'coupon' : 'grain';
+
+  if (!commodity) return { success: false, reason: 'commodity is required' };
+  if (amountPerYear <= 0) return { success: false, reason: 'amountPerYear must be > 0' };
+
+  const contract = {
+    id: params.id ?? `contract_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    partnerId: params.partnerId ?? 'xikou',
+    commodity,
+    direction,
+    amountPerYear,
+    priceMode: params.priceMode === 'market' ? 'market' : 'fixed',
+    fixedPrice: Math.max(0, Number(params.fixedPrice ?? 0)),
+    priceMultiplier: Math.max(0, Number(params.priceMultiplier ?? 1)),
+    durationYears,
+    yearsRemaining: Math.max(0, Math.floor(Number(params.yearsRemaining ?? durationYears))),
+    paymentAsset,
+    active: params.active !== false,
+    minAttitudeRequired: Math.max(-100, Math.min(100, Number(params.minAttitudeRequired ?? -10))),
+    reliability: Math.max(0, Math.min(1, Number(params.reliability ?? 1))),
+    breachPenalty: {
+      attitude: Number(params?.breachPenalty?.attitude ?? -5),
+      compensation: Math.max(0, Number(params?.breachPenalty?.compensation ?? 0)),
+    },
+  };
+
+  state.tradeContracts.push(contract);
+  return { success: true, contract };
+}
+
+export function cancelTradeContract(state, contractId) {
+  if (!state || !Array.isArray(state.tradeContracts)) {
+    return { success: false, reason: 'tradeContracts not initialized' };
+  }
+
+  const contract = state.tradeContracts.find((item) => item.id === contractId);
+  if (!contract) return { success: false, reason: 'contract not found' };
+
+  contract.active = false;
+  return { success: true, contract };
+}
+
+export function getContractFulfillmentRisk(state, contractId) {
+  const contract = state?.tradeContracts?.find((item) => item.id === contractId);
+  if (!contract) return 'high';
+
+  const xikou = state?.xikou;
+  const attitude = Number(xikou?.attitudeToPlayer ?? 0);
+  const reliability = Math.max(0, Math.min(1, Number(contract.reliability ?? 0)));
+  const partnerStock = getXikouStockByCommodity(xikou, contract.commodity);
+
+  if (attitude < Number(contract.minAttitudeRequired ?? -10)) return 'high';
+  if (reliability < 0.75 || partnerStock < Number(contract.amountPerYear ?? 0) * 0.5) return 'high';
+  if (reliability < 0.9 || partnerStock < Number(contract.amountPerYear ?? 0)) return 'medium';
+  return 'low';
+}
+
+export function processTradeContracts(state) {
+  if (!state) return { processed: 0, fulfilled: 0, failed: 0, logs: [] };
+
+  state.tradeContracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
+  state.commodities = state.commodities ?? {};
+
+  const monetary = getMonetaryState(state);
+  const xikou = state.xikou;
+  const logs = [];
+
+  let processed = 0;
+  let fulfilled = 0;
+  let failed = 0;
+
+  for (const contract of state.tradeContracts) {
+    if (!contract?.active) continue;
+    if ((contract.yearsRemaining ?? 0) <= 0) {
+      contract.active = false;
+      continue;
+    }
+
+    processed += 1;
+
+    const attitude = Number(xikou?.attitudeToPlayer ?? -100);
+    if (attitude < Number(contract.minAttitudeRequired ?? -10)) {
+      failed += 1;
+      logs.push(`贸易合约未执行（${contract.commodity}）：溪口态度不足。`);
+      continue;
+    }
+
+    const partnerStock = getXikouStockByCommodity(xikou, contract.commodity);
+    const deliverAmount = Math.floor(
+      Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), partnerStock)) *
+      Math.max(0, Math.min(1, Number(contract.reliability ?? 1)))
+    );
+
+    const unitPrice = getContractPrice(state, contract);
+    const totalPayment = Math.max(0, Math.round(deliverAmount * unitPrice));
+
+    if (contract.direction === 'import') {
+      if (contract.paymentAsset === 'coupon') {
+        const couponTreasury = Math.max(0, Number(monetary.couponTreasury ?? 0));
+        if (couponTreasury < totalPayment) {
+          failed += 1;
+          logs.push(`贸易合约未执行（${contract.commodity}）：粮劵不足。`);
+          continue;
+        }
+        monetary.couponTreasury = couponTreasury - totalPayment;
+      } else {
+        const grainTreasury = Math.max(0, Number(state.world?.grainTreasury ?? state.agriculture?.grainTreasury ?? 0));
+        if (grainTreasury < totalPayment) {
+          failed += 1;
+          logs.push(`贸易合约未执行（${contract.commodity}）：粮仓不足。`);
+          continue;
+        }
+        state.world.grainTreasury = grainTreasury - totalPayment;
+        if (state.agriculture) state.agriculture.grainTreasury = state.world.grainTreasury;
+      }
+
+      state.commodities[contract.commodity] = Math.max(0, Number(state.commodities[contract.commodity] ?? 0) + deliverAmount);
+      deductXikouStockByCommodity(xikou, contract.commodity, deliverAmount);
+      if (xikou) xikou.grainTreasury = Math.max(0, Number(xikou.grainTreasury ?? 0) + (contract.paymentAsset === 'grain' ? totalPayment : 0));
+      fulfilled += 1;
+      logs.push(`贸易合约执行：进口${contract.commodity} ${deliverAmount}，支付${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
+    }
+
+    contract.yearsRemaining = Math.max(0, Number(contract.yearsRemaining ?? 0) - 1);
+    if (contract.yearsRemaining <= 0) {
+      contract.active = false;
+      logs.push(`贸易合约到期：${contract.commodity}（${contract.id}）。`);
+    }
+  }
+
+  logs.forEach((msg) => {
+    if (Array.isArray(state?.logs?.yearLog)) state.logs.yearLog.unshift(`Year ${state.calendar?.year ?? '?'}: ${msg}`);
+    else if (Array.isArray(state?.yearLog)) state.yearLog.unshift(`Year ${state.calendar?.year ?? '?'}: ${msg}`);
+  });
+
+  return { processed, fulfilled, failed, logs };
+}
