@@ -919,3 +919,72 @@ Add script tag for js/diplomacy/tradeContracts.js before game.js.
 - Contract expires after durationYears
 - If Xikou stock insufficient, partial delivery occurs
 - npm test passes
+## Current Phase: Phase 11B — Generic Foreign Polity Engine
+
+### Goal
+Abstract world.xikou into a generic foreignPolities system.
+All external entities share one data model and one update function.
+
+### New file: js/diplomacy/foreignPolities.js
+Implement:
+- initForeignPolities(state) — populate state.foreignPolities with xikou and northernTraders
+- updateForeignPolities(state) — called each year, runs economy update for all polities
+- getForeignPolity(state, id) — returns polity object by id
+
+Generic polity object shape:
+{
+  id: string,
+  name: string,
+  type: 'village'|'traders'|'tribe'|'town'|'city',
+  population: number,
+  laborForce: number,
+  commodities: { grain: number, salt: number, cloth: number, dung: number },
+  production: { farmlandMu: number, saltMines: number, mulberryLandMu: number },
+  prices: { grain: number, salt: number, cloth: number },
+  diplomacy: { attitudeToPlayer: number, trust: number, dependency: number }
+}
+
+updateForeignPolities logic (per polity):
+- Grow population 0.5%/year
+- Update laborForce = population * 0.6
+- Produce grain from farmlandMu (same formula as player: farmlandMu / 10 * 360)
+- Produce salt from saltMines (200000 per mine per year)
+- Produce cloth from mulberryLandMu (mulberryLandMu * 0.3)
+- Cap all commodity stocks at reasonable maximums to prevent overflow
+
+### Modify: js/state.js
+- Add foreignPolities: {} to initial state
+- Keep world.xikou as-is for backward compatibility (do not remove)
+- Add foreignPolities.xikou mirroring current world.xikou values
+- Add foreignPolities.northernTraders with initial values:
+    population: 500, laborForce: 300,
+    commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
+    production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
+    prices: { grain: 1.2, salt: 5, cloth: 3 },
+    diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 }
+
+### Modify: js/game.js
+In advanceYear() pipeline, replace updateXikouVillageEconomy(gameState) with:
+  updateForeignPolities(gameState);
+Keep updateXikouVillageEconomy import in case it is still needed internally.
+
+### Modify: js/diplomacy/tradeContracts.js
+Update processTradeContracts to read partner stock from:
+  state.foreignPolities[contract.partnerId].commodities[contract.commodity]
+instead of world.xikou directly.
+
+### Modify: js/ui/render_diplomacy.js
+- Xikou panel: read data from state.foreignPolities.xikou
+- Add a Northern Traders panel showing: population, commodities, attitude, trust
+- Northern Traders panel is display-only for now (no trade buttons yet)
+
+### Modify: index.html
+Add script tag for js/diplomacy/foreignPolities.js before game.js.
+
+### Acceptance criteria
+- updateForeignPolities runs each year for all polities
+- Xikou production numbers unchanged from Phase 11A behavior
+- northernTraders appears on diplomacy tab (display only)
+- tradeContracts still execute correctly reading from foreignPolities
+- world.xikou still exists (no broken references)
+- npm test passes
