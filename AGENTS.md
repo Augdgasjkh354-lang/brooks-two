@@ -803,3 +803,46 @@ ui/render_map.js
 - Appease policy options work
 - UI shows all groups with status
 - yearLog records group pressure events
+## Current Phase: Bugfix — Next Year + Grain Treasury + Labor Cap
+
+### Problems
+1. bindEvents() calls renderAll(state) — missing callbacks cause silent render failure.
+2. advanceYear() writes to gameState.world.* but UI reads gameState.agriculture.*.
+3. grainTreasury resets to 0 after year advance.
+4. farmingLaborAllocated exceeds totalLaborForce.
+
+### Fix 1 — bindEvents() in game.js
+Replace Next Year button handler:
+  btn.addEventListener('click', () => {
+    try {
+      advanceYear(state);
+      render();
+      saveGame(state);
+    } catch (err) {
+      console.error('Next Year failed:', err);
+      alert('Next Year failed: ' + (err?.message ?? String(err)));
+    }
+  });
+
+### Fix 2 — end of advanceYear() in game.js
+Add sync block:
+  gameState.agriculture.grainTreasury        = gameState.world.grainTreasury;
+  gameState.agriculture.actualGrainOutput    = gameState.world.actualGrainOutput;
+  gameState.agriculture.potentialGrainOutput = gameState.world.potentialGrainOutput;
+  gameState.agriculture.lostGrainOutput      = gameState.world.lostGrainOutput;
+
+### Fix 3 — grainTreasury audit
+- agriculture.js: use += not =
+- commodityMarket.js: must not write to grainTreasury
+- state.js: initial value must be 15000000
+
+### Fix 4 — labor.js
+After computing farmingLaborAllocated:
+  farmingLaborAllocated = Math.min(farmingLaborAllocated, laborForce);
+All sector allocations must sum to <= laborForce.
+
+### Acceptance criteria
+- Next Year updates all panels visibly
+- grainTreasury non-zero after year 1
+- farmingLaborAllocated <= totalLaborForce
+- npm test passes
