@@ -185,38 +185,6 @@ function getTradeRiskPanelHtml(state) {
   `;
 }
 
-function getResourceContractButtonsHtml(polityId, goods) {
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-    ${goods.map((good) => `<button class="sign-polity-contract-btn" data-polity-id="${polityId}" data-commodity="${good.commodity}" data-amount="${good.amount}" data-price="${good.price}" data-duration="5">Sign ${good.commodity} Contract</button>`).join('')}
-  </div>`;
-}
-
-function getCopperMountainPanel(state) {
-  const body = getPolityPanelHtml(state, 'copperMountainCity', {
-    title: 'Copper Mountain City',
-    note: '<span style="color:#92400e;">关键出口：iron / copper</span>',
-  });
-  if (!hasEnvoyContact(state, 'copperMountainCity')) return body;
-
-  return `${body}${getResourceContractButtonsHtml('copperMountainCity', [
-    { commodity: 'iron', amount: 20000, price: 6 },
-    { commodity: 'copper', amount: 20000, price: 8 },
-  ])}`;
-}
-
-function getRiverPortPanel(state) {
-  const body = getPolityPanelHtml(state, 'riverPort', {
-    title: 'River Port',
-    note: '<span style="color:#1d4ed8;">主要贸易枢纽：silk / iron</span>',
-  });
-  if (!hasEnvoyContact(state, 'riverPort')) return body;
-
-  return `${body}${getResourceContractButtonsHtml('riverPort', [
-    { commodity: 'silk', amount: 10000, price: 15 },
-    { commodity: 'iron', amount: 10000, price: 5 },
-  ])}`;
-}
-
 export function bindTradeEvents(onTradeSalt, onTradeCloth) {
   const signSaltBtn = document.getElementById('sign-salt-contract-btn');
   if (signSaltBtn && typeof onTradeSalt === 'function') signSaltBtn.addEventListener('click', onTradeSalt);
@@ -233,32 +201,6 @@ export function bindTradeEvents(onTradeSalt, onTradeCloth) {
     });
   });
 
-  const polityButtons = Array.from(document.querySelectorAll('.sign-polity-contract-btn'));
-  polityButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const partnerId = String(button?.dataset?.polityId ?? '').trim();
-      const commodity = String(button?.dataset?.commodity ?? '').trim();
-      const amountPerYear = Number(button?.dataset?.amount ?? 0);
-      const fixedPrice = Number(button?.dataset?.price ?? 0);
-      const durationYears = Number(button?.dataset?.duration ?? 5);
-      if (!partnerId || !commodity || amountPerYear <= 0) return;
-
-      document.dispatchEvent(new CustomEvent('trade:sign-contract', {
-        detail: {
-          partnerId,
-          commodity,
-          direction: 'import',
-          amountPerYear,
-          priceMode: 'fixed',
-          fixedPrice,
-          durationYears,
-          paymentAsset: 'grain',
-          minAttitudeRequired: -10,
-          reliability: 1,
-        },
-      }));
-    });
-  });
 }
 
 export function getDungImportControlsHtml(world, xikou) {
@@ -325,10 +267,6 @@ export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth
     <section class="panel"><h2>Trade</h2>${getTradeControlsHtml(world, xikou, state)}</section>
     <section class="panel"><h2>Trade Risk</h2>${getTradeRiskPanelHtml(state)}</section>
     <section class="panel"><h2>Northern Traders</h2>${statItem('Overview', getNorthernTradersPanelHtml(state))}</section>
-    <section class="panel"><h2>Southern Tribe</h2>${statItem('Overview', getPolityPanelHtml(state, 'southernTribe', { note: '<span style="color:#b42318;font-weight:700;">注意：可能敌对</span>' }))}</section>
-    <section class="panel"><h2>Salt Lake Town</h2>${statItem('Overview', getPolityPanelHtml(state, 'saltLakeTown', { note: '<span style="color:#1d4ed8;">可贸易资源：salt</span>' }))}</section>
-    <section class="panel"><h2>Copper Mountain City</h2>${statItem('Overview', getCopperMountainPanel(state))}</section>
-    <section class="panel"><h2>River Port</h2>${statItem('Overview', getRiverPortPanel(state))}</section>
   `;
 
   bindDiplomacyEvents(onSendEnvoy);
