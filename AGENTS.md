@@ -1064,3 +1064,73 @@ Add script tag for js/economy/tradeEffects.js before game.js.
 - High dependency reduces stabilityIndex
 - Trade risk panel visible in diplomacy tab
 - npm test passes
+## Current Phase: Phase 11D — New Polities: Southern Tribe & Salt Lake Town
+
+### Goal
+Add two new foreign polities to foreignPolities system.
+Both are resource-type Level 1 entities (no complex economy).
+
+### Modify: js/diplomacy/foreignPolities.js
+Add to initForeignPolities():
+
+foreignPolities.southernTribe:
+{
+  id: 'southernTribe',
+  name: '南部部落',
+  type: 'tribe',
+  population: 2000,
+  laborForce: 1200,
+  commodities: { grain: 200000, salt: 0, cloth: 3000, dung: 0, herb: 50000 },
+  production: { farmlandMu: 2000, saltMines: 0, mulberryLandMu: 0, herbFields: 500 },
+  prices: { grain: 1, cloth: 2, herb: 3 },
+  diplomacy: { attitudeToPlayer: -20, trust: 20, dependency: 0 }
+}
+
+foreignPolities.saltLakeTown:
+{
+  id: 'saltLakeTown',
+  name: '盐湖镇',
+  type: 'town',
+  population: 4000,
+  laborForce: 2400,
+  commodities: { grain: 300000, salt: 800000, cloth: 5000, dung: 0 },
+  production: { farmlandMu: 4000, saltMines: 5, mulberryLandMu: 0 },
+  prices: { grain: 1, salt: 3, cloth: 2.5 },
+  diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 }
+}
+
+Update updateForeignPolities() to handle:
+- herbFields production: herbFields * 200 herb per year
+- Add herb to commodity production loop
+
+### Modify: js/state.js
+Add herb to tradeState tracking:
+  importDependency: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0 }
+  lastYearImports: { salt: 0, cloth: 0, dung: 0, grain: 0, herb: 0 }
+
+### Modify: js/ui/render_diplomacy.js
+Add panels for southernTribe and saltLakeTown showing:
+- population, laborForce, commodities, attitude, trust
+- southernTribe: starts hostile (attitude -20), show warning
+- saltLakeTown: neutral, show available trade goods (salt)
+- Both panels display-only for now (no contract buttons yet)
+- Panels only visible after player has sent envoy (unlocked via diplomacy)
+- Before envoy: show fog panel "未探明势力"
+
+### Modify: js/diplomacy/xikou.js
+Add sendEnvoy logic stub:
+- state.diplomacy.envoysSent = state.diplomacy.envoysSent || {}
+- envoysSent[polityId] = true unlocks full panel for that polity
+
+### Modify: js/state.js
+Add to initial state:
+  diplomacy: {
+    envoysSent: { xikou: true, northernTraders: false, southernTribe: false, saltLakeTown: false }
+  }
+
+### Acceptance criteria
+- southernTribe and saltLakeTown appear in diplomacy tab (fogged until envoy sent)
+- Both polities produce resources each year via updateForeignPolities
+- herb commodity tracked in tradeState
+- Sending envoy to southernTribe or saltLakeTown reveals full panel
+- npm test passes
