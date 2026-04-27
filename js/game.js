@@ -943,6 +943,11 @@ function advanceYear(gameState = state) {
     }
   }
 
+  gameState.agriculture.grainTreasury = gameState.world.grainTreasury;
+  gameState.agriculture.actualGrainOutput = gameState.world.actualGrainOutput;
+  gameState.agriculture.potentialGrainOutput = gameState.world.potentialGrainOutput;
+  gameState.agriculture.lostGrainOutput = gameState.world.lostGrainOutput;
+
   delete gameState.__yearPipeline;
   render();
   saveGame(gameState, { auto: true });
@@ -1576,11 +1581,11 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       try {
         advanceYear(state);
-        renderAll(state);
+        render();
         saveGame(state);
       } catch (err) {
         console.error('Next Year failed:', err);
-        alert('Next Year failed: ' + err.message);
+        alert('Next Year failed: ' + (err?.message ?? String(err)));
       }
     });
   }
