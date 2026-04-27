@@ -14,31 +14,23 @@ function getContractPrice(state, contract) {
   return Math.max(0, rawPrice * multiplier);
 }
 
-function getXikouStockByCommodity(xikou, commodity) {
-  if (!xikou) return 0;
-  if (commodity === 'salt') return Math.max(0, Number(xikou.saltReserve ?? 0));
-  if (commodity === 'cloth') return Math.max(0, Number(xikou.clothReserve ?? xikou.clothOutput ?? 0));
-  if (commodity === 'silkworm_dung') return Math.max(0, Number(xikou.silkwormDungAvailable ?? 0));
-  return Math.max(0, Number(xikou[`${commodity}Stock`] ?? 0));
+function normalizeCommodityKey(commodity) {
+  if (commodity === 'silkworm_dung') return 'dung';
+  return String(commodity ?? '').trim();
 }
 
-function deductXikouStockByCommodity(xikou, commodity, amount) {
-  const safeAmount = Math.max(0, Number(amount ?? 0));
-  if (commodity === 'salt') {
-    xikou.saltReserve = Math.max(0, Number(xikou.saltReserve ?? 0) - safeAmount);
-    return;
-  }
-  if (commodity === 'cloth') {
-    xikou.clothReserve = Math.max(0, Number(xikou.clothReserve ?? xikou.clothOutput ?? 0) - safeAmount);
-    return;
-  }
-  if (commodity === 'silkworm_dung') {
-    xikou.silkwormDungAvailable = Math.max(0, Number(xikou.silkwormDungAvailable ?? 0) - safeAmount);
-    return;
-  }
+function getPartnerCommodityStock(partner, commodity) {
+  if (!partner) return 0;
+  const key = normalizeCommodityKey(commodity);
+  return Math.max(0, Number(partner?.commodities?.[key] ?? 0));
+}
 
-  const key = `${commodity}Stock`;
-  xikou[key] = Math.max(0, Number(xikou[key] ?? 0) - safeAmount);
+function deductPartnerCommodityStock(partner, commodity, amount) {
+  if (!partner) return;
+  const safeAmount = Math.max(0, Number(amount ?? 0));
+  const key = normalizeCommodityKey(commodity);
+  partner.commodities = partner.commodities ?? {};
+  partner.commodities[key] = Math.max(0, Number(partner.commodities[key] ?? 0) - safeAmount);
 }
 
 export function createTradeContract(state, params = {}) {
@@ -96,10 +88,10 @@ export function getContractFulfillmentRisk(state, contractId) {
   const contract = state?.tradeContracts?.find((item) => item.id === contractId);
   if (!contract) return 'high';
 
-  const xikou = state?.xikou;
-  const attitude = Number(xikou?.attitudeToPlayer ?? 0);
+  const partner = state?.foreignPolities?.[contract.partnerId ?? 'xikou'];
+  const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? 0);
   const reliability = Math.max(0, Math.min(1, Number(contract.reliability ?? 0)));
-  const partnerStock = getXikouStockByCommodity(xikou, contract.commodity);
+  const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
 
   if (attitude < Number(contract.minAttitudeRequired ?? -10)) return 'high';
   if (reliability < 0.75 || partnerStock < Number(contract.amountPerYear ?? 0) * 0.5) return 'high';
@@ -114,7 +106,6 @@ export function processTradeContracts(state) {
   state.commodities = state.commodities ?? {};
 
   const monetary = getMonetaryState(state);
-  const xikou = state.xikou;
   const logs = [];
 
   let processed = 0;
@@ -130,14 +121,15 @@ export function processTradeContracts(state) {
 
     processed += 1;
 
-    const attitude = Number(xikou?.attitudeToPlayer ?? -100);
+    const partner = state?.foreignPolities?.[contract.partnerId ?? 'xikou'];
+    const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? -100);
     if (attitude < Number(contract.minAttitudeRequired ?? -10)) {
       failed += 1;
       logs.push(`贸易合约未执行（${contract.commodity}）：溪口态度不足。`);
       continue;
     }
 
-    const partnerStock = getXikouStockByCommodity(xikou, contract.commodity);
+    const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
     const deliverAmount = Math.floor(
       Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), partnerStock)) *
       Math.max(0, Math.min(1, Number(contract.reliability ?? 1)))
@@ -167,8 +159,11 @@ export function processTradeContracts(state) {
       }
 
       state.commodities[contract.commodity] = Math.max(0, Number(state.commodities[contract.commodity] ?? 0) + deliverAmount);
-      deductXikouStockByCommodity(xikou, contract.commodity, deliverAmount);
-      if (xikou) xikou.grainTreasury = Math.max(0, Number(xikou.grainTreasury ?? 0) + (contract.paymentAsset === 'grain' ? totalPayment : 0));
+      deductPartnerCommodityStock(partner, contract.commodity, deliverAmount);
+      if (partner) {
+        partner.commodities = partner.commodities ?? {};
+        partner.commodities.grain = Math.max(0, Number(partner.commodities.grain ?? 0) + (contract.paymentAsset === 'grain' ? totalPayment : 0));
+      }
       fulfilled += 1;
       logs.push(`贸易合约执行：进口${contract.commodity} ${deliverAmount}，支付${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
     }

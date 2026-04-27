@@ -17,6 +17,7 @@ import { settleCommodityMarket } from './economy/commodityMarket.js';
 import { ensurePopState, updatePops } from './society/popSystem.js';
 import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } from './society/interestGroups.js';
 import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts } from './diplomacy/tradeContracts.js';
+import { initForeignPolities, updateForeignPolities } from './diplomacy/foreignPolities.js';
 
 const state = createGameState();
 
@@ -727,7 +728,7 @@ function updateResearchPhase() {
 }
 
 function updateDiplomacy() {
-  // Diplomacy yearly settlement currently happens inside economy update.
+  updateForeignPolities(state);
 }
 
 function processTradeContractsPhase() {
@@ -1246,6 +1247,13 @@ function sendEnvoyToXikou() {
   xikou.attitudeDeltaThisYear = 10;
   xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
 
+  const foreignXikou = state.foreignPolities?.xikou;
+  if (foreignXikou) {
+    foreignXikou.diplomacy = foreignXikou.diplomacy ?? {};
+    foreignXikou.diplomacy.diplomaticContact = true;
+    foreignXikou.diplomacy.attitudeToPlayer = Math.max(-100, Math.min(100, (foreignXikou.diplomacy.attitudeToPlayer ?? xikou.attitudeToPlayer ?? 0) + 10));
+  }
+
   state.yearLog.unshift(`Year ${state.calendar.year}: 派遣使者前往溪口村，初步建立外交联系`);
   render();
 }
@@ -1444,6 +1452,11 @@ function hydrateStateFromSave(savedState) {
     ...(savedState.xikou ?? {}),
   };
 
+  state.foreignPolities = {
+    ...(fresh.foreignPolities ?? {}),
+    ...(savedState.foreignPolities ?? {}),
+  };
+
   state.research = {
     ...fresh.research,
     ...(savedState.research ?? {}),
@@ -1465,6 +1478,7 @@ function hydrateStateFromSave(savedState) {
   ensureCommodityState(state);
   ensurePopState(state);
   initInterestGroups(state);
+  initForeignPolities(state);
 
   return true;
 }
@@ -1719,6 +1733,7 @@ function init() {
   initResearch(state);
   ensurePopState(state);
   initInterestGroups(state);
+  initForeignPolities(state);
   ensureGovernmentInstitution(state.world, state.yearLog);
   ensurePoliceInstitution(state.world, state.yearLog);
   ensureHealthBureauInstitution(state.world, state.yearLog);
