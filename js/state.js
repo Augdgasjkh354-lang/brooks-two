@@ -388,7 +388,7 @@ export const initialState = {
       commodities: { grain: 500000, salt: 0, cloth: 0, dung: 0 },
       production: { farmlandMu: XIKOU_FARMLAND_MU, saltMines: 2, mulberryLandMu: XIKOU_MULBERRY_MU },
       prices: { grain: 1.0, salt: 4, cloth: 2 },
-      diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 20 },
+      diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 20, diplomaticContact: false },
     },
     northernTraders: {
       id: 'northernTraders',
@@ -1527,6 +1527,9 @@ export function createGameState() {
       diplomacy: {
         ...(state.foreignPolities.xikou.diplomacy ?? {}),
         attitudeToPlayer: Math.max(-100, Math.min(100, Number(state.xikou?.attitudeToPlayer ?? state.foreignPolities.xikou.diplomacy?.attitudeToPlayer ?? 0))),
+        trust: Math.max(0, Math.min(100, Number(state.xikou?.trust ?? state.foreignPolities.xikou.diplomacy?.trust ?? 40))),
+        dependency: Math.max(0, Math.min(100, Number(state.xikou?.dependency ?? state.foreignPolities.xikou.diplomacy?.dependency ?? 20))),
+        diplomaticContact: Boolean(state.xikou?.diplomaticContact ?? state.foreignPolities.xikou.diplomacy?.diplomaticContact ?? false),
       },
     };
   }

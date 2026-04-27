@@ -2,12 +2,20 @@ import { formatNumber, statItem } from './render_world.js';
 
 const DIPLOMACY_CONTACT_ESTABLISHED_TEXT = '外交联系已建立';
 
-function getTradeContractsForUi() {
+function getTradeContractsForUi(state) {
   const getter = window?.getTradeContractUiState;
   if (typeof getter === 'function') {
     const data = getter();
     if (Array.isArray(data)) return data;
   }
+
+  if (Array.isArray(state?.tradeContracts)) {
+    return state.tradeContracts.map((contract) => ({
+      ...contract,
+      risk: 'high',
+    }));
+  }
+
   return [];
 }
 
@@ -28,10 +36,6 @@ function getXikouState(state) {
 
 function getNorthernTradersState(state) {
   return getForeignPolity(state, 'northernTraders') ?? null;
-}
-
-function hasEnvoyContact(state, polityId) {
-  return Boolean(state?.diplomacy?.envoysSent?.[polityId]);
 }
 
 function getDiplomaticContact(xikou) {
@@ -77,7 +81,7 @@ export function bindDiplomacyEvents(onSendEnvoy) {
 }
 
 function getContractListHtml(state, partnerId) {
-  const contracts = getTradeContractsForUi().filter((item) => item.partnerId === partnerId && item.active);
+  const contracts = getTradeContractsForUi(state).filter((item) => item.partnerId === partnerId && item.active);
 
   if (!contracts.length) return '<div class="muted">暂无有效贸易合约</div>';
 
@@ -121,17 +125,10 @@ export function getTradeControlsHtml(world, xikou, state) {
   `;
 }
 
-function getFogPanelHtml() {
-  return '<div class="muted">未探明势力</div>';
-}
-
 function getPolityPanelHtml(state, polityId, options = {}) {
   const polity = getForeignPolity(state, polityId);
   if (!polity) return `${options.title ?? polityId} data unavailable`;
 
-  if (!hasEnvoyContact(state, polityId) && polityId !== 'xikou') {
-    return getFogPanelHtml();
-  }
 
   const overview = [
     `人口：${formatNumber(polity.population ?? 0)}`,
@@ -158,7 +155,7 @@ function getTradeRiskPanelHtml(state) {
   const disruptions = Array.isArray(state?.tradeState?.disruptions)
     ? state.tradeState.disruptions.slice(0, 3)
     : [];
-  const contracts = getTradeContractsForUi().filter((item) => item.active);
+  const contracts = getTradeContractsForUi(state).filter((item) => item.active);
 
   const rows = Object.entries(dependency).map(([commodity, ratio]) => {
     const ratioNum = Number(ratio ?? 0);
@@ -248,7 +245,10 @@ export function getXikouVillagePanelHtml(state) {
 }
 
 export function getNorthernTradersPanelHtml(state) {
-  return getPolityPanelHtml(state, 'northernTraders', { title: 'Northern Traders' });
+  return getPolityPanelHtml(state, 'northernTraders', {
+    title: 'Northern Traders',
+    note: '当前为展示面板（仅显示，不可交易）。',
+  });
 }
 
 export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
