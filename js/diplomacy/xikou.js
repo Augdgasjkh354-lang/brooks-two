@@ -9,7 +9,6 @@ export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
 
 // Phase 11A: manual one-time import actions are removed in favor of yearly trade contracts.
 
-
 function getCommodityPrice(world, commodity, fallbackPrice) {
   const marketPrice = Number(world?.commodityPrices?.[commodity]?.price ?? NaN);
   if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;
@@ -184,7 +183,6 @@ export function updateXikouDiplomacy(world) {
   ];
 }
 
-
 export function canSendEnvoyToXikou(world) {
   const hasXikou = Boolean(world?.xikou);
   if (!hasXikou) return { success: false, reason: '溪口数据缺失。' };
@@ -195,8 +193,36 @@ export function canSendEnvoyToXikou(world) {
   return { success: true };
 }
 
+export function markEnvoySent(state, polityId) {
+  if (!state || !polityId) return;
+  state.diplomacy = state.diplomacy ?? {};
+  state.diplomacy.envoysSent = state.diplomacy.envoysSent ?? {};
+  state.diplomacy.envoysSent[polityId] = true;
+}
 
-export function sendEnvoyToXikou(world) {
+export function sendEnvoyToPolity(state, polityId) {
+  const world = state?.world;
+  if (!world || !polityId) {
+    return { success: false, reason: '外交数据缺失。' };
+  }
+
+  if ((world.grainTreasury ?? 0) < SEND_ENVOY_COST_GRAIN) {
+    return { success: false, reason: `粮仓不足（需要${SEND_ENVOY_COST_GRAIN}粮）。` };
+  }
+
+  world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - SEND_ENVOY_COST_GRAIN);
+  world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + SEND_ENVOY_COST_GRAIN);
+  markEnvoySent(state, polityId);
+
+  return {
+    success: true,
+    polityId,
+    cost: SEND_ENVOY_COST_GRAIN,
+    officialIncomeRouted: SEND_ENVOY_COST_GRAIN,
+  };
+}
+
+export function sendEnvoyToXikou(world, state = null) {
   if (!world?.xikou) {
     return { success: false, reason: '溪口数据缺失。' };
   }
@@ -213,6 +239,10 @@ export function sendEnvoyToXikou(world) {
   world.xikou.attitudeToPlayer = clampAttitude((world.xikou.attitudeToPlayer ?? 0) + 10);
   world.xikou.attitudeDeltaThisYear = 10;
   world.xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
+
+  if (state) {
+    markEnvoySent(state, 'xikou');
+  }
 
   return {
     success: true,

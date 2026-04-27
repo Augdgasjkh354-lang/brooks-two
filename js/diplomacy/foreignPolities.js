@@ -19,16 +19,19 @@ function createXikouFromLegacyXikou(legacyXikou = {}) {
       salt: Math.max(0, safeNumber(legacyXikou.saltReserve, 0)),
       cloth: Math.max(0, safeNumber(legacyXikou.clothReserve ?? legacyXikou.clothOutput, 0)),
       dung: Math.max(0, safeNumber(legacyXikou.silkwormDungAvailable, 0)),
+      herb: Math.max(0, safeNumber(legacyXikou.herbStock, 0)),
     },
     production: {
       farmlandMu: Math.max(0, safeNumber(legacyXikou.farmlandMu, 3000)),
       saltMines: Math.max(0, safeNumber(legacyXikou.saltMines, 2)),
       mulberryLandMu: Math.max(0, safeNumber(legacyXikou.mulberryLandMu, 1200)),
+      herbFields: Math.max(0, safeNumber(legacyXikou.herbFields, 0)),
     },
     prices: {
       grain: Math.max(0.1, safeNumber(legacyXikou.grainPrice, 1.0)),
       salt: Math.max(0.1, safeNumber(legacyXikou.saltPrice, 4.0)),
       cloth: Math.max(0.1, safeNumber(legacyXikou.clothPrice, 2.0)),
+      herb: Math.max(0.1, safeNumber(legacyXikou.herbPrice, 3.0)),
     },
     diplomacy: {
       attitudeToPlayer: clamp(safeNumber(legacyXikou.attitudeToPlayer, 0), -100, 100),
@@ -71,23 +74,24 @@ export function initForeignPolities(state) {
   state.foreignPolities = state.foreignPolities ?? {};
 
   const legacyXikou = state.xikou ?? state.world?.xikou ?? state.foreignPolities.xikou ?? {};
+  const defaultXikou = createXikouFromLegacyXikou(legacyXikou);
   state.foreignPolities.xikou = {
-    ...createXikouFromLegacyXikou(legacyXikou),
+    ...defaultXikou,
     ...(state.foreignPolities.xikou ?? {}),
     commodities: {
-      ...createXikouFromLegacyXikou(legacyXikou).commodities,
+      ...defaultXikou.commodities,
       ...(state.foreignPolities.xikou?.commodities ?? {}),
     },
     production: {
-      ...createXikouFromLegacyXikou(legacyXikou).production,
+      ...defaultXikou.production,
       ...(state.foreignPolities.xikou?.production ?? {}),
     },
     prices: {
-      ...createXikouFromLegacyXikou(legacyXikou).prices,
+      ...defaultXikou.prices,
       ...(state.foreignPolities.xikou?.prices ?? {}),
     },
     diplomacy: {
-      ...createXikouFromLegacyXikou(legacyXikou).diplomacy,
+      ...defaultXikou.diplomacy,
       ...(state.foreignPolities.xikou?.diplomacy ?? {}),
     },
   };
@@ -98,9 +102,9 @@ export function initForeignPolities(state) {
     type: 'traders',
     population: 500,
     laborForce: 300,
-    commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
-    production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
-    prices: { grain: 1.2, salt: 5, cloth: 3 },
+    commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0, herb: 0 },
+    production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0, herbFields: 0 },
+    prices: { grain: 1.2, salt: 5, cloth: 3, herb: 4 },
     diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
     ...(state.foreignPolities.northernTraders ?? {}),
     commodities: {
@@ -108,18 +112,21 @@ export function initForeignPolities(state) {
       salt: 0,
       cloth: 5000,
       dung: 0,
+      herb: 0,
       ...(state.foreignPolities.northernTraders?.commodities ?? {}),
     },
     production: {
       farmlandMu: 0,
       saltMines: 0,
       mulberryLandMu: 0,
+      herbFields: 0,
       ...(state.foreignPolities.northernTraders?.production ?? {}),
     },
     prices: {
       grain: 1.2,
       salt: 5,
       cloth: 3,
+      herb: 4,
       ...(state.foreignPolities.northernTraders?.prices ?? {}),
     },
     diplomacy: {
@@ -127,6 +134,88 @@ export function initForeignPolities(state) {
       trust: 30,
       dependency: 0,
       ...(state.foreignPolities.northernTraders?.diplomacy ?? {}),
+    },
+  };
+
+  state.foreignPolities.southernTribe = {
+    id: 'southernTribe',
+    name: '南部部落',
+    type: 'tribe',
+    population: 2000,
+    laborForce: 1200,
+    commodities: { grain: 200000, salt: 0, cloth: 3000, dung: 0, herb: 50000 },
+    production: { farmlandMu: 2000, saltMines: 0, mulberryLandMu: 0, herbFields: 500 },
+    prices: { grain: 1, salt: 6, cloth: 2, herb: 3 },
+    diplomacy: { attitudeToPlayer: -20, trust: 20, dependency: 0 },
+    ...(state.foreignPolities.southernTribe ?? {}),
+    commodities: {
+      grain: 200000,
+      salt: 0,
+      cloth: 3000,
+      dung: 0,
+      herb: 50000,
+      ...(state.foreignPolities.southernTribe?.commodities ?? {}),
+    },
+    production: {
+      farmlandMu: 2000,
+      saltMines: 0,
+      mulberryLandMu: 0,
+      herbFields: 500,
+      ...(state.foreignPolities.southernTribe?.production ?? {}),
+    },
+    prices: {
+      grain: 1,
+      salt: 6,
+      cloth: 2,
+      herb: 3,
+      ...(state.foreignPolities.southernTribe?.prices ?? {}),
+    },
+    diplomacy: {
+      attitudeToPlayer: -20,
+      trust: 20,
+      dependency: 0,
+      ...(state.foreignPolities.southernTribe?.diplomacy ?? {}),
+    },
+  };
+
+  state.foreignPolities.saltLakeTown = {
+    id: 'saltLakeTown',
+    name: '盐湖镇',
+    type: 'town',
+    population: 4000,
+    laborForce: 2400,
+    commodities: { grain: 300000, salt: 800000, cloth: 5000, dung: 0, herb: 0 },
+    production: { farmlandMu: 4000, saltMines: 5, mulberryLandMu: 0, herbFields: 0 },
+    prices: { grain: 1, salt: 3, cloth: 2.5, herb: 4 },
+    diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
+    ...(state.foreignPolities.saltLakeTown ?? {}),
+    commodities: {
+      grain: 300000,
+      salt: 800000,
+      cloth: 5000,
+      dung: 0,
+      herb: 0,
+      ...(state.foreignPolities.saltLakeTown?.commodities ?? {}),
+    },
+    production: {
+      farmlandMu: 4000,
+      saltMines: 5,
+      mulberryLandMu: 0,
+      herbFields: 0,
+      ...(state.foreignPolities.saltLakeTown?.production ?? {}),
+    },
+    prices: {
+      grain: 1,
+      salt: 3,
+      cloth: 2.5,
+      herb: 4,
+      ...(state.foreignPolities.saltLakeTown?.prices ?? {}),
+    },
+    diplomacy: {
+      attitudeToPlayer: 0,
+      trust: 30,
+      dependency: 0,
+      ...(state.foreignPolities.saltLakeTown?.diplomacy ?? {}),
     },
   };
 
@@ -155,15 +244,18 @@ export function updateForeignPolities(state) {
     const farmlandMu = Math.max(0, safeNumber(polity.production.farmlandMu, 0));
     const saltMines = Math.max(0, safeNumber(polity.production.saltMines, 0));
     const mulberryLandMu = Math.max(0, safeNumber(polity.production.mulberryLandMu, 0));
+    const herbFields = Math.max(0, safeNumber(polity.production.herbFields, 0));
 
     const grainOutput = (farmlandMu / 10) * 360;
     const saltOutput = saltMines * 200000;
     const clothOutput = mulberryLandMu * 0.3;
+    const herbOutput = herbFields * 200;
 
     polity.commodities.grain = Math.round(clamp(safeNumber(polity.commodities.grain, 0) + grainOutput, 0, 50000000));
     polity.commodities.salt = Math.round(clamp(safeNumber(polity.commodities.salt, 0) + saltOutput, 0, 10000000));
     polity.commodities.cloth = Math.round(clamp(safeNumber(polity.commodities.cloth, 0) + clothOutput, 0, 2000000));
     polity.commodities.dung = Math.round(clamp(safeNumber(polity.commodities.dung, 0), 0, 2000000));
+    polity.commodities.herb = Math.round(clamp(safeNumber(polity.commodities.herb, 0) + herbOutput, 0, 5000000));
   });
 
   syncLegacyXikou(state);
