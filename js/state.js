@@ -350,6 +350,23 @@ export const initialState = {
 
   tradeContracts: [],
 
+  tradeEffects: {
+    lastYear: 0,
+    totals: {
+      imports: 0,
+      exports: 0,
+      grainPayments: 0,
+      couponPayments: 0,
+    },
+    lastYearSummary: {
+      imports: 0,
+      exports: 0,
+      grainPayments: 0,
+      couponPayments: 0,
+      commodityFlows: {},
+    },
+  },
+
   foreignPolities: {
     xikou: {
       id: 'xikou',
@@ -1477,6 +1494,7 @@ export function createGameState() {
   state.world.__pops = state.pops;
   state.world.__interestGroups = state.interestGroups;
   state.world.__foreignPolities = state.foreignPolities;
+  state.world.__tradeEffects = state.tradeEffects;
 
   state.world.xikou = state.xikou;
   if (state.foreignPolities?.xikou) {
