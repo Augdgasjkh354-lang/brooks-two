@@ -14,6 +14,7 @@ function getTradeContractsForUi() {
 function getRiskLabel(risk) {
   if (risk === 'low') return '低';
   if (risk === 'medium') return '中';
+  if (risk === 'critical') return '严重';
   return '高';
 }
 
@@ -27,14 +28,6 @@ function getXikouState(state) {
 
 function getNorthernTradersState(state) {
   return getForeignPolity(state, 'northernTraders') ?? null;
-}
-
-function getSouthernTribeState(state) {
-  return getForeignPolity(state, 'southernTribe') ?? null;
-}
-
-function getSaltLakeTownState(state) {
-  return getForeignPolity(state, 'saltLakeTown') ?? null;
 }
 
 function hasEnvoyContact(state, polityId) {
@@ -83,22 +76,35 @@ export function bindDiplomacyEvents(onSendEnvoy) {
   if (envoyBtn && typeof onSendEnvoy === 'function') envoyBtn.addEventListener('click', onSendEnvoy);
 }
 
+function getContractListHtml(state, partnerId) {
+  const contracts = getTradeContractsForUi().filter((item) => item.partnerId === partnerId && item.active);
+
+  if (!contracts.length) return '<div class="muted">暂无有效贸易合约</div>';
+
+  return `<div style="display:flex;flex-direction:column;gap:8px;">
+    ${contracts.map((contract) => `
+      <div style="padding:8px;border:1px solid #d1d5db;border-radius:6px;">
+        <div><strong>${contract.commodity}</strong> | ${contract.direction === 'export' ? '出口' : '进口'} ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
+        <div class="muted">最近执行：Year ${contract.lastExecutedYear ?? '-'}，交付 ${formatNumber(contract.lastDeliveredAmount ?? 0)}，结算 ${formatNumber(contract.lastPaymentAmount ?? 0)}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}</div>
+        <button class="cancel-contract-btn" data-contract-id="${contract.id}">Cancel</button>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function getQuickContractButtonsHtml() {
+  return `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="sign-salt-contract-btn">Sign Salt Import Contract</button>
+      <button id="sign-cloth-contract-btn">Sign Cloth Import Contract</button>
+      <button id="sign-dung-contract-btn">Sign Dung Import Contract</button>
+    </div>
+  `;
+}
+
 export function getTradeControlsHtml(world, xikou, state) {
   if (!xikou || !getDiplomaticContact(xikou)) return '<span class="muted">需先建立外交关系</span>';
   if (getAttitudeToPlayer(xikou) < -9) return '<span style="color: #c2410c; font-weight: 700;">态度不足（需中立或以上）</span>';
-
-  const contracts = getTradeContractsForUi().filter((item) => item.partnerId === 'xikou' && item.active);
-  const listHtml = contracts.length
-    ? `<div style="display:flex;flex-direction:column;gap:8px;">
-        ${contracts.map((contract) => `
-          <div style="padding:8px;border:1px solid #d1d5db;border-radius:6px;">
-            <div><strong>${contract.commodity}</strong> | ${contract.direction === 'export' ? '出口' : '进口'} ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
-            <div class="muted">最近执行：Year ${contract.lastExecutedYear ?? '-'}，交付 ${formatNumber(contract.lastDeliveredAmount ?? 0)}，结算 ${formatNumber(contract.lastPaymentAmount ?? 0)}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}</div>
-            <button class="cancel-contract-btn" data-contract-id="${contract.id}">Cancel</button>
-          </div>
-        `).join('')}
-      </div>`
-    : '<div class="muted">暂无有效贸易合约</div>';
 
   const summary = state?.tradeEffects?.lastYearSummary ?? {};
   const commodityFlows = Object.entries(summary.commodityFlows ?? {})
@@ -107,16 +113,108 @@ export function getTradeControlsHtml(world, xikou, state) {
 
   return `
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <div><strong>长期贸易合约</strong></div>
-      ${listHtml}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="sign-salt-contract-btn">Sign Salt Import Contract</button>
-        <button id="sign-cloth-contract-btn">Sign Cloth Import Contract</button>
-        <button id="sign-dung-contract-btn">Sign Dung Import Contract</button>
-      </div>
+      <div><strong>长期贸易合约（溪口）</strong></div>
+      ${getContractListHtml(state, 'xikou')}
+      ${getQuickContractButtonsHtml()}
       <div class="muted">上年贸易：进口${formatNumber(summary.imports ?? 0)} / 出口${formatNumber(summary.exports ?? 0)} / 支付粮${formatNumber(summary.grainPayments ?? 0)} / 支付劵${formatNumber(summary.couponPayments ?? 0)}${commodityFlows ? ` / 流量 ${commodityFlows}` : ''}</div>
     </div>
   `;
+}
+
+function getFogPanelHtml() {
+  return '<div class="muted">未探明势力</div>';
+}
+
+function getPolityPanelHtml(state, polityId, options = {}) {
+  const polity = getForeignPolity(state, polityId);
+  if (!polity) return `${options.title ?? polityId} data unavailable`;
+
+  if (!hasEnvoyContact(state, polityId) && polityId !== 'xikou') {
+    return getFogPanelHtml();
+  }
+
+  const overview = [
+    `人口：${formatNumber(polity.population ?? 0)}`,
+    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
+    `对我方态度：${formatNumber(polity.diplomacy?.attitudeToPlayer ?? 0)}`,
+    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
+  ];
+
+  if (Number.isFinite(Number(polity.gdp))) overview.push(`GDP：${formatNumber(polity.gdp ?? 0)}`);
+  if (Number.isFinite(Number(polity.militaryStrength))) overview.push(`军事力量：${formatNumber(polity.militaryStrength ?? 0)}`);
+
+  const commodityText = Object.entries(polity.commodities ?? {})
+    .map(([key, amount]) => `${key}: ${formatNumber(amount)}`)
+    .join(' / ');
+  overview.push(`物资：${commodityText || '无'}`);
+
+  if (typeof options.note === 'string' && options.note) overview.push(options.note);
+
+  return overview.join('<br/>');
+}
+
+function getTradeRiskPanelHtml(state) {
+  const dependency = state?.tradeState?.importDependency ?? {};
+  const disruptions = Array.isArray(state?.tradeState?.disruptions)
+    ? state.tradeState.disruptions.slice(0, 3)
+    : [];
+  const contracts = getTradeContractsForUi().filter((item) => item.active);
+
+  const rows = Object.entries(dependency).map(([commodity, ratio]) => {
+    const ratioNum = Number(ratio ?? 0);
+    const risk = ratioNum > 0.5 ? 'critical' : ratioNum > 0.3 ? 'high' : ratioNum > 0.1 ? 'medium' : 'low';
+    const activeCount = contracts.filter((c) => c.commodity === commodity).length;
+    const color = (risk === 'critical' || risk === 'high') ? '#b42318' : '#374151';
+    return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:4px 0;color:${color};">
+      <span>${commodity}</span>
+      <span>依赖 ${formatNumber(ratioNum * 100)}% / 风险 ${getRiskLabel(risk)} / 合约 ${formatNumber(activeCount)}</span>
+    </div>`;
+  }).join('');
+
+  const disruptionHtml = disruptions.length
+    ? disruptions.map((item) => `<li>${item.message ?? `${item.commodity ?? 'unknown'} 短缺`}</li>`).join('')
+    : '<li class="muted">暂无</li>';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div><strong>贸易依赖风险</strong></div>
+      ${rows || '<div class="muted">暂无依赖数据</div>'}
+      <div class="muted">最近中断事件：</div>
+      <ul style="margin:0;padding-left:18px;">${disruptionHtml}</ul>
+    </div>
+  `;
+}
+
+function getResourceContractButtonsHtml(polityId, goods) {
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+    ${goods.map((good) => `<button class="sign-polity-contract-btn" data-polity-id="${polityId}" data-commodity="${good.commodity}" data-amount="${good.amount}" data-price="${good.price}" data-duration="5">Sign ${good.commodity} Contract</button>`).join('')}
+  </div>`;
+}
+
+function getCopperMountainPanel(state) {
+  const body = getPolityPanelHtml(state, 'copperMountainCity', {
+    title: 'Copper Mountain City',
+    note: '<span style="color:#92400e;">关键出口：iron / copper</span>',
+  });
+  if (!hasEnvoyContact(state, 'copperMountainCity')) return body;
+
+  return `${body}${getResourceContractButtonsHtml('copperMountainCity', [
+    { commodity: 'iron', amount: 20000, price: 6 },
+    { commodity: 'copper', amount: 20000, price: 8 },
+  ])}`;
+}
+
+function getRiverPortPanel(state) {
+  const body = getPolityPanelHtml(state, 'riverPort', {
+    title: 'River Port',
+    note: '<span style="color:#1d4ed8;">主要贸易枢纽：silk / iron</span>',
+  });
+  if (!hasEnvoyContact(state, 'riverPort')) return body;
+
+  return `${body}${getResourceContractButtonsHtml('riverPort', [
+    { commodity: 'silk', amount: 10000, price: 15 },
+    { commodity: 'iron', amount: 10000, price: 5 },
+  ])}`;
 }
 
 export function bindTradeEvents(onTradeSalt, onTradeCloth) {
@@ -132,6 +230,33 @@ export function bindTradeEvents(onTradeSalt, onTradeCloth) {
       const contractId = String(button?.dataset?.contractId ?? '').trim();
       if (!contractId) return;
       document.dispatchEvent(new CustomEvent('trade:cancel-contract', { detail: { contractId } }));
+    });
+  });
+
+  const polityButtons = Array.from(document.querySelectorAll('.sign-polity-contract-btn'));
+  polityButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const partnerId = String(button?.dataset?.polityId ?? '').trim();
+      const commodity = String(button?.dataset?.commodity ?? '').trim();
+      const amountPerYear = Number(button?.dataset?.amount ?? 0);
+      const fixedPrice = Number(button?.dataset?.price ?? 0);
+      const durationYears = Number(button?.dataset?.duration ?? 5);
+      if (!partnerId || !commodity || amountPerYear <= 0) return;
+
+      document.dispatchEvent(new CustomEvent('trade:sign-contract', {
+        detail: {
+          partnerId,
+          commodity,
+          direction: 'import',
+          amountPerYear,
+          priceMode: 'fixed',
+          fixedPrice,
+          durationYears,
+          paymentAsset: 'grain',
+          minAttitudeRequired: -10,
+          reliability: 1,
+        },
+      }));
     });
   });
 }
@@ -181,63 +306,7 @@ export function getXikouVillagePanelHtml(state) {
 }
 
 export function getNorthernTradersPanelHtml(state) {
-  const polity = getNorthernTradersState(state);
-  if (!polity) return 'Northern Traders data unavailable';
-
-  return [
-    `人口：${formatNumber(polity.population ?? 0)}`,
-    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
-    `粮食：${formatNumber(polity.commodities?.grain ?? 0)}`,
-    `食盐：${formatNumber(polity.commodities?.salt ?? 0)}`,
-    `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
-    `对我方态度：${formatNumber(polity.diplomacy?.attitudeToPlayer ?? 0)}`,
-    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
-  ].join('<br/>');
-}
-
-function getFogPanelHtml() {
-  return '<div class="muted">未探明势力</div>';
-}
-
-function getSouthernTribePanelHtml(state) {
-  if (!hasEnvoyContact(state, 'southernTribe')) return getFogPanelHtml();
-
-  const polity = getSouthernTribeState(state);
-  if (!polity) return 'Southern Tribe data unavailable';
-
-  const attitude = Number(polity.diplomacy?.attitudeToPlayer ?? 0);
-  const hostileWarning = attitude <= -20
-    ? '<span style="color:#b42318;font-weight:700;">警告：初始态度敌对</span>'
-    : '<span style="color:#6b7280;">外交态势平稳</span>';
-
-  return [
-    `人口：${formatNumber(polity.population ?? 0)}`,
-    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
-    `粮食：${formatNumber(polity.commodities?.grain ?? 0)}`,
-    `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
-    `草药：${formatNumber(polity.commodities?.herb ?? 0)}`,
-    `对我方态度：${formatNumber(attitude)}`,
-    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
-    hostileWarning,
-  ].join('<br/>');
-}
-
-function getSaltLakeTownPanelHtml(state) {
-  if (!hasEnvoyContact(state, 'saltLakeTown')) return getFogPanelHtml();
-
-  const polity = getSaltLakeTownState(state);
-  if (!polity) return 'Salt Lake Town data unavailable';
-
-  return [
-    `人口：${formatNumber(polity.population ?? 0)}`,
-    `劳动力：${formatNumber(polity.laborForce ?? 0)}`,
-    `粮食：${formatNumber(polity.commodities?.grain ?? 0)}`,
-    `食盐：${formatNumber(polity.commodities?.salt ?? 0)}`,
-    `布匹：${formatNumber(polity.commodities?.cloth ?? 0)}`,
-    `对我方态度：${formatNumber(polity.diplomacy?.attitudeToPlayer ?? 0)}`,
-    `信任度：${formatNumber(polity.diplomacy?.trust ?? 0)}`,
-    '<span style="color:#1d4ed8;">可贸易资源：盐</span>',
-  ].join('<br/>');
+  return getPolityPanelHtml(state, 'northernTraders', { title: 'Northern Traders' });
 }
 
 export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth, onSetDungImportQuota) {
@@ -254,9 +323,12 @@ export function renderDiplomacyTab(state, onSendEnvoy, onTradeSalt, onTradeCloth
     </section>
     <section class="panel"><h2>Diplomatic Contact</h2>${getDiplomacyControlsHtml(world, xikou)}</section>
     <section class="panel"><h2>Trade</h2>${getTradeControlsHtml(world, xikou, state)}</section>
+    <section class="panel"><h2>Trade Risk</h2>${getTradeRiskPanelHtml(state)}</section>
     <section class="panel"><h2>Northern Traders</h2>${statItem('Overview', getNorthernTradersPanelHtml(state))}</section>
-    <section class="panel"><h2>Southern Tribe</h2>${statItem('Overview', getSouthernTribePanelHtml(state))}</section>
-    <section class="panel"><h2>Salt Lake Town</h2>${statItem('Overview', getSaltLakeTownPanelHtml(state))}</section>
+    <section class="panel"><h2>Southern Tribe</h2>${statItem('Overview', getPolityPanelHtml(state, 'southernTribe', { note: '<span style="color:#b42318;font-weight:700;">注意：可能敌对</span>' }))}</section>
+    <section class="panel"><h2>Salt Lake Town</h2>${statItem('Overview', getPolityPanelHtml(state, 'saltLakeTown', { note: '<span style="color:#1d4ed8;">可贸易资源：salt</span>' }))}</section>
+    <section class="panel"><h2>Copper Mountain City</h2>${statItem('Overview', getCopperMountainPanel(state))}</section>
+    <section class="panel"><h2>River Port</h2>${statItem('Overview', getRiverPortPanel(state))}</section>
   `;
 
   bindDiplomacyEvents(onSendEnvoy);
