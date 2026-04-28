@@ -1771,3 +1771,67 @@ If any step is missing or out of order, fix it.
 - Polity with surplus commodity has exportWillingness > 1
 - Pipeline order matches the list above
 - npm test passes
+## Current Phase: Phase 12D — Foreign Economy & Contract Price Fixes
+
+### Bug 1: Foreign polity grain output formula is wrong
+In js/diplomacy/foreignPolities.js, current formula:
+  grainOutput = (farmlandMu / 10) * 360
+produces ~108000 jin for 3000 mu, but population needs 720000 jin/year.
+This causes permanent food shortage and blocks all exports.
+
+Fix:
+  const grainYieldPerMu = polity.production?.grainYieldPerMu ?? 500;
+  const grainOutput = farmlandMu * grainYieldPerMu;
+
+Add grainYieldPerMu to each polity's production object in js/state.js:
+  xikou:              grainYieldPerMu: 500
+  northernTraders:    grainYieldPerMu: 0   (no farmland)
+  southernTribe:      grainYieldPerMu: 400
+  saltLakeTown:       grainYieldPerMu: 480
+  copperMountainCity: grainYieldPerMu: 460
+  riverPort:          grainYieldPerMu: 520
+
+### Bug 2: Foreign polity price formula compounds on previousPrice
+In js/diplomacy/foreignPolities.js, calculatePolityPrice() currently does:
+  targetPrice = previousPrice * Math.pow(ratio, elasticity)
+This causes runaway price drift over many years.
+
+Fix — always anchor to basePrice:
+  function calculatePolityPrice(basePrice, previousPrice, supply, demand, elasticity, minPrice, maxPrice) {
+    const ratio = Math.max(0.1, demand / Math.max(1, supply));
+    const target = basePrice * Math.pow(ratio, elasticity);
+    return Math.max(minPrice, Math.min(maxPrice, previousPrice * 0.7 + target * 0.3));
+  }
+
+Each polity needs a basePrices object (copy of initial prices, never mutated):
+  polity.basePrices = polity.basePrices || { ...polity.prices };
+Pass polity.basePrices[commodity] as basePrice argument.
+
+### Bug 3: Market-price contracts use domestic price instead of partner price
+In js/diplomacy/tradeContracts.js, getContractPrice() uses:
+  state.commodityPrices?.[contract.commodity]?.price
+for all contracts regardless of direction.
+
+Fix:
+  function getContractPrice(state, contract, partner) {
+    if (contract.priceMode === 'fixed') return contract.fixedPrice;
+    const key = contract.commodity;
+    const partnerPrice  = Number(partner?.prices?.[key] ?? 0);
+    const domesticPrice = Number(state?.commodityPrices?.[key]?.price ?? 0);
+    const referencePrice = contract.direction === 'import'
+      ? (partnerPrice  || domesticPrice)
+      : (domesticPrice || partnerPrice);
+    return Math.max(0, referencePrice * (contract.priceMultiplier ?? 1));
+  }
+
+### Modify these files only:
+- js/diplomacy/foreignPolities.js
+- js/diplomacy/tradeContracts.js
+- js/state.js
+
+### Acceptance criteria
+- Xikou grain output ~1500000 jin/year (3000 mu * 500)
+- Xikou foodSecurityRatio stays above 0.5 under normal conditions
+- Foreign polity prices stay within floor/cap bounds after 50 simulated years
+- Import contract price reflects partner price not domestic price
+- npm test passes
