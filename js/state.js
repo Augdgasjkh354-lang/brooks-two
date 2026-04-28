@@ -403,6 +403,14 @@ export const initialState = {
     envoysSent: { xikou: true, northernTraders: false },
   },
 
+  events: {
+    history: [],
+    cooldowns: {},
+    stats: { economy: 0, society: 0, diplomacy: 0, environment: 0, governance: 0 },
+    lastEvent: null,
+    availableCategories: ['economy', 'society', 'diplomacy', 'environment', 'governance'],
+  },
+
   foreignPolities: {
     xikou: {
       id: 'xikou',
@@ -1518,6 +1526,75 @@ export function ensureCommodityState(state) {
   state.world.commodityPrices = state.commodityPrices;
 }
 
+
+function ensureXikouAuthority(state) {
+  state.foreignPolities = state.foreignPolities ?? {};
+  const legacyXikou = state.xikou ?? state.world?.xikou ?? {};
+  const currentXikou = state.foreignPolities.xikou ?? {};
+
+  state.foreignPolities.xikou = {
+    id: 'xikou',
+    name: '溪口村',
+    type: 'village',
+    ...currentXikou,
+    population: Math.max(0, Number(currentXikou.population ?? legacyXikou.population ?? XIKOU_INIT_POPULATION)),
+    laborForce: Math.max(0, Number(currentXikou.laborForce ?? legacyXikou.laborForce ?? XIKOU_INIT_LABOR)),
+    commodities: {
+      grain: Math.max(0, Number(currentXikou?.commodities?.grain ?? legacyXikou.grainTreasury ?? 500000)),
+      salt: Math.max(0, Number(currentXikou?.commodities?.salt ?? legacyXikou.saltReserve ?? 0)),
+      cloth: Math.max(0, Number(currentXikou?.commodities?.cloth ?? legacyXikou.clothReserve ?? 0)),
+      dung: Math.max(0, Number(currentXikou?.commodities?.dung ?? legacyXikou.silkwormDungAvailable ?? 0)),
+      ...(currentXikou.commodities ?? {}),
+    },
+    production: {
+      farmlandMu: Math.max(0, Number(currentXikou?.production?.farmlandMu ?? legacyXikou.farmlandMu ?? XIKOU_FARMLAND_MU)),
+      saltMines: Math.max(0, Number(currentXikou?.production?.saltMines ?? legacyXikou.saltMines ?? 2)),
+      mulberryLandMu: Math.max(0, Number(currentXikou?.production?.mulberryLandMu ?? legacyXikou.mulberryLandMu ?? XIKOU_MULBERRY_MU)),
+      ...(currentXikou.production ?? {}),
+    },
+    diplomacy: {
+      attitudeToPlayer: Math.max(-100, Math.min(100, Number(currentXikou?.diplomacy?.attitudeToPlayer ?? legacyXikou.attitudeToPlayer ?? 0))),
+      trust: Math.max(0, Math.min(100, Number(currentXikou?.diplomacy?.trust ?? legacyXikou.trust ?? 40))),
+      dependency: Math.max(0, Math.min(100, Number(currentXikou?.diplomacy?.dependency ?? legacyXikou.dependency ?? 20))),
+      diplomaticContact: Boolean(currentXikou?.diplomacy?.diplomaticContact ?? legacyXikou.diplomaticContact ?? false),
+      ...(currentXikou.diplomacy ?? {}),
+    },
+  };
+
+  const defineAlias = (target, key, descriptor) => {
+    const old = Object.getOwnPropertyDescriptor(target, key);
+    if (old && old.configurable === false) return;
+    Object.defineProperty(target, key, { configurable: true, enumerable: true, ...descriptor });
+  };
+
+  defineAlias(state, 'xikou', {
+    get() {
+      return this.foreignPolities?.xikou ?? null;
+    },
+    set(value) {
+      if (!value || typeof value !== 'object') return;
+      this.foreignPolities = this.foreignPolities ?? {};
+      const existing = this.foreignPolities.xikou ?? {};
+      this.foreignPolities.xikou = {
+        ...existing,
+        ...value,
+        commodities: { ...(existing.commodities ?? {}), ...(value.commodities ?? {}) },
+        production: { ...(existing.production ?? {}), ...(value.production ?? {}) },
+        diplomacy: { ...(existing.diplomacy ?? {}), ...(value.diplomacy ?? {}) },
+      };
+    },
+  });
+
+  defineAlias(state.world, 'xikou', {
+    get() {
+      return state.foreignPolities?.xikou ?? null;
+    },
+    set() {
+      // Phase 12A: world.xikou is a read-only alias of foreignPolities.xikou.
+    },
+  });
+}
+
 export function createGameState() {
   const state = structuredClone(initialState);
 
@@ -1533,33 +1610,7 @@ export function createGameState() {
   state.world.__tradeEffects = state.tradeEffects;
   state.world.__tradeRoutes = state.tradeRoutes;
 
-  state.world.xikou = state.xikou;
-  if (state.foreignPolities?.xikou) {
-    state.foreignPolities.xikou = {
-      ...state.foreignPolities.xikou,
-      commodities: {
-        ...(state.foreignPolities.xikou.commodities ?? {}),
-        grain: Math.max(0, Number(state.xikou?.grainTreasury ?? state.foreignPolities.xikou.commodities?.grain ?? 0)),
-        salt: Math.max(0, Number(state.xikou?.saltReserve ?? state.foreignPolities.xikou.commodities?.salt ?? 0)),
-        cloth: Math.max(0, Number(state.xikou?.clothReserve ?? state.foreignPolities.xikou.commodities?.cloth ?? 0)),
-        dung: Math.max(0, Number(state.xikou?.silkwormDungAvailable ?? state.foreignPolities.xikou.commodities?.dung ?? 0)),
-      },
-      production: {
-        ...(state.foreignPolities.xikou.production ?? {}),
-        farmlandMu: Math.max(0, Number(state.xikou?.farmlandMu ?? state.foreignPolities.xikou.production?.farmlandMu ?? 0)),
-        saltMines: Math.max(0, Number(state.xikou?.saltMines ?? state.foreignPolities.xikou.production?.saltMines ?? 0)),
-        mulberryLandMu: Math.max(0, Number(state.xikou?.mulberryLandMu ?? state.foreignPolities.xikou.production?.mulberryLandMu ?? 0)),
-      },
-      diplomacy: {
-        ...(state.foreignPolities.xikou.diplomacy ?? {}),
-        attitudeToPlayer: Math.max(-100, Math.min(100, Number(state.xikou?.attitudeToPlayer ?? state.foreignPolities.xikou.diplomacy?.attitudeToPlayer ?? 0))),
-        trust: Math.max(0, Math.min(100, Number(state.xikou?.trust ?? state.foreignPolities.xikou.diplomacy?.trust ?? 40))),
-        dependency: Math.max(0, Math.min(100, Number(state.xikou?.dependency ?? state.foreignPolities.xikou.diplomacy?.dependency ?? 20))),
-        diplomaticContact: Boolean(state.xikou?.diplomaticContact ?? state.foreignPolities.xikou.diplomacy?.diplomaticContact ?? false),
-      },
-    };
-  }
-
+  ensureXikouAuthority(state);
   ensureCommodityState(state);
 
   return state;

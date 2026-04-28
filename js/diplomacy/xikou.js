@@ -9,6 +9,10 @@ export const SEND_ENVOY_COST_GRAIN = ENVOY_COST;
 
 // Phase 11A: manual one-time import actions are removed in favor of yearly trade contracts.
 
+function getXikou(world) {
+  return world?.__foreignPolities?.xikou ?? world?.foreignPolities?.xikou ?? world?.xikou ?? null;
+}
+
 function getCommodityPrice(world, commodity, fallbackPrice) {
   const marketPrice = Number(world?.commodityPrices?.[commodity]?.price ?? NaN);
   if (Number.isFinite(marketPrice) && marketPrice > 0) return marketPrice;
@@ -23,74 +27,8 @@ export function getXikouClothTradePrice(world) {
   return getCommodityPrice(world, 'cloth', world?.clothPrice ?? 2);
 }
 
-export function updateXikouVillageEconomy(world) {
-  if (!world || !world.xikou) {
-    return;
-  }
-
-  const xikou = world.xikou;
-
-  world.saltPrice = getXikouSaltTradePrice(world);
-  world.clothPrice = getXikouClothTradePrice(world);
-  const growthRate = BASE_GROWTH_RATE;
-  const nextPopulation = clamp((xikou.population ?? 0) * (1 + growthRate));
-
-  xikou.population = nextPopulation;
-  xikou.laborForce = clamp(nextPopulation * LABOR_RATIO);
-  xikou.children = clamp(nextPopulation * CHILDREN_RATIO);
-  xikou.elderly = clamp(nextPopulation * ELDERLY_RATIO);
-
-  const saltWorkersRequired = Math.max(0, (xikou.saltMines ?? 0) * 10);
-  const saltWorkers = Math.min(xikou.laborForce ?? 0, saltWorkersRequired);
-
-  const laborAfterSalt = Math.max(0, (xikou.laborForce ?? 0) - saltWorkers);
-
-  const farmWorkersRequired = (xikou.farmlandMu ?? 0) / LABOR_PER_MU;
-  const farmWorkers = Math.min(laborAfterSalt, farmWorkersRequired);
-
-  const laborAfterFarming = Math.max(0, laborAfterSalt - farmWorkers);
-  const mulberryWorkersRequired = (xikou.mulberryLandMu ?? 0) / LABOR_PER_MU;
-  const mulberryWorkers = Math.min(laborAfterFarming, mulberryWorkersRequired);
-
-  const idleLabor = Math.max(0, laborAfterFarming - mulberryWorkers);
-
-  const farmEfficiency = farmWorkersRequired > 0 ? clampRatio(farmWorkers / farmWorkersRequired) : 1;
-
-  const tradeEfficiency = Math.max(0, Number(world.techBonuses?.tradeEfficiency ?? 0));
-  const tradeMultiplier = 1 + tradeEfficiency;
-
-  const grainOutput = clamp((xikou.farmlandMu ?? 0) * 500 * farmEfficiency);
-  const clothOutput = clamp((xikou.mulberryLandMu ?? 0) * 50 * tradeMultiplier);
-  const baseSaltOutput =
-    saltWorkers >= saltWorkersRequired
-      ? XIKOU_SALT_OUTPUT
-      : clamp((saltWorkers / Math.max(1, saltWorkersRequired)) * XIKOU_SALT_OUTPUT);
-  const saltOutputJin = clamp(baseSaltOutput * tradeMultiplier);
-
-  const annualConsumption = clamp(
-    Number(xikou.totalGrainDemand ?? 0) > 0
-      ? Number(xikou.totalGrainDemand ?? 0)
-      : (xikou.population ?? 0) * GRAIN_CONSUMPTION_PER_PERSON_PER_YEAR
-  );
-  const nextGrainTreasury = Math.max(0, Math.round((xikou.grainTreasury ?? 0) + grainOutput - annualConsumption));
-
-  xikou.saltMineWorkers = clamp(saltWorkers);
-  xikou.farmWorkers = clamp(farmWorkers);
-  xikou.mulberryWorkers = clamp(mulberryWorkers);
-  xikou.idleLabor = clamp(idleLabor);
-  xikou.farmEfficiency = farmEfficiency;
-  xikou.grainOutput = grainOutput;
-  xikou.clothOutput = clothOutput;
-  xikou.clothReserve = clamp((xikou.clothReserve ?? 0) + clothOutput);
-  xikou.saltOutputJin = clamp(saltOutputJin);
-  xikou.saltReserve = clamp((xikou.saltReserve ?? 0) + saltOutputJin);
-  xikou.grainTreasury = nextGrainTreasury;
-
-  const mulberryLandMu = Math.max(0, Math.floor(xikou.mulberryLandMu ?? 1200));
-  const dungOutput = clamp(mulberryLandMu * 600);
-  const xikouOwnDemand = Math.max(0, Math.floor((xikou.farmlandMu ?? 0) * 600 * 0.3));
-  xikou.silkwormDungOutput = dungOutput;
-  xikou.silkwormDungAvailable = Math.max(0, dungOutput - xikouOwnDemand);
+export function updateXikouVillageEconomy() {
+  // Phase 12A: retired. Foreign polity economy is updated by updateForeignPolities().
 }
 
 export function clampAttitude(value) {
@@ -98,11 +36,10 @@ export function clampAttitude(value) {
 }
 
 export function updateXikouDiplomacy(world) {
-  if (!world || !world.xikou) {
+  const xikou = getXikou(world);
+  if (!world || !xikou) {
     return [];
   }
-
-  const xikou = world.xikou;
 
   world.saltPrice = getXikouSaltTradePrice(world);
   world.clothPrice = getXikouClothTradePrice(world);
@@ -184,9 +121,9 @@ export function updateXikouDiplomacy(world) {
 }
 
 export function canSendEnvoyToXikou(world) {
-  const hasXikou = Boolean(world?.xikou);
+  const hasXikou = Boolean(getXikou(world));
   if (!hasXikou) return { success: false, reason: '溪口数据缺失。' };
-  if (world.xikou.diplomaticContact) return { success: false, reason: '已建立外交联系。' };
+  if (getXikou(world)?.diplomaticContact || getXikou(world)?.diplomacy?.diplomaticContact) return { success: false, reason: '已建立外交联系。' };
   if ((world.grainTreasury ?? 0) < SEND_ENVOY_COST_GRAIN) {
     return { success: false, reason: `粮仓不足（需要${SEND_ENVOY_COST_GRAIN}粮）。` };
   }
@@ -223,7 +160,8 @@ export function sendEnvoyToPolity(state, polityId) {
 }
 
 export function sendEnvoyToXikou(world, state = null) {
-  if (!world?.xikou) {
+  const xikou = getXikou(world);
+  if (!xikou) {
     return { success: false, reason: '溪口数据缺失。' };
   }
 
@@ -235,10 +173,11 @@ export function sendEnvoyToXikou(world, state = null) {
   world.grainTreasury = Math.max(0, Number(world.grainTreasury ?? 0) - SEND_ENVOY_COST_GRAIN);
   world.officialIncomePool = Math.max(0, Number(world.officialIncomePool ?? 0) + SEND_ENVOY_COST_GRAIN);
 
-  world.xikou.diplomaticContact = true;
-  world.xikou.attitudeToPlayer = clampAttitude((world.xikou.attitudeToPlayer ?? 0) + 10);
-  world.xikou.attitudeDeltaThisYear = 10;
-  world.xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
+  if (!xikou.diplomacy) xikou.diplomacy = {};
+  xikou.diplomacy.diplomaticContact = true;
+  xikou.diplomacy.attitudeToPlayer = clampAttitude((xikou.diplomacy.attitudeToPlayer ?? xikou.attitudeToPlayer ?? 0) + 10);
+  xikou.attitudeDeltaThisYear = 10;
+  xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
 
   if (state) {
     markEnvoySent(state, 'xikou');

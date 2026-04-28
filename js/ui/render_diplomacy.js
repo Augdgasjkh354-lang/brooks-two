@@ -31,7 +31,7 @@ function getForeignPolity(state, id) {
 }
 
 function getXikouState(state) {
-  return getForeignPolity(state, 'xikou') ?? state?.xikou ?? state?.world?.xikou ?? null;
+  return getForeignPolity(state, 'xikou') ?? null;
 }
 
 function getTradeRouteForPartner(state, partnerId) {
@@ -57,6 +57,7 @@ function getNorthernTradersState(state) {
 
 function getDiplomaticContact(xikou) {
   if (!xikou) return false;
+  if (typeof xikou?.diplomacy?.diplomaticContact === 'boolean') return xikou.diplomacy.diplomaticContact;
   if (typeof xikou.diplomaticContact === 'boolean') return xikou.diplomaticContact;
   if (typeof xikou?.diplomacy?.diplomaticContact === 'boolean') return xikou.diplomacy.diplomaticContact;
   return Number(xikou?.diplomacy?.attitudeToPlayer ?? 0) > -100;
