@@ -19,6 +19,8 @@ import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } fr
 import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts, updateTradeRouteCapacities } from './diplomacy/tradeContracts.js';
 import { initForeignPolities, updateForeignPolities } from './diplomacy/foreignPolities.js';
 import { applyTradeEffects } from './economy/tradeEffects.js';
+import { triggerRandomEvent, getEventUiState } from './events/eventEngine.js';
+import { renderEventsTab } from './ui/render_events.js';
 
 const state = createGameState();
 
@@ -728,8 +730,8 @@ function updateResearchPhase() {
   state.__yearPipeline.completedTech = updateResearch(state);
 }
 
-function updateDiplomacy() {
-  updateForeignPolities(state);
+function updateDiplomacy(gameState = state) {
+  updateForeignPolities(gameState);
 }
 
 function processTradeContractsPhase() {
@@ -758,18 +760,10 @@ function updateInterestGroupsPhase() {
   state.__yearPipeline.interestGroupResult = updateInterestGroups(state);
 }
 
-function triggerEvents() {
-  if ((state.world.consecutiveLowHealthYears ?? 0) >= 3) {
-    const currentPop = Math.max(0, Number(state.population.totalPopulation ?? 0));
-    const loss = Math.floor(currentPop * 0.05);
-    state.population.totalPopulation = Math.max(0, currentPop - loss);
-    state.population.children = Math.floor(state.population.totalPopulation * 0.2);
-    state.population.elderly = Math.floor(state.population.totalPopulation * 0.2);
-    state.population.laborForce = Math.max(0, state.population.totalPopulation - state.population.children - state.population.elderly);
-    state.world.diseaseOutbreak = true;
-    state.world.consecutiveLowHealthYears = 0;
-    state.yearLog.unshift(`Year ${state.calendar.year}: 瘟疫爆发，人口骤减5%（-${loss}）。`);
-  }
+function triggerEvents(gameState = state) {
+  gameState.__yearPipeline = gameState.__yearPipeline ?? {};
+  const eventResult = triggerRandomEvent(gameState, { cooldownYears: 2 });
+  gameState.__yearPipeline.randomEventResult = eventResult;
 }
 
 function finalizeLedger() {
@@ -818,6 +812,11 @@ function updateYearLog() {
       .map((group) => `${group.name}${Math.round(group.satisfaction ?? 50)}/${Math.round(group.power ?? 0)}`)
       .join('、');
     state.yearLog.unshift(`Year ${state.calendar.year}: 利益集团：${summary || '暂无活跃集团'}。`);
+  }
+
+  const randomEventResult = state.__yearPipeline?.randomEventResult;
+  if (randomEventResult?.triggered && randomEventResult.event) {
+    state.yearLog.unshift(`Year ${state.calendar.year}: 年度事件：${randomEventResult.event.title}（${randomEventResult.event.categoryLabel}）`);
   }
 
   if (schoolSettlement?.edu) {
@@ -1235,7 +1234,7 @@ function useMerchantTax() {
 
 
 function sendEnvoyToXikou() {
-  const xikou = state.xikou;
+  const xikou = state.foreignPolities?.xikou;
 
   if (!xikou) {
     state.yearLog.unshift(`Year ${state.calendar.year}: Send Envoy failed - Xikou data unavailable.`);
@@ -1243,7 +1242,7 @@ function sendEnvoyToXikou() {
     return;
   }
 
-  if (xikou.diplomaticContact) {
+  if (xikou?.diplomacy?.diplomaticContact) {
     state.yearLog.unshift(`Year ${state.calendar.year}: 外交联系已建立，无需重复派遣使者。`);
     render();
     return;
@@ -1256,17 +1255,11 @@ function sendEnvoyToXikou() {
   }
 
   state.agriculture.grainTreasury -= 5000;
-  xikou.diplomaticContact = true;
-  xikou.attitudeToPlayer = Math.max(-100, Math.min(100, (xikou.attitudeToPlayer ?? 0) + 10));
+  xikou.diplomacy = xikou.diplomacy ?? {};
+  xikou.diplomacy.diplomaticContact = true;
+  xikou.diplomacy.attitudeToPlayer = Math.max(-100, Math.min(100, Number(xikou.diplomacy.attitudeToPlayer ?? 0) + 10));
   xikou.attitudeDeltaThisYear = 10;
   xikou.attitudeFactorsThisYear = ['派遣使者建立外交联系：+10'];
-
-  const foreignXikou = state.foreignPolities?.xikou;
-  if (foreignXikou) {
-    foreignXikou.diplomacy = foreignXikou.diplomacy ?? {};
-    foreignXikou.diplomacy.diplomaticContact = true;
-    foreignXikou.diplomacy.attitudeToPlayer = Math.max(-100, Math.min(100, (foreignXikou.diplomacy.attitudeToPlayer ?? xikou.attitudeToPlayer ?? 0) + 10));
-  }
 
   state.yearLog.unshift(`Year ${state.calendar.year}: 派遣使者前往溪口村，初步建立外交联系`);
   render();
@@ -1748,6 +1741,7 @@ function render() {
       handleImportSave,
       handleResetGame
     );
+    renderEventsTab(state);
   } catch (err) {
     console.error('Render failed:', err);
     alert('Render failed: ' + err.message);
@@ -1756,6 +1750,7 @@ function render() {
 
 function init() {
   window.getTradeContractUiState = getTradeContractUiState;
+  window.getEventUiState = () => getEventUiState(state);
   const shouldLoadExistingSave = hasSave() && window.confirm('发现存档，是否继续？');
   if (shouldLoadExistingSave) {
     const saved = loadGame();

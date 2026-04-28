@@ -20,6 +20,11 @@ const FACTION_COLORS = {
 
 const DIPLOMACY_CONTACT_TITLE = '外交联系';
 
+
+function getXikouState(state) {
+  return state?.foreignPolities?.xikou ?? state?.xikou ?? state?.world?.xikou ?? null;
+}
+
 let mapRenderHandlers = {
   onSendEnvoy: null,
   onTradeSalt: null,
@@ -35,7 +40,7 @@ function getFactionColor(faction, state) {
   if (!faction || !faction.discovered) return FACTION_COLORS.neutral;
   if (faction.id === 'player') return FACTION_COLORS.player;
   if (faction.id === 'xikou') {
-    const attitude = state?.xikou?.attitudeToPlayer ?? 0;
+    const attitude = state?.foreignPolities?.xikou?.diplomacy?.attitudeToPlayer ?? state?.xikou?.attitudeToPlayer ?? 0;
     if (attitude <= -10) return FACTION_COLORS.hostile;
     if (attitude >= 51) return FACTION_COLORS.allied;
     if (attitude >= 21) return FACTION_COLORS.friendly;
@@ -71,7 +76,8 @@ export function updateMapDiscovery(state) {
   const mapState = state.mapState;
   if (!mapState?.factions) return;
 
-  const xikouDiscovered = Boolean(state.xikou?.diplomaticContact);
+  const xikou = getXikouState(state);
+  const xikouDiscovered = Boolean(xikou?.diplomaticContact ?? xikou?.diplomacy?.diplomaticContact);
   const tradersDiscovered = Boolean(state.institutions?.newTradePartnerUnlocked || state.world?.newTradePartnerUnlocked);
 
   mapState.factions.forEach((faction) => {
@@ -154,7 +160,7 @@ function getPlayerPanelHtml(state) {
 
 function getXikouPanelHtml(state) {
   const world = state.world;
-  const xikou = state.xikou;
+  const xikou = getXikouState(state);
   if (!xikou?.diplomaticContact) {
     return `
       <h3>未知势力</h3>

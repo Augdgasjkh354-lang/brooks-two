@@ -63,6 +63,10 @@
         <div id="map-tab-content"></div>
       </section>
 
+      <section class="tab-view" data-tab-content="events">
+        <div id="events-tab-content"></div>
+      </section>
+
       <section class="tab-view" data-tab-content="technology">
         <section class="panel" id="tech-tree-panel">
           <h2>Technology Tree</h2>
@@ -100,6 +104,7 @@
       <button class="tab-btn" data-tab="buildings">建筑</button>
       <button class="tab-btn" data-tab="society">社会</button>
       <button class="tab-btn" data-tab="map">地图</button>
+      <button class="tab-btn" data-tab="events">事件</button>
       <button class="tab-btn" data-tab="technology">科技</button>
       <button class="tab-btn" data-tab="currency">货币</button>
     </nav>
@@ -121,6 +126,8 @@
   <script type="module" src="js/diplomacy/xikou.js"></script>
   <script type="module" src="js/diplomacy/tradeContracts.js"></script>
   <script type="module" src="js/diplomacy/foreignPolities.js"></script>
+  <script type="module" src="js/events/eventDefinitions.js"></script>
+  <script type="module" src="js/events/eventEngine.js"></script>
   <script type="module" src="js/tech/research.js"></script>
   <script type="module" src="js/buildings/buildingTypes.js"></script>
   <script type="module" src="js/buildings/productionMethods.js"></script>
@@ -130,6 +137,7 @@
   <script type="module" src="js/ui/render_society.js"></script>
   <script type="module" src="js/ui/render_diplomacy.js"></script>
   <script type="module" src="js/ui/render_map.js"></script>
+  <script type="module" src="js/ui/render_events.js"></script>
   <script type="module" src="js/ui/render_tech.js"></script>
   <script type="module" src="js/ui/render_buildings.js"></script>
   <script type="module" src="js/save.js"></script>
