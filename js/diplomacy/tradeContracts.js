@@ -25,6 +25,27 @@ function getPartnerCommodityStock(partner, commodity) {
   return Math.max(0, Number(partner?.commodities?.[key] ?? 0));
 }
 
+function getPlayerCommodityStock(state, commodity) {
+  if (!state) return 0;
+  const key = normalizeCommodityKey(commodity);
+  return Math.max(0, Number(state?.commodities?.[key] ?? 0));
+}
+
+function getPartnerExportControl(partner, commodity) {
+  const key = normalizeCommodityKey(commodity);
+  const trade = partner?.trade ?? {};
+  const restrictions = trade.exportRestrictions ?? {};
+  const blocked = Boolean(restrictions[key]);
+  const willingnessMap = trade.exportWillingness ?? {};
+  const rawWillingness = Number(willingnessMap[key] ?? trade.baseExportWillingness ?? 1);
+  const willingness = Math.max(0, Math.min(1, Number.isFinite(rawWillingness) ? rawWillingness : 1));
+  const minReserveMap = trade.minCommodityReserve ?? {};
+  const minReserve = Math.max(0, Number(minReserveMap[key] ?? 0));
+  const stock = getPartnerCommodityStock(partner, key);
+  const availableForExport = Math.max(0, stock - minReserve);
+  return { blocked, willingness, minReserve, availableForExport };
+}
+
 function deductPartnerCommodityStock(partner, commodity, amount) {
   if (!partner) return;
   const safeAmount = Math.max(0, Number(amount ?? 0));
@@ -205,13 +226,23 @@ export function getContractFulfillmentRisk(state, contractId) {
   const route = ensureRoute(state, contract.partnerId ?? 'xikou');
   const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? -100);
   const reliability = Math.max(0, Math.min(1, Number(contract.reliability ?? 0)));
+  const amountPerYear = Math.max(0, Number(contract.amountPerYear ?? 0));
+  const routeCoverage = Math.max(0, Number(route?.annualCapacity ?? 0)) / Math.max(1, amountPerYear);
+  const playerStock = getPlayerCommodityStock(state, contract.commodity);
   const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
-  const routeCoverage = Math.max(0, Number(route?.annualCapacity ?? 0)) / Math.max(1, Number(contract.amountPerYear ?? 1));
+  const stockForDirection = contract.direction === 'export' ? playerStock : partnerStock;
+  const exportControl = contract.direction === 'import'
+    ? getPartnerExportControl(partner, contract.commodity)
+    : { blocked: false, willingness: 1, availableForExport: stockForDirection };
 
   if (attitude < Number(contract.minAttitudeRequired ?? -10)) return 'high';
   if (routeCoverage < 0.5) return 'high';
-  if (reliability < 0.75 || partnerStock < Number(contract.amountPerYear ?? 0) * 0.5) return 'high';
-  if (routeCoverage < 1 || reliability < 0.9 || partnerStock < Number(contract.amountPerYear ?? 0)) return 'medium';
+  if (contract.direction === 'import' && exportControl.blocked) return 'high';
+  if (contract.direction === 'import' && exportControl.willingness < 0.5) return 'high';
+  if (reliability < 0.75 || stockForDirection < amountPerYear * 0.5) return 'high';
+  if (contract.direction === 'import' && exportControl.availableForExport < amountPerYear * 0.5) return 'high';
+  if (routeCoverage < 1 || reliability < 0.9 || stockForDirection < amountPerYear) return 'medium';
+  if (contract.direction === 'import' && (exportControl.willingness < 0.8 || exportControl.availableForExport < amountPerYear)) return 'medium';
   return 'low';
 }
 
@@ -282,11 +313,35 @@ export function processTradeContracts(state) {
     }
 
     const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
-    const playerStock = Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0));
-    const stockCap = contract.direction === 'export' ? playerStock : partnerStock;
+    const playerStock = getPlayerCommodityStock(state, contract.commodity);
+    const exportControl = getPartnerExportControl(partner, contract.commodity);
+
+    if (contract.direction === 'import' && exportControl.blocked) {
+      failed += 1;
+      logs.push(`贸易合约未执行（${contract.commodity}）：对方限制出口。`);
+      executions.push({
+        contractId: contract.id,
+        partnerId: contract.partnerId,
+        commodity: contract.commodity,
+        direction: contract.direction,
+        success: false,
+        reason: 'export_restricted',
+        deliveredAmount: 0,
+        totalPayment: 0,
+        paymentAsset: contract.paymentAsset,
+        capacityUsed: 0,
+      });
+      continue;
+    }
+
+    const importStockCap = Math.min(partnerStock, exportControl.availableForExport);
+    const stockCap = contract.direction === 'export' ? playerStock : importStockCap;
+    const reliabilityFactor = Math.max(0, Math.min(1, Number(contract.reliability ?? 1)));
+    const willingnessFactor = contract.direction === 'import' ? exportControl.willingness : 1;
     const requestedAmount = Math.floor(
       Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), stockCap)) *
-      Math.max(0, Math.min(1, Number(contract.reliability ?? 1)))
+      reliabilityFactor *
+      willingnessFactor
     );
 
     const routeGrant = reserveTradeRouteCapacity(state, contract.partnerId, requestedAmount);
