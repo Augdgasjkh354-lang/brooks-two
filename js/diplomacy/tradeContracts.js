@@ -41,6 +41,99 @@ function addPartnerCommodityStock(partner, commodity, amount) {
   partner.commodities[key] = Math.max(0, Number(partner.commodities[key] ?? 0) + safeAmount);
 }
 
+function normalizeTradeBureauEfficiency(rawValue) {
+  const value = Math.max(0, Number(rawValue ?? 0));
+  if (value > 1) return Math.min(1, value / 100);
+  return Math.min(1, value);
+}
+
+function getRoadLevelForPartner(state, partnerId) {
+  const roads = Array.isArray(state?.mapState?.roads) ? state.mapState.roads : [];
+  const route = roads.find((item) =>
+    (item?.from === 'player' && item?.to === partnerId) ||
+    (item?.from === partnerId && item?.to === 'player')
+  );
+  return Math.max(0, Number(route?.level ?? 0));
+}
+
+function getDefaultBaseCapacity(partnerId) {
+  if (partnerId === 'xikou') return 80000;
+  if (partnerId === 'northernTraders') return 60000;
+  return 50000;
+}
+
+function ensureRoute(state, partnerId) {
+  if (!state) return null;
+  state.tradeRoutes = state.tradeRoutes ?? {};
+
+  if (!state.tradeRoutes[partnerId]) {
+    state.tradeRoutes[partnerId] = {
+      partnerId,
+      name: `${partnerId} 商路`,
+      baseCapacity: getDefaultBaseCapacity(partnerId),
+      roadLevel: 0,
+      tradeBureauEfficiency: 0,
+      annualCapacity: getDefaultBaseCapacity(partnerId),
+      usedCapacity: 0,
+      remainingCapacity: getDefaultBaseCapacity(partnerId),
+      lastUpdatedYear: 0,
+    };
+  }
+
+  return state.tradeRoutes[partnerId];
+}
+
+function computeAnnualCapacity(route, roadLevel, bureauEfficiency) {
+  const baseCapacity = Math.max(0, Number(route?.baseCapacity ?? 0));
+  const roadMultiplier = 1 + roadLevel * 0.25;
+  const bureauMultiplier = 1 + bureauEfficiency * 0.5;
+  return Math.max(0, Math.floor(baseCapacity * roadMultiplier * bureauMultiplier));
+}
+
+export function updateTradeRouteCapacities(state) {
+  if (!state) return {};
+
+  state.tradeRoutes = state.tradeRoutes ?? {};
+  const partnerIds = new Set([
+    ...Object.keys(state.foreignPolities ?? {}),
+    ...Object.keys(state.tradeRoutes ?? {}),
+    ...(Array.isArray(state.tradeContracts) ? state.tradeContracts.map((c) => String(c?.partnerId ?? '').trim()).filter(Boolean) : []),
+  ]);
+
+  for (const partnerId of partnerIds) {
+    const route = ensureRoute(state, partnerId);
+    if (!route) continue;
+
+    const roadLevel = getRoadLevelForPartner(state, partnerId);
+    const tradeBureauEfficiency = normalizeTradeBureauEfficiency(
+      state?.world?.tradeBureauEfficiency ?? state?.world?.tradeEfficiency ?? 0
+    );
+
+    route.roadLevel = roadLevel;
+    route.tradeBureauEfficiency = tradeBureauEfficiency;
+    route.annualCapacity = computeAnnualCapacity(route, roadLevel, tradeBureauEfficiency);
+    route.usedCapacity = 0;
+    route.remainingCapacity = route.annualCapacity;
+    route.lastUpdatedYear = Number(state?.calendar?.year ?? 0);
+  }
+
+  return state.tradeRoutes;
+}
+
+function reserveTradeRouteCapacity(state, partnerId, requestedAmount) {
+  const route = ensureRoute(state, partnerId);
+  if (!route) return { granted: 0, remaining: 0, route: null };
+
+  const amount = Math.max(0, Math.floor(Number(requestedAmount ?? 0)));
+  const remaining = Math.max(0, Number(route.remainingCapacity ?? route.annualCapacity ?? 0));
+  const granted = Math.min(amount, remaining);
+
+  route.usedCapacity = Math.max(0, Number(route.usedCapacity ?? 0) + granted);
+  route.remainingCapacity = Math.max(0, Number(route.annualCapacity ?? 0) - route.usedCapacity);
+
+  return { granted, remaining: route.remainingCapacity, route };
+}
+
 export function createTradeContract(state, params = {}) {
   if (!state) return { success: false, reason: 'state missing' };
 
@@ -77,9 +170,11 @@ export function createTradeContract(state, params = {}) {
     lastExecutedYear: null,
     lastDeliveredAmount: 0,
     lastPaymentAmount: 0,
+    lastCapacityUsed: 0,
   };
 
   state.tradeContracts.push(contract);
+  ensureRoute(state, contract.partnerId);
   return { success: true, contract };
 }
 
@@ -100,13 +195,16 @@ export function getContractFulfillmentRisk(state, contractId) {
   if (!contract) return 'high';
 
   const partner = state?.foreignPolities?.[contract.partnerId ?? 'xikou'];
+  const route = ensureRoute(state, contract.partnerId ?? 'xikou');
   const attitude = Number(partner?.diplomacy?.attitudeToPlayer ?? -100);
   const reliability = Math.max(0, Math.min(1, Number(contract.reliability ?? 0)));
   const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
+  const routeCoverage = Math.max(0, Number(route?.annualCapacity ?? 0)) / Math.max(1, Number(contract.amountPerYear ?? 1));
 
   if (attitude < Number(contract.minAttitudeRequired ?? -10)) return 'high';
+  if (routeCoverage < 0.5) return 'high';
   if (reliability < 0.75 || partnerStock < Number(contract.amountPerYear ?? 0) * 0.5) return 'high';
-  if (reliability < 0.9 || partnerStock < Number(contract.amountPerYear ?? 0)) return 'medium';
+  if (routeCoverage < 1 || reliability < 0.9 || partnerStock < Number(contract.amountPerYear ?? 0)) return 'medium';
   return 'low';
 }
 
@@ -115,6 +213,11 @@ export function processTradeContracts(state) {
 
   state.tradeContracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
   state.commodities = state.commodities ?? {};
+
+  const currentYear = Number(state?.calendar?.year ?? 0);
+  if (!state.tradeRoutes || Object.values(state.tradeRoutes).some((route) => Number(route?.lastUpdatedYear ?? 0) !== currentYear)) {
+    updateTradeRouteCapacities(state);
+  }
 
   const monetary = getMonetaryState(state);
   const logs = [];
@@ -148,6 +251,7 @@ export function processTradeContracts(state) {
         deliveredAmount: 0,
         totalPayment: 0,
         paymentAsset: contract.paymentAsset,
+        capacityUsed: 0,
       });
       continue;
     }
@@ -165,15 +269,38 @@ export function processTradeContracts(state) {
         deliveredAmount: 0,
         totalPayment: 0,
         paymentAsset: contract.paymentAsset,
+        capacityUsed: 0,
       });
       continue;
     }
 
     const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
-    const deliverAmount = Math.floor(
+    const requestedAmount = Math.floor(
       Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), partnerStock)) *
       Math.max(0, Math.min(1, Number(contract.reliability ?? 1)))
     );
+
+    const routeGrant = reserveTradeRouteCapacity(state, contract.partnerId, requestedAmount);
+    const deliverAmount = routeGrant.granted;
+    const route = routeGrant.route;
+
+    if (deliverAmount <= 0) {
+      failed += 1;
+      logs.push(`贸易合约未执行（${contract.commodity}）：商路运力不足。`);
+      executions.push({
+        contractId: contract.id,
+        partnerId: contract.partnerId,
+        commodity: contract.commodity,
+        direction: contract.direction,
+        success: false,
+        reason: 'route_capacity',
+        deliveredAmount: 0,
+        totalPayment: 0,
+        paymentAsset: contract.paymentAsset,
+        capacityUsed: 0,
+      });
+      continue;
+    }
 
     const unitPrice = getContractPrice(state, contract);
     const totalPayment = Math.max(0, Math.round(deliverAmount * unitPrice));
@@ -194,6 +321,7 @@ export function processTradeContracts(state) {
             deliveredAmount: 0,
             totalPayment,
             paymentAsset: contract.paymentAsset,
+            capacityUsed: 0,
           });
           continue;
         }
@@ -213,6 +341,7 @@ export function processTradeContracts(state) {
             deliveredAmount: 0,
             totalPayment,
             paymentAsset: contract.paymentAsset,
+            capacityUsed: 0,
           });
           continue;
         }
@@ -222,12 +351,10 @@ export function processTradeContracts(state) {
 
       state.commodities[contract.commodity] = Math.max(0, Number(state.commodities[contract.commodity] ?? 0) + deliverAmount);
       deductPartnerCommodityStock(partner, contract.commodity, deliverAmount);
-      if (partner) {
-        partner.commodities = partner.commodities ?? {};
-        partner.commodities.grain = Math.max(0, Number(partner.commodities.grain ?? 0) + (contract.paymentAsset === 'grain' ? totalPayment : 0));
-      }
+      partner.commodities = partner.commodities ?? {};
+      partner.commodities.grain = Math.max(0, Number(partner.commodities.grain ?? 0) + (contract.paymentAsset === 'grain' ? totalPayment : 0));
       fulfilled += 1;
-      logs.push(`贸易合约执行：进口${contract.commodity} ${deliverAmount}，支付${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
+      logs.push(`贸易合约执行：进口${contract.commodity} ${deliverAmount}，支付${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}，占用商路运力${deliverAmount}/${Math.round(route?.annualCapacity ?? 0)}。`);
     } else {
       const available = Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0));
       const exportAmount = Math.min(deliverAmount, available);
@@ -244,6 +371,7 @@ export function processTradeContracts(state) {
           deliveredAmount: 0,
           totalPayment: 0,
           paymentAsset: contract.paymentAsset,
+          capacityUsed: 0,
         });
         continue;
       }
@@ -259,12 +387,13 @@ export function processTradeContracts(state) {
       }
 
       fulfilled += 1;
-      logs.push(`贸易合约执行：出口${contract.commodity} ${exportAmount}，收入${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}。`);
+      logs.push(`贸易合约执行：出口${contract.commodity} ${exportAmount}，收入${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}，占用商路运力${exportAmount}/${Math.round(route?.annualCapacity ?? 0)}。`);
     }
 
     contract.lastExecutedYear = state.calendar?.year ?? null;
     contract.lastDeliveredAmount = deliverAmount;
     contract.lastPaymentAmount = totalPayment;
+    contract.lastCapacityUsed = deliverAmount;
 
     executions.push({
       contractId: contract.id,
@@ -276,6 +405,9 @@ export function processTradeContracts(state) {
       unitPrice,
       totalPayment,
       paymentAsset: contract.paymentAsset,
+      capacityUsed: deliverAmount,
+      routeAnnualCapacity: Math.round(route?.annualCapacity ?? 0),
+      routeRemainingCapacity: Math.round(route?.remainingCapacity ?? 0),
     });
 
     contract.yearsRemaining = Math.max(0, Number(contract.yearsRemaining ?? 0) - 1);
@@ -290,5 +422,5 @@ export function processTradeContracts(state) {
     else if (Array.isArray(state?.yearLog)) state.yearLog.unshift(`Year ${state.calendar?.year ?? '?'}: ${msg}`);
   });
 
-  return { processed, fulfilled, failed, logs, executions };
+  return { processed, fulfilled, failed, logs, executions, tradeRoutes: state.tradeRoutes ?? {} };
 }

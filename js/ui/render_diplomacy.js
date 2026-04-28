@@ -34,6 +34,23 @@ function getXikouState(state) {
   return getForeignPolity(state, 'xikou') ?? state?.xikou ?? state?.world?.xikou ?? null;
 }
 
+function getTradeRouteForPartner(state, partnerId) {
+  return state?.tradeRoutes?.[partnerId] ?? null;
+}
+
+function getTradeRouteSummaryHtml(state, partnerId) {
+  const route = getTradeRouteForPartner(state, partnerId);
+  if (!route) return '<div class="muted">该贸易对象暂无商路配置。</div>';
+
+  const annualCapacity = formatNumber(route.annualCapacity ?? 0);
+  const usedCapacity = formatNumber(route.usedCapacity ?? 0);
+  const remainingCapacity = formatNumber(route.remainingCapacity ?? 0);
+  const roadLevel = formatNumber(route.roadLevel ?? 0);
+  const bureauEff = formatNumber(Math.round(Number(route.tradeBureauEfficiency ?? 0) * 100));
+
+  return `<div class="muted">商路运力：${usedCapacity}/${annualCapacity}（剩余${remainingCapacity}） | 道路等级 ${roadLevel} | 贸易局效率 ${bureauEff}%</div>`;
+}
+
 function getNorthernTradersState(state) {
   return getForeignPolity(state, 'northernTraders') ?? null;
 }
@@ -89,7 +106,7 @@ function getContractListHtml(state, partnerId) {
     ${contracts.map((contract) => `
       <div style="padding:8px;border:1px solid #d1d5db;border-radius:6px;">
         <div><strong>${contract.commodity}</strong> | ${contract.direction === 'export' ? '出口' : '进口'} ${formatNumber(contract.amountPerYear)}/年 | ${contract.priceMode === 'fixed' ? `固定价${contract.fixedPrice}` : '市场价'} | 剩余${formatNumber(contract.yearsRemaining)}年 | 风险:${getRiskLabel(contract.risk)}</div>
-        <div class="muted">最近执行：Year ${contract.lastExecutedYear ?? '-'}，交付 ${formatNumber(contract.lastDeliveredAmount ?? 0)}，结算 ${formatNumber(contract.lastPaymentAmount ?? 0)}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}</div>
+        <div class="muted">最近执行：Year ${contract.lastExecutedYear ?? '-'}，交付 ${formatNumber(contract.lastDeliveredAmount ?? 0)}，结算 ${formatNumber(contract.lastPaymentAmount ?? 0)}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}，占用运力 ${formatNumber(contract.lastCapacityUsed ?? 0)}</div>
         <button class="cancel-contract-btn" data-contract-id="${contract.id}">Cancel</button>
       </div>
     `).join('')}
@@ -118,6 +135,7 @@ export function getTradeControlsHtml(world, xikou, state) {
   return `
     <div style="display:flex;flex-direction:column;gap:10px;">
       <div><strong>长期贸易合约（溪口）</strong></div>
+      ${getTradeRouteSummaryHtml(state, 'xikou')}
       ${getContractListHtml(state, 'xikou')}
       ${getQuickContractButtonsHtml()}
       <div class="muted">上年贸易：进口${formatNumber(summary.imports ?? 0)} / 出口${formatNumber(summary.exports ?? 0)} / 支付粮${formatNumber(summary.grainPayments ?? 0)} / 支付劵${formatNumber(summary.couponPayments ?? 0)}${commodityFlows ? ` / 流量 ${commodityFlows}` : ''}</div>

@@ -350,6 +350,31 @@ export const initialState = {
 
   tradeContracts: [],
 
+  tradeRoutes: {
+    xikou: {
+      partnerId: 'xikou',
+      name: '溪口商路',
+      baseCapacity: 80000,
+      roadLevel: 0,
+      tradeBureauEfficiency: 0,
+      annualCapacity: 80000,
+      usedCapacity: 0,
+      remainingCapacity: 80000,
+      lastUpdatedYear: 0,
+    },
+    northernTraders: {
+      partnerId: 'northernTraders',
+      name: '北方商道',
+      baseCapacity: 60000,
+      roadLevel: 0,
+      tradeBureauEfficiency: 0,
+      annualCapacity: 60000,
+      usedCapacity: 0,
+      remainingCapacity: 60000,
+      lastUpdatedYear: 0,
+    },
+  },
+
   tradeEffects: {
     lastYear: 0,
     totals: {
@@ -1506,6 +1531,7 @@ export function createGameState() {
   state.world.__interestGroups = state.interestGroups;
   state.world.__foreignPolities = state.foreignPolities;
   state.world.__tradeEffects = state.tradeEffects;
+  state.world.__tradeRoutes = state.tradeRoutes;
 
   state.world.xikou = state.xikou;
   if (state.foreignPolities?.xikou) {
