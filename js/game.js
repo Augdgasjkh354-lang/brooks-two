@@ -16,7 +16,7 @@ import { calculateAllBuildingOutputs, constructBuilding } from './buildings/buil
 import { settleCommodityMarket } from './economy/commodityMarket.js';
 import { ensurePopState, updatePops } from './society/popSystem.js';
 import { initInterestGroups, updateInterestGroups, applyInterestGroupPolicy } from './society/interestGroups.js';
-import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts } from './diplomacy/tradeContracts.js';
+import { createTradeContract, cancelTradeContract, getContractFulfillmentRisk, processTradeContracts, updateTradeRouteCapacities } from './diplomacy/tradeContracts.js';
 import { initForeignPolities, updateForeignPolities } from './diplomacy/foreignPolities.js';
 import { applyTradeEffects } from './economy/tradeEffects.js';
 
@@ -734,6 +734,7 @@ function updateDiplomacy() {
 
 function processTradeContractsPhase() {
   state.__yearPipeline = state.__yearPipeline ?? {};
+  updateTradeRouteCapacities(state);
   state.__yearPipeline.tradeContractResult = processTradeContracts(state);
 }
 
@@ -1362,10 +1363,13 @@ function cancelTradeContractById(contractId) {
 }
 
 function getTradeContractUiState() {
+  updateTradeRouteCapacities(state);
+  const routes = state.tradeRoutes ?? {};
   const contracts = Array.isArray(state.tradeContracts) ? state.tradeContracts : [];
   return contracts.map((contract) => ({
     ...contract,
     risk: getContractFulfillmentRisk(state, contract.id),
+    route: routes[contract.partnerId] ?? null,
   }));
 }
 
