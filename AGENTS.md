@@ -1681,3 +1681,93 @@ In processTradeContracts(), when paymentAsset === 'coupon':
 - Payment amount matches actual delivery not planned amount
 - Coupon payments recorded in partner.finance.couponBalance
 - npm test passes
+## Current Phase: Phase 12C — Trade System Polish
+
+### Bug 1: getContractFulfillmentRisk() uses wrong stock for export
+In js/diplomacy/tradeContracts.js, risk assessment always checks partner stock.
+Export risk should check player stock instead.
+
+Fix:
+  const stockForRisk =
+    contract.direction === 'export'
+      ? Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0))
+      : getPartnerCommodityStock(partner, contract.commodity);
+Replace all uses of partnerStock in risk calculation with stockForRisk.
+
+### Feature 1: Foreign polity dynamic prices
+In js/diplomacy/foreignPolities.js, add updateForeignPrices(polity) called
+at end of each polity update:
+
+  function updateForeignPrices(polity) {
+    const floors = { grain:0.5, salt:2, cloth:1, herb:1, iron:3, copper:4, silk:5 };
+    const caps   = { grain:5,   salt:20,cloth:10,herb:15,iron:30,copper:40,silk:60 };
+    for (const commodity of ['grain','salt','cloth','herb','iron','copper','silk']) {
+      const stock  = polity.commodities[commodity] ?? 0;
+      const demand = polity.domesticDemand?.[commodity] ?? 1;
+      const base   = polity.prices[commodity] ?? 1;
+      const pressure = demand / Math.max(1, stock);
+      const target = base * Math.pow(pressure, 0.3);
+      polity.prices[commodity] = Math.max(floors[commodity] ?? 0.5,
+                                 Math.min(caps[commodity]   ?? 50, target));
+    }
+  }
+
+### Feature 2: Foreign polity export willingness & financial behavior
+In js/diplomacy/foreignPolities.js, add to each polity update:
+
+  polity.finance = polity.finance || { couponTreasury:0, grainIncome:0, tradeIncome:0 };
+
+  Export restrictions:
+    polity.exportRestrictions = polity.exportRestrictions || {};
+    polity.exportRestrictions.grain = polity.foodSecurityRatio < 0.5;
+    polity.exportRestrictions.salt  = (polity.commodities.salt ?? 0) <
+                                      (polity.domesticDemand?.salt ?? 0) * 1.2;
+
+  Export willingness (affects fulfillmentRate bonus):
+    polity.exportWillingness = polity.exportWillingness || {};
+    for each commodity:
+      surplus = stock - domesticDemand
+      polity.exportWillingness[commodity] = surplus > 0
+        ? Math.min(1.2, 1 + surplus / Math.max(1, domesticDemand) * 0.3)
+        : Math.max(0.2, stock / Math.max(1, domesticDemand));
+
+  In processTradeContracts(), multiply fulfillmentRate by:
+    partner.exportWillingness?.[contract.commodity] ?? 1
+  Skip commodity if partner.exportRestrictions?.[contract.commodity] === true.
+
+### Fix 2: Confirm pipeline order
+In js/game.js, confirm YEAR_PIPELINE contains these steps in this order:
+  updateForeignPolities
+  produceGoods
+  settleMarket
+  updateTradeRouteCapacities
+  processTradeContracts
+  applyTradeEffects
+  collectTaxes
+  payWages
+  updateMoney
+  processPendingConstruction
+  updateInstitutions
+  updateEducation
+  updateResearch
+  updateDiplomacy
+  updateSatisfaction
+  updateInterestGroups
+  triggerEvents
+  finalizeLedger
+  checkUnlocks
+  updateYearLog
+If any step is missing or out of order, fix it.
+
+### Modify these files only:
+- js/diplomacy/tradeContracts.js
+- js/diplomacy/foreignPolities.js
+- js/game.js
+
+### Acceptance criteria
+- Export risk uses player stock not partner stock
+- Foreign polity prices update each year based on supply/demand
+- Polity refuses to export grain when foodSecurityRatio < 0.5
+- Polity with surplus commodity has exportWillingness > 1
+- Pipeline order matches the list above
+- npm test passes
