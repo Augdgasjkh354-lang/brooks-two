@@ -1613,3 +1613,71 @@ Render an Events tab showing:
 - Drought reduces grain output
 - Peasant uprising only fires when conditions met
 - npm test passes
+## Current Phase: Phase 12B — Trade System Bug Fixes
+
+### Bug 1: Foreign polities never consume grain
+In js/diplomacy/foreignPolities.js, updateForeignPolities() adds production
+but never subtracts domestic consumption. Stocks grow unbounded.
+
+Fix in updateForeignPolities() per polity:
+  const grainDemand = polity.population * 360;
+  const grainBalance = grainOutput - grainDemand;
+  polity.commodities.grain = Math.round(
+    Math.max(0, Math.min(50000000,
+      (polity.commodities.grain || 0) + grainBalance
+    ))
+  );
+  polity.foodSecurityRatio = polity.commodities.grain / Math.max(1, grainDemand);
+  if (polity.foodSecurityRatio < 0.5) {
+    polity.diplomacy.attitudeToPlayer += 2;
+    polity.exportRestrictions = true;
+  } else {
+    polity.exportRestrictions = false;
+  }
+
+Apply same consumption pattern to salt, cloth, herb, iron, copper, silk
+using domesticDemand values already computed in Phase 11F.
+
+### Bug 2: Export contracts check wrong stock
+In js/diplomacy/tradeContracts.js, processTradeContracts() uses partner
+stock as supply limit for both import and export. Export should use player stock.
+
+Fix:
+  let supplyLimit;
+  if (contract.direction === 'import') {
+    supplyLimit = getPartnerCommodityStock(partner, contract.commodity);
+  } else {
+    supplyLimit = Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0));
+  }
+  const requestedAmount = Math.floor(
+    Math.min(contract.amountPerYear, supplyLimit) *
+    Math.min(1, Math.max(0, contract.reliability || 1))
+  );
+
+Also skip export if polity.exportRestrictions === true (food security crisis).
+
+### Bug 3: Export payment calculated on planned amount not actual delivery
+In processTradeContracts(), payment must use actual delivered amount:
+  const exportAmount = Math.min(deliverAmount, available);
+  const totalPayment = Math.round(exportAmount * unitPrice);
+  // NOT deliverAmount * unitPrice
+
+### Bug 4: Coupon payment disappears — partner never receives it
+In processTradeContracts(), when paymentAsset === 'coupon':
+  Add to partner financial assets:
+    partner.finance = partner.finance || { couponBalance: 0, grainIncome: 0 };
+    partner.finance.couponBalance += totalPayment;
+  When paymentAsset === 'grain':
+    partner.commodities.grain += totalPayment;
+
+### Modify these files only:
+- js/diplomacy/foreignPolities.js
+- js/diplomacy/tradeContracts.js
+
+### Acceptance criteria
+- Foreign polity grain stocks decrease each year when population > farmland capacity
+- foodSecurityRatio computed and stored on each polity
+- Export contracts deduct from player stock not partner stock
+- Payment amount matches actual delivery not planned amount
+- Coupon payments recorded in partner.finance.couponBalance
+- npm test passes
