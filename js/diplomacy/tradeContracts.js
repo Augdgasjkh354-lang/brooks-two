@@ -41,6 +41,13 @@ function addPartnerCommodityStock(partner, commodity, amount) {
   partner.commodities[key] = Math.max(0, Number(partner.commodities[key] ?? 0) + safeAmount);
 }
 
+function creditPartnerCouponTreasury(partner, amount) {
+  if (!partner) return;
+  const safeAmount = Math.max(0, Number(amount ?? 0));
+  partner.monetary = partner.monetary ?? {};
+  partner.monetary.couponTreasury = Math.max(0, Number(partner.monetary.couponTreasury ?? 0) + safeAmount);
+}
+
 function normalizeTradeBureauEfficiency(rawValue) {
   const value = Math.max(0, Number(rawValue ?? 0));
   if (value > 1) return Math.min(1, value / 100);
@@ -275,8 +282,10 @@ export function processTradeContracts(state) {
     }
 
     const partnerStock = getPartnerCommodityStock(partner, contract.commodity);
+    const playerStock = Math.max(0, Number(state.commodities?.[contract.commodity] ?? 0));
+    const stockCap = contract.direction === 'export' ? playerStock : partnerStock;
     const requestedAmount = Math.floor(
-      Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), partnerStock)) *
+      Math.max(0, Math.min(Number(contract.amountPerYear ?? 0), stockCap)) *
       Math.max(0, Math.min(1, Number(contract.reliability ?? 1)))
     );
 
@@ -326,6 +335,7 @@ export function processTradeContracts(state) {
           continue;
         }
         monetary.couponTreasury = couponTreasury - totalPayment;
+        creditPartnerCouponTreasury(partner, totalPayment);
       } else {
         const grainTreasury = Math.max(0, Number(state.world?.grainTreasury ?? state.agriculture?.grainTreasury ?? 0));
         if (grainTreasury < totalPayment) {
@@ -376,18 +386,47 @@ export function processTradeContracts(state) {
         continue;
       }
 
+      const actualPayment = Math.max(0, Math.round(exportAmount * unitPrice));
+
       state.commodities[contract.commodity] = Math.max(0, available - exportAmount);
       addPartnerCommodityStock(partner, contract.commodity, exportAmount);
 
       if (contract.paymentAsset === 'coupon') {
-        monetary.couponTreasury = Math.max(0, Number(monetary.couponTreasury ?? 0) + totalPayment);
+        monetary.couponTreasury = Math.max(0, Number(monetary.couponTreasury ?? 0) + actualPayment);
       } else {
-        state.world.grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? 0) + totalPayment);
+        state.world.grainTreasury = Math.max(0, Number(state.world.grainTreasury ?? 0) + actualPayment);
         if (state.agriculture) state.agriculture.grainTreasury = state.world.grainTreasury;
       }
 
+      contract.lastExecutedYear = state.calendar?.year ?? null;
+      contract.lastDeliveredAmount = exportAmount;
+      contract.lastPaymentAmount = actualPayment;
+      contract.lastCapacityUsed = exportAmount;
+
+      executions.push({
+        contractId: contract.id,
+        partnerId: contract.partnerId,
+        commodity: contract.commodity,
+        direction: contract.direction,
+        success: true,
+        deliveredAmount: exportAmount,
+        unitPrice,
+        totalPayment: actualPayment,
+        paymentAsset: contract.paymentAsset,
+        capacityUsed: exportAmount,
+        routeAnnualCapacity: Math.round(route?.annualCapacity ?? 0),
+        routeRemainingCapacity: Math.round(route?.remainingCapacity ?? 0),
+      });
+
+      contract.yearsRemaining = Math.max(0, Number(contract.yearsRemaining ?? 0) - 1);
+      if (contract.yearsRemaining <= 0) {
+        contract.active = false;
+        logs.push(`贸易合约到期：${contract.commodity}（${contract.id}）。`);
+      }
+
       fulfilled += 1;
-      logs.push(`贸易合约执行：出口${contract.commodity} ${exportAmount}，收入${totalPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}，占用商路运力${exportAmount}/${Math.round(route?.annualCapacity ?? 0)}。`);
+      logs.push(`贸易合约执行：出口${contract.commodity} ${exportAmount}，收入${actualPayment}${contract.paymentAsset === 'coupon' ? '粮劵' : '粮食'}，占用商路运力${exportAmount}/${Math.round(route?.annualCapacity ?? 0)}。`);
+      continue;
     }
 
     contract.lastExecutedYear = state.calendar?.year ?? null;

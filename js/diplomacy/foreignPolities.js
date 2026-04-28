@@ -136,10 +136,15 @@ export function updateForeignPolities(state) {
     const saltOutput = saltMines * 200000;
     const clothOutput = mulberryLandMu * 0.3;
 
-    const grainStock = safeNumber(polity.commodities?.grain, 0) + grainOutput;
-    const saltStock = safeNumber(polity.commodities?.salt, 0) + saltOutput;
-    const clothStock = safeNumber(polity.commodities?.cloth, 0) + clothOutput;
-    const dungStock = safeNumber(polity.commodities?.dung, 0);
+    const population = Math.max(0, safeNumber(polity.population, 0));
+    const grainDemand = population * 360;
+    const saltDemand = population * 15;
+    const clothDemand = population * 0.3;
+
+    const grainStock = safeNumber(polity.commodities?.grain, 0) + grainOutput - grainDemand;
+    const saltStock = safeNumber(polity.commodities?.salt, 0) + saltOutput - saltDemand;
+    const clothStock = safeNumber(polity.commodities?.cloth, 0) + clothOutput - clothDemand;
+    const dungStock = safeNumber(polity.commodities?.dung, 0) - population * 0.02;
 
     polity.commodities = polity.commodities ?? {};
     polity.commodities.grain = Math.round(clamp(grainStock, 0, 50000000));
