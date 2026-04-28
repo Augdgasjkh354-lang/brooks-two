@@ -1426,3 +1426,190 @@ In each polity panel, add trade route section showing:
 - Trade bureau improves capacity each year
 - Route info visible in diplomacy panel
 - npm test passes
+## Current Phase: Phase 12A — ForeignPolities Authority Migration + Random Events Framework
+
+### Part 1: ForeignPolities Authority Migration
+
+#### Problem
+state.world.xikou and state.foreignPolities.xikou both exist.
+This causes double-source bugs where trade contracts write to foreignPolities.xikou
+but UI/map reads world.xikou, and updateXikouVillageEconomy() writes world.xikou again.
+
+#### Goal
+Make foreignPolities.xikou the single authoritative source.
+world.xikou becomes a read-only compatibility alias that mirrors foreignPolities.xikou.
+updateXikouVillageEconomy() is replaced by the generic updateForeignPolities() loop.
+
+#### Modify: js/state.js
+- Keep world.xikou as shallow alias: world.xikou = foreignPolities.xikou (by reference)
+- Remove all duplicate field definitions in world.xikou
+- Remove these old one-time trade fields from world:
+    saltTradeUsed, clothTradeUsed, saltImportQuota, clothImportQuota,
+    actualSaltImport, clothTradeReceived, dungImportQuota
+- Add to state: oneTimeTrades: [] for any remaining manual trades (future use)
+
+#### Modify: js/diplomacy/xikou.js
+- Remove updateXikouVillageEconomy() economy update logic entirely
+- Keep only: sendEnvoy(), getXikouAttitudeLabel(), getXikouDiplomacyOptions()
+- All economy updates now handled by updateForeignPolities() in foreignPolities.js
+
+#### Modify: js/game.js
+- Remove import of updateXikouVillageEconomy
+- Confirm pipeline order is exactly:
+    1. resetAnnualFlags
+    2. ageCohorts
+    3. allocateLabor
+    4. updateForeignPolities        ← foreign production first
+    5. produceGoods                 ← domestic production
+    6. settleMarket
+    7. processTradeContracts        ← execute contracts after both sides produced
+    8. applyTradeEffects            ← cascading effects
+    9. updateTradeRouteCapacities
+    10. collectTaxes
+    11. payWages
+    12. updateMoney
+    13. processPendingConstruction
+    14. updateInstitutions
+    15. updateEducation
+    16. updateResearch
+    17. updateDiplomacy
+    18. updateSatisfaction
+    19. updateInterestGroups
+    20. triggerEvents
+    21. finalizeLedger
+    22. checkUnlocks
+    23. updateYearLog
+- After advanceYear(), sync alias: gameState.world.xikou = gameState.foreignPolities.xikou
+
+#### Modify: js/ui/render_map.js and js/ui/render_diplomacy.js
+- Replace all reads of state.world.xikou.* with state.foreignPolities.xikou.*
+
+---
+
+### Part 2: Random Events Framework
+
+#### Goal
+Add a random events system with 20 starter events.
+Each year, 1-3 events may fire based on conditions.
+Events modify state and appear in yearLog and a new Events tab.
+
+#### New file: js/events/eventDefinitions.js
+Define array EVENTS of 20 events. Each event shape:
+{
+  id: string,
+  name: string,
+  category: 'agriculture'|'economy'|'society'|'diplomacy'|'disaster',
+  description: string,
+  condition: (state) => boolean,
+  probability: number,          // 0.0 - 1.0, checked if condition passes
+  effect: (state) => void,      // directly mutates state
+  cooldownYears: 0,             // years before this event can fire again
+  repeatable: boolean
+}
+
+Include these 20 events:
+
+Agriculture (5):
+1. drought: condition: rainfall < 0.6, prob 0.3
+   effect: actualGrainOutput *= 0.6, farmerSatisfaction -= 20
+2. bumper_harvest: condition: rainfall > 0.8 and farmingLabor adequate, prob 0.25
+   effect: actualGrainOutput *= 1.3, farmerSatisfaction += 10
+3. locust_plague: condition: year % 7 == 0, prob 0.2
+   effect: actualGrainOutput *= 0.4, grainTreasury -= 500000
+4. irrigation_breakthrough: condition: waterIrrigationUnlocked and techPoints > 500, prob 0.1
+   effect: farmlandYield += 0.1 permanently
+5. seed_shortage: condition: grainTreasury < 1000000, prob 0.4
+   effect: actualGrainOutput *= 0.8
+
+Economy (5):
+6. merchant_boom: condition: commerceTalent > 100, prob 0.2
+   effect: merchantSatisfaction += 15, couponCirculating *= 1.1
+7. counterfeit_coins: condition: inflationRate > 15, prob 0.3
+   effect: backingRatio -= 0.05, merchantSatisfaction -= 10
+8. trade_route_bandits: condition: any route.security < 0.7, prob 0.35
+   effect: random active contract fulfillmentRate -= 0.2 this year
+9. salt_price_spike: condition: saltImportDependency > 0.5, prob 0.25
+   effect: commodityPrices.salt *= 1.5, farmerSatisfaction -= 10
+10. market_panic: condition: inflationRate > 25 and merchantSatisfaction < 40, prob 0.3
+    effect: couponCirculating *= 0.85 (hoarding), merchantSatisfaction -= 20
+
+Society (4):
+11. epidemic: condition: sanitationLevel < 30, prob 0.2
+    effect: population -= population * 0.03, farmerSatisfaction -= 15
+12. baby_boom: condition: farmerSatisfaction > 70 and grainTreasury > 5000000, prob 0.15
+    effect: birthRate += 0.01 for 3 years
+13. scholar_exodus: condition: scholarSatisfaction < 30, prob 0.3
+    effect: adminTalent -= 50, techTalent -= 30
+14. peasant_uprising: condition: stabilityIndex < 25 and farmerSatisfaction < 20, prob 0.5
+    effect: stabilityIndex -= 20, grainTreasury -= 200000
+
+Diplomacy (3):
+15. xikou_gift: condition: xikou attitude > 60, prob 0.2
+    effect: foreignPolities.xikou.commodities.salt += 50000
+16. northern_traders_arrive: condition: northernTradersEnvoy sent, prob 0.3
+    effect: foreignPolities.northernTraders.diplomacy.attitudeToPlayer += 10
+17. border_dispute: condition: any polity attitude < -30, prob 0.25
+    effect: that polity attitude -= 15, tradeRoute.security -= 0.1
+
+Disaster (3):
+18. flood: condition: rainfall > 0.9, prob 0.2
+    effect: farmlandMu -= 1000, grainTreasury -= 300000, stabilityIndex -= 10
+19. fire_in_granary: condition: true, prob 0.05
+    effect: grainTreasury -= grainTreasury * 0.1
+20. earthquake: condition: true, prob 0.02
+    effect: random building damaged, stabilityIndex -= 15, population -= 200
+
+#### New file: js/events/eventEngine.js
+Implement:
+- initEventState(state): add to state:
+    eventState: {
+      activeEvents: [],
+      eventHistory: [],
+      eventCooldowns: {},
+      rainfall: 0.7
+    }
+- updateRainfall(state): rainfall = clamp(rainfall + random(-0.2, 0.2), 0.3, 1.0)
+- triggerEvents(state):
+    updateRainfall(state)
+    fired = []
+    for each event in EVENTS:
+      if cooldown active: skip
+      if not event.condition(state): skip
+      if Math.random() > event.probability: skip
+      event.effect(state)
+      fired.push(event)
+      set cooldown
+      log to state.yearLog and state.eventState.eventHistory
+    return fired
+
+#### Modify: js/game.js
+- Import triggerEvents from js/events/eventEngine.js
+- Replace existing triggerEvents() stub with new import
+- Pipeline step 20 already says triggerEvents — confirm it calls the new function
+
+#### Modify: js/state.js
+- Call initEventState during state initialization
+- Add rainfall: 0.7 to world or eventState
+
+#### New file: js/ui/render_events.js
+Render an Events tab showing:
+- This year's fired events (name, category, description, effect summary)
+- Event history last 10 years (year, event name, category)
+- Current rainfall indicator
+
+#### Modify: index.html
+- Add script tags for:
+    js/events/eventDefinitions.js
+    js/events/eventEngine.js
+    js/ui/render_events.js
+- Add Events tab to navigation
+
+### Acceptance criteria
+- world.xikou is alias of foreignPolities.xikou, no double writes
+- updateXikouVillageEconomy no longer called
+- Pipeline order matches the 23-step sequence above
+- At least 1 event fires in first 10 years of simulation
+- Events appear in yearLog and Events tab
+- Drought reduces grain output
+- Peasant uprising only fires when conditions met
+- npm test passes
