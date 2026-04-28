@@ -734,10 +734,10 @@ function updateDiplomacy(gameState = state) {
   updateForeignPolities(gameState);
 }
 
-function processTradeContractsPhase() {
-  state.__yearPipeline = state.__yearPipeline ?? {};
-  updateTradeRouteCapacities(state);
-  state.__yearPipeline.tradeContractResult = processTradeContracts(state);
+function processTradeContractsPhase(gameState = state) {
+  gameState.__yearPipeline = gameState.__yearPipeline ?? {};
+  updateTradeRouteCapacities(gameState);
+  gameState.__yearPipeline.tradeContractResult = processTradeContracts(gameState);
 }
 
 function applyTradeEffectsPhase() {
@@ -912,6 +912,7 @@ function updateYearLog() {
 }
 
 // Year pipeline order is sacred. Keep this sequence unchanged.
+// Diplomacy must update foreign polity stock/prices/policies before contract execution.
 const YEAR_PIPELINE = [
   { name: 'resetAnnualFlags', fn: resetAnnualFlags },
   { name: 'ageCohorts', fn: ageCohorts },

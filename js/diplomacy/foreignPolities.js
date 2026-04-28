@@ -27,7 +27,63 @@ function mergePolity(defaultPolity, existingPolity = {}) {
       ...defaultPolity.diplomacy,
       ...(existingPolity.diplomacy ?? {}),
     },
+    trade: {
+      ...defaultPolity.trade,
+      ...(existingPolity.trade ?? {}),
+      exportWillingness: {
+        ...(defaultPolity.trade?.exportWillingness ?? {}),
+        ...(existingPolity.trade?.exportWillingness ?? {}),
+      },
+      exportRestrictions: {
+        ...(defaultPolity.trade?.exportRestrictions ?? {}),
+        ...(existingPolity.trade?.exportRestrictions ?? {}),
+      },
+      minCommodityReserve: {
+        ...(defaultPolity.trade?.minCommodityReserve ?? {}),
+        ...(existingPolity.trade?.minCommodityReserve ?? {}),
+      },
+    },
   };
+}
+
+function calculatePolityPrice(previousPrice, supply, demand, elasticity = 0.5, minPrice = 0.1, maxPrice = 50) {
+  const safePrevious = Math.max(minPrice, safeNumber(previousPrice, minPrice));
+  const safeSupply = Math.max(1, safeNumber(supply, 1));
+  const safeDemand = Math.max(0, safeNumber(demand, 0));
+  const ratio = safeDemand / safeSupply;
+  const targetPrice = safePrevious * Math.pow(Math.max(0.1, ratio), clamp(elasticity, 0.1, 1.5));
+  const smoothed = safePrevious * 0.7 + targetPrice * 0.3;
+  return clamp(smoothed, minPrice, maxPrice);
+}
+
+function updatePolityTradePolicy(polity, demandState) {
+  polity.trade = polity.trade ?? {};
+  polity.trade.exportWillingness = polity.trade.exportWillingness ?? {};
+  polity.trade.exportRestrictions = polity.trade.exportRestrictions ?? {};
+  polity.trade.minCommodityReserve = polity.trade.minCommodityReserve ?? {};
+
+  const commodities = ['grain', 'salt', 'cloth', 'dung'];
+  for (const commodity of commodities) {
+    const stock = Math.max(0, safeNumber(polity?.commodities?.[commodity], 0));
+    const supply = Math.max(0, safeNumber(demandState?.[commodity]?.supply, 0));
+    const demand = Math.max(0, safeNumber(demandState?.[commodity]?.demand, 0));
+
+    const baseReserve = commodity === 'grain' ? 150000 : commodity === 'salt' ? 10000 : commodity === 'cloth' ? 3000 : 500;
+    const dynamicReserve = Math.max(baseReserve, demand * 0.4);
+    polity.trade.minCommodityReserve[commodity] = Math.round(dynamicReserve);
+
+    const shortageRatio = demand / Math.max(1, supply);
+    const reserveCovered = stock > dynamicReserve;
+
+    polity.trade.exportRestrictions[commodity] = shortageRatio > 1.25 || !reserveCovered;
+
+    let willingness = 1;
+    if (shortageRatio > 1.1) willingness -= 0.25;
+    if (shortageRatio > 1.3) willingness -= 0.25;
+    if (!reserveCovered) willingness -= 0.35;
+
+    polity.trade.exportWillingness[commodity] = clamp(willingness, 0.05, 1);
+  }
 }
 
 function createXikouPolityFromLegacy(legacyXikou = {}) {
@@ -59,6 +115,12 @@ function createXikouPolityFromLegacy(legacyXikou = {}) {
       dependency: clamp(safeNumber(legacyXikou.dependency, 20), 0, 100),
       diplomaticContact: Boolean(legacyXikou.diplomaticContact),
     },
+    trade: {
+      baseExportWillingness: 0.9,
+      exportWillingness: { grain: 0.9, salt: 0.95, cloth: 0.9, dung: 0.95 },
+      exportRestrictions: { grain: false, salt: false, cloth: false, dung: false },
+      minCommodityReserve: { grain: 150000, salt: 10000, cloth: 3000, dung: 500 },
+    },
   };
 }
 
@@ -79,6 +141,10 @@ function syncLegacyXikou(state) {
   state.xikou.saltReserve = xikou.commodities.salt;
   state.xikou.clothReserve = xikou.commodities.cloth;
   state.xikou.silkwormDungAvailable = xikou.commodities.dung;
+
+  state.xikou.grainPrice = xikou.prices.grain;
+  state.xikou.saltPrice = xikou.prices.salt;
+  state.xikou.clothPrice = xikou.prices.cloth;
 
   state.xikou.attitudeToPlayer = xikou.diplomacy.attitudeToPlayer;
   state.xikou.trust = xikou.diplomacy.trust;
@@ -107,6 +173,12 @@ export function initForeignPolities(state) {
     production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
     prices: { grain: 1.2, salt: 5, cloth: 3 },
     diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
+    trade: {
+      baseExportWillingness: 0.8,
+      exportWillingness: { grain: 0.75, salt: 0.8, cloth: 0.85, dung: 0.6 },
+      exportRestrictions: { grain: false, salt: false, cloth: false, dung: false },
+      minCommodityReserve: { grain: 60000, salt: 0, cloth: 2500, dung: 100 },
+    },
   }, state.foreignPolities.northernTraders);
 
   syncLegacyXikou(state);
@@ -137,20 +209,30 @@ export function updateForeignPolities(state) {
     const clothOutput = mulberryLandMu * 0.3;
 
     const population = Math.max(0, safeNumber(polity.population, 0));
-    const grainDemand = population * 360;
-    const saltDemand = population * 15;
-    const clothDemand = population * 0.3;
+    const demandState = {
+      grain: { supply: grainOutput, demand: population * 360 },
+      salt: { supply: saltOutput, demand: population * 15 },
+      cloth: { supply: clothOutput, demand: population * 0.3 },
+      dung: { supply: 0, demand: population * 0.02 },
+    };
 
-    const grainStock = safeNumber(polity.commodities?.grain, 0) + grainOutput - grainDemand;
-    const saltStock = safeNumber(polity.commodities?.salt, 0) + saltOutput - saltDemand;
-    const clothStock = safeNumber(polity.commodities?.cloth, 0) + clothOutput - clothDemand;
-    const dungStock = safeNumber(polity.commodities?.dung, 0) - population * 0.02;
+    const grainStock = safeNumber(polity.commodities?.grain, 0) + demandState.grain.supply - demandState.grain.demand;
+    const saltStock = safeNumber(polity.commodities?.salt, 0) + demandState.salt.supply - demandState.salt.demand;
+    const clothStock = safeNumber(polity.commodities?.cloth, 0) + demandState.cloth.supply - demandState.cloth.demand;
+    const dungStock = safeNumber(polity.commodities?.dung, 0) + demandState.dung.supply - demandState.dung.demand;
 
     polity.commodities = polity.commodities ?? {};
     polity.commodities.grain = Math.round(clamp(grainStock, 0, 50000000));
     polity.commodities.salt = Math.round(clamp(saltStock, 0, 10000000));
     polity.commodities.cloth = Math.round(clamp(clothStock, 0, 2000000));
     polity.commodities.dung = Math.round(clamp(dungStock, 0, 2000000));
+
+    polity.prices = polity.prices ?? {};
+    polity.prices.grain = Number(calculatePolityPrice(polity.prices.grain, demandState.grain.supply, demandState.grain.demand, 0.5, 0.3, 8).toFixed(2));
+    polity.prices.salt = Number(calculatePolityPrice(polity.prices.salt, demandState.salt.supply, demandState.salt.demand, 0.7, 1, 15).toFixed(2));
+    polity.prices.cloth = Number(calculatePolityPrice(polity.prices.cloth, demandState.cloth.supply, demandState.cloth.demand, 0.6, 0.5, 12).toFixed(2));
+
+    updatePolityTradePolicy(polity, demandState);
   });
 
   syncLegacyXikou(state);
