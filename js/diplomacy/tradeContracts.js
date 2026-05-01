@@ -2,15 +2,26 @@ function getMonetaryState(state) {
   return state?.monetary ?? state?.world ?? {};
 }
 
-function getContractPrice(state, contract) {
+function getDomesticMarketPrice(state, commodity) {
+  return Math.max(0, Number(state?.commodityPrices?.[commodity]?.price ?? 0));
+}
+
+function getPartnerMarketPrice(partner, commodity) {
+  const key = normalizeCommodityKey(commodity);
+  return Math.max(0, Number(partner?.prices?.[key] ?? 0));
+}
+
+function getContractPrice(state, contract, partner) {
   if (contract.priceMode === 'fixed') {
     return Math.max(0, Number(contract.fixedPrice ?? 0));
   }
 
-  const marketPrice = Number(state?.commodityPrices?.[contract.commodity]?.price ?? 0);
-  const basePrice = Number(contract.fixedPrice ?? marketPrice ?? 0);
+  const domesticPrice = getDomesticMarketPrice(state, contract.commodity);
+  const partnerPrice = getPartnerMarketPrice(partner, contract.commodity);
+  const directionPrice = contract.direction === 'import' ? partnerPrice : domesticPrice;
+  const basePrice = Number(contract.fixedPrice ?? directionPrice ?? domesticPrice ?? partnerPrice ?? 0);
   const multiplier = Math.max(0, Number(contract.priceMultiplier ?? 1));
-  const rawPrice = Number.isFinite(marketPrice) && marketPrice > 0 ? marketPrice : basePrice;
+  const rawPrice = Number.isFinite(directionPrice) && directionPrice > 0 ? directionPrice : basePrice;
   return Math.max(0, rawPrice * multiplier);
 }
 
@@ -366,7 +377,7 @@ export function processTradeContracts(state) {
       continue;
     }
 
-    const unitPrice = getContractPrice(state, contract);
+    const unitPrice = getContractPrice(state, contract, partner);
     const totalPayment = Math.max(0, Math.round(deliverAmount * unitPrice));
 
     if (contract.direction === 'import') {
