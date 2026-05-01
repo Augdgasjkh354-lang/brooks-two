@@ -23,6 +23,10 @@ function mergePolity(defaultPolity, existingPolity = {}) {
       ...defaultPolity.prices,
       ...(existingPolity.prices ?? {}),
     },
+    basePrices: {
+      ...defaultPolity.basePrices,
+      ...(existingPolity.basePrices ?? {}),
+    },
     diplomacy: {
       ...defaultPolity.diplomacy,
       ...(existingPolity.diplomacy ?? {}),
@@ -46,12 +50,13 @@ function mergePolity(defaultPolity, existingPolity = {}) {
   };
 }
 
-function calculatePolityPrice(previousPrice, supply, demand, elasticity = 0.5, minPrice = 0.1, maxPrice = 50) {
+function calculatePolityPrice(previousPrice, basePrice, supply, demand, elasticity = 0.5, minPrice = 0.1, maxPrice = 50) {
   const safePrevious = Math.max(minPrice, safeNumber(previousPrice, minPrice));
+  const safeBase = Math.max(minPrice, safeNumber(basePrice, safePrevious));
   const safeSupply = Math.max(1, safeNumber(supply, 1));
   const safeDemand = Math.max(0, safeNumber(demand, 0));
   const ratio = safeDemand / safeSupply;
-  const targetPrice = safePrevious * Math.pow(Math.max(0.1, ratio), clamp(elasticity, 0.1, 1.5));
+  const targetPrice = safeBase * Math.pow(Math.max(0.1, ratio), clamp(elasticity, 0.1, 1.5));
   const smoothed = safePrevious * 0.7 + targetPrice * 0.3;
   return clamp(smoothed, minPrice, maxPrice);
 }
@@ -87,6 +92,10 @@ function updatePolityTradePolicy(polity, demandState) {
 }
 
 function createXikouPolityFromLegacy(legacyXikou = {}) {
+  const grainPrice = Math.max(0.1, safeNumber(legacyXikou.grainPrice, 1.0));
+  const saltPrice = Math.max(0.1, safeNumber(legacyXikou.saltPrice, 4.0));
+  const clothPrice = Math.max(0.1, safeNumber(legacyXikou.clothPrice, 2.0));
+
   return {
     id: 'xikou',
     name: '溪口村',
@@ -105,9 +114,14 @@ function createXikouPolityFromLegacy(legacyXikou = {}) {
       mulberryLandMu: Math.max(0, safeNumber(legacyXikou.mulberryLandMu, 1200)),
     },
     prices: {
-      grain: Math.max(0.1, safeNumber(legacyXikou.grainPrice, 1.0)),
-      salt: Math.max(0.1, safeNumber(legacyXikou.saltPrice, 4.0)),
-      cloth: Math.max(0.1, safeNumber(legacyXikou.clothPrice, 2.0)),
+      grain: grainPrice,
+      salt: saltPrice,
+      cloth: clothPrice,
+    },
+    basePrices: {
+      grain: grainPrice,
+      salt: saltPrice,
+      cloth: clothPrice,
     },
     diplomacy: {
       attitudeToPlayer: clamp(safeNumber(legacyXikou.attitudeToPlayer, 0), -100, 100),
@@ -172,6 +186,7 @@ export function initForeignPolities(state) {
     commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
     production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
     prices: { grain: 1.2, salt: 5, cloth: 3 },
+    basePrices: { grain: 1.2, salt: 5, cloth: 3 },
     diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
     trade: {
       baseExportWillingness: 0.8,
@@ -194,6 +209,11 @@ export function updateForeignPolities(state) {
 
   initForeignPolities(state);
 
+  const grainYieldPerMu = Math.max(
+    0,
+    safeNumber(state?.world?.grainYieldPerMu ?? state?.agriculture?.grainYieldPerMu ?? state?.world?.baseGrainYieldPerMu, 360)
+  );
+
   Object.values(state.foreignPolities).forEach((polity) => {
     if (!polity) return;
 
@@ -204,7 +224,7 @@ export function updateForeignPolities(state) {
     const saltMines = Math.max(0, safeNumber(polity.production?.saltMines, 0));
     const mulberryLandMu = Math.max(0, safeNumber(polity.production?.mulberryLandMu, 0));
 
-    const grainOutput = (farmlandMu / 10) * 360;
+    const grainOutput = farmlandMu * grainYieldPerMu;
     const saltOutput = saltMines * 200000;
     const clothOutput = mulberryLandMu * 0.3;
 
@@ -228,9 +248,39 @@ export function updateForeignPolities(state) {
     polity.commodities.dung = Math.round(clamp(dungStock, 0, 2000000));
 
     polity.prices = polity.prices ?? {};
-    polity.prices.grain = Number(calculatePolityPrice(polity.prices.grain, demandState.grain.supply, demandState.grain.demand, 0.5, 0.3, 8).toFixed(2));
-    polity.prices.salt = Number(calculatePolityPrice(polity.prices.salt, demandState.salt.supply, demandState.salt.demand, 0.7, 1, 15).toFixed(2));
-    polity.prices.cloth = Number(calculatePolityPrice(polity.prices.cloth, demandState.cloth.supply, demandState.cloth.demand, 0.6, 0.5, 12).toFixed(2));
+    polity.basePrices = {
+      grain: Math.max(0.1, safeNumber(polity.basePrices?.grain ?? polity.prices?.grain, 1.0)),
+      salt: Math.max(0.1, safeNumber(polity.basePrices?.salt ?? polity.prices?.salt, 4.0)),
+      cloth: Math.max(0.1, safeNumber(polity.basePrices?.cloth ?? polity.prices?.cloth, 2.0)),
+    };
+
+    polity.prices.grain = Number(calculatePolityPrice(
+      polity.prices.grain,
+      polity.basePrices.grain,
+      demandState.grain.supply,
+      demandState.grain.demand,
+      0.5,
+      0.3,
+      8
+    ).toFixed(2));
+    polity.prices.salt = Number(calculatePolityPrice(
+      polity.prices.salt,
+      polity.basePrices.salt,
+      demandState.salt.supply,
+      demandState.salt.demand,
+      0.7,
+      1,
+      15
+    ).toFixed(2));
+    polity.prices.cloth = Number(calculatePolityPrice(
+      polity.prices.cloth,
+      polity.basePrices.cloth,
+      demandState.cloth.supply,
+      demandState.cloth.demand,
+      0.6,
+      0.5,
+      12
+    ).toFixed(2));
 
     updatePolityTradePolicy(polity, demandState);
   });

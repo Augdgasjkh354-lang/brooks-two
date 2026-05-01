@@ -421,6 +421,7 @@ export const initialState = {
       commodities: { grain: 500000, salt: 0, cloth: 0, dung: 0 },
       production: { farmlandMu: XIKOU_FARMLAND_MU, saltMines: 2, mulberryLandMu: XIKOU_MULBERRY_MU },
       prices: { grain: 1.0, salt: 4, cloth: 2 },
+      basePrices: { grain: 1.0, salt: 4, cloth: 2 },
       diplomacy: { attitudeToPlayer: 0, trust: 40, dependency: 20, diplomaticContact: false },
     },
     northernTraders: {
@@ -432,6 +433,7 @@ export const initialState = {
       commodities: { grain: 100000, salt: 0, cloth: 5000, dung: 0 },
       production: { farmlandMu: 0, saltMines: 0, mulberryLandMu: 0 },
       prices: { grain: 1.2, salt: 5, cloth: 3 },
+      basePrices: { grain: 1.2, salt: 5, cloth: 3 },
       diplomacy: { attitudeToPlayer: 0, trust: 30, dependency: 0 },
     },
   },
@@ -1552,6 +1554,18 @@ function ensureXikouAuthority(state) {
       mulberryLandMu: Math.max(0, Number(currentXikou?.production?.mulberryLandMu ?? legacyXikou.mulberryLandMu ?? XIKOU_MULBERRY_MU)),
       ...(currentXikou.production ?? {}),
     },
+    prices: {
+      grain: Math.max(0.1, Number(currentXikou?.prices?.grain ?? legacyXikou.grainPrice ?? 1.0)),
+      salt: Math.max(0.1, Number(currentXikou?.prices?.salt ?? legacyXikou.saltPrice ?? 4.0)),
+      cloth: Math.max(0.1, Number(currentXikou?.prices?.cloth ?? legacyXikou.clothPrice ?? 2.0)),
+      ...(currentXikou.prices ?? {}),
+    },
+    basePrices: {
+      grain: Math.max(0.1, Number(currentXikou?.basePrices?.grain ?? currentXikou?.prices?.grain ?? legacyXikou.grainPrice ?? 1.0)),
+      salt: Math.max(0.1, Number(currentXikou?.basePrices?.salt ?? currentXikou?.prices?.salt ?? legacyXikou.saltPrice ?? 4.0)),
+      cloth: Math.max(0.1, Number(currentXikou?.basePrices?.cloth ?? currentXikou?.prices?.cloth ?? legacyXikou.clothPrice ?? 2.0)),
+      ...(currentXikou.basePrices ?? {}),
+    },
     diplomacy: {
       attitudeToPlayer: Math.max(-100, Math.min(100, Number(currentXikou?.diplomacy?.attitudeToPlayer ?? legacyXikou.attitudeToPlayer ?? 0))),
       trust: Math.max(0, Math.min(100, Number(currentXikou?.diplomacy?.trust ?? legacyXikou.trust ?? 40))),
@@ -1580,6 +1594,8 @@ function ensureXikouAuthority(state) {
         ...value,
         commodities: { ...(existing.commodities ?? {}), ...(value.commodities ?? {}) },
         production: { ...(existing.production ?? {}), ...(value.production ?? {}) },
+        prices: { ...(existing.prices ?? {}), ...(value.prices ?? {}) },
+        basePrices: { ...(existing.basePrices ?? {}), ...(value.basePrices ?? {}) },
         diplomacy: { ...(existing.diplomacy ?? {}), ...(value.diplomacy ?? {}) },
       };
     },
